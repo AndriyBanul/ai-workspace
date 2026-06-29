@@ -1,0 +1,39 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Java / Spring Boot
+build/
+target/
+out/
+*.class
+*.jar
+*.war
+*.ear
+
+# Gradle
+.gradle/
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Local runtime data
+data/exports/*
+!data/exports/.gitkeep
+
