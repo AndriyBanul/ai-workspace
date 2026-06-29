@@ -3,6 +3,8 @@ package com.aiworkspace.controllers;
 import com.aiworkspace.documents.domain.ParsedTextDocument;
 import com.aiworkspace.documents.services.TextDocumentParserService;
 import java.io.IOException;
+
+import com.aiworkspace.models.TextDocumentUploadResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -46,6 +48,4 @@ public class TextDocumentController {
         ));
     }
 
-    public record TextDocumentUploadResponse(String filename, long sizeBytes, int characterCount) {
-    }
 }
