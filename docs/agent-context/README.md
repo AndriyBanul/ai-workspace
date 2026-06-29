@@ -29,6 +29,7 @@ apps
   settings.gradle
   build.gradle
   api
+  shared
 ```
 
 Run build commands from `apps`:
@@ -38,6 +39,8 @@ Run build commands from `apps`:
 ```
 
 `apps/api` is the executable Spring Boot application.
+
+`apps/shared` is a Java library module for data models that are genuinely shared across application modules.
 
 The initial Java package is `com.aiworkspace`.
 

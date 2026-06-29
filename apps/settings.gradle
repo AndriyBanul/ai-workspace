@@ -1,3 +1,4 @@
 rootProject.name = 'ai-workspace'
 
 include 'api'
+include 'shared'

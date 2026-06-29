@@ -11,11 +11,14 @@ apps
   settings.gradle
   build.gradle
   api
+  shared
 ```
 
 `apps` is the Gradle root opened by IntelliJ IDEA.
 
 `apps/api` is the executable Spring Boot application subproject.
+
+`apps/shared` is a Java library subproject for shared data models.
 
 The initial API package is `com.aiworkspace`.
 
@@ -34,6 +37,7 @@ com.aiworkspace
 - One Git repository.
 - Use `apps` as the single Gradle root for application modules.
 - Keep `apps/api` as the executable Spring Boot application.
+- Keep `apps/shared` limited to genuinely shared data models and stable shared contracts.
 - Do not add nested Gradle roots or wrappers inside subprojects.
 - Separate modules for each business domain when real domain complexity requires a physical module boundary.
 - Modules must communicate through interfaces.

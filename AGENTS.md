@@ -36,11 +36,14 @@ cd apps
 Current application module:
 
 - `apps/api` - executable Spring Boot API subproject using base package `com.aiworkspace`.
+- `apps/shared` - shared data model library subproject using base package `com.aiworkspace.shared`.
 
 Initial package areas inside `apps/api`:
 
 - `config`
 - `controllers`
+
+Use `apps/shared` for data models that are genuinely shared across application modules.
 
 Do not add nested Gradle roots or Gradle wrappers inside subprojects.
 

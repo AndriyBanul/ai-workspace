@@ -10,6 +10,7 @@ Current ADRs:
 - `0002-define-initial-module-boundaries.md` - superseded by ADR 0004.
 - `0003-add-documents-module.md` - superseded by ADR 0004.
 - `0004-use-apps-level-gradle-multi-module-structure.md` - accepted current application structure.
+- `0005-add-shared-data-model-module.md` - accepted shared library module for common data models.
 
 Suggested file name:
 

@@ -35,6 +35,11 @@ apps
     build.gradle
     src/main/java/com/aiworkspace
     src/test/java/com/aiworkspace
+
+  shared
+    build.gradle
+    src/main/java/com/aiworkspace/shared
+    src/test/java/com/aiworkspace/shared
 ```
 
 The initial Java package is:
@@ -75,12 +80,17 @@ Owns the executable Spring Boot application:
 
 Spring Boot application plugins belong in `apps/api`, not in every subproject.
 
+### `apps/shared`
+
+Owns shared data models and stable shared contracts that are needed by multiple application modules.
+
+It is a Java library module and must not contain application startup code, REST controllers, persistence implementation, or business workflow orchestration.
+
 ### Future Subprojects
 
-Future modules may be added under `apps/` as library modules, for example:
+Future business modules may be added under `apps/` as library modules, for example:
 
 ```text
-apps/shared
 apps/documents
 apps/ai
 apps/knowledge
