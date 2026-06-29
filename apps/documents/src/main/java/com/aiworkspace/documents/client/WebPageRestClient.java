@@ -1,5 +1,6 @@
 package com.aiworkspace.documents.client;
 
+import com.aiworkspace.documents.domain.FetchedWebPage;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;

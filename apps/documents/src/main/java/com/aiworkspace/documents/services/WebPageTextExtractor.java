@@ -1,8 +1,8 @@
 package com.aiworkspace.documents.services;
 
-import com.aiworkspace.documents.client.FetchedWebPage;
 import com.aiworkspace.documents.client.WebPageRestClient;
 import com.aiworkspace.documents.domain.ExtractedWebPage;
+import com.aiworkspace.documents.domain.FetchedWebPage;
 import java.io.IOException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
