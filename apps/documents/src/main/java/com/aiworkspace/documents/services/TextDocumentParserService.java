@@ -2,7 +2,9 @@ package com.aiworkspace.documents.services;
 
 import com.aiworkspace.documents.domain.ParsedTextDocument;
 import java.nio.charset.StandardCharsets;
+import org.springframework.stereotype.Service;
 
+@Service
 public class TextDocumentParserService {
 
     public ParsedTextDocument parse(String filename, byte[] bytes) {

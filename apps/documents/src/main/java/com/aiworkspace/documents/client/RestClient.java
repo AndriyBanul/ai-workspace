@@ -7,7 +7,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import org.springframework.stereotype.Component;
 
+@Component
 public class RestClient {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);

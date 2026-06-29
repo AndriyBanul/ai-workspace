@@ -6,7 +6,9 @@ import com.aiworkspace.documents.domain.FetchedWebPage;
 import java.io.IOException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.springframework.stereotype.Service;
 
+@Service
 public class WebPageTextExtractorService {
 
     private final RestClient restClient;
