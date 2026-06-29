@@ -24,15 +24,17 @@ Prioritize architecture, maintainability, production readiness, testing, deploym
 
 ## Project Context
 
-Read the project documentation in `docs/` before making architecture-level decisions:
+Read `docs/agent-context/README.md` before making architecture-level decisions.
 
-- `docs/vision.md`
-- `docs/development-philosophy.md`
-- `docs/architecture.md`
-- `docs/technology-stack.md`
-- `docs/coding-standards.md`
-- `docs/testing.md`
-- `docs/api-guidelines.md`
-- `docs/database.md`
-- `docs/ai-layer.md`
-- `docs/roadmap.md`
+Use the detailed project guidance in `docs/agent-context/` as long-term project memory:
+
+- `docs/agent-context/vision.md`
+- `docs/agent-context/development-philosophy.md`
+- `docs/agent-context/architecture.md`
+- `docs/agent-context/technology-stack.md`
+- `docs/agent-context/coding-standards.md`
+- `docs/agent-context/testing.md`
+- `docs/agent-context/api-guidelines.md`
+- `docs/agent-context/database.md`
+- `docs/agent-context/ai-layer.md`
+- `docs/agent-context/roadmap.md`
