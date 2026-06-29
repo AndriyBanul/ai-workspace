@@ -11,6 +11,7 @@ Current ADRs:
 - `0003-add-documents-module.md` - superseded by ADR 0004.
 - `0004-use-apps-level-gradle-multi-module-structure.md` - accepted current application structure.
 - `0005-add-shared-data-model-module.md` - accepted shared library module for common data models.
+- `0006-add-multimodal-business-modules.md` - accepted business modules for documents, images, videos, and audio.
 
 Suggested file name:
 

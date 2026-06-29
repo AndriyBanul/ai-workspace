@@ -7,6 +7,10 @@ Workspace for Java/Spring Boot services and supporting AI infrastructure.
 - `apps` - Gradle multi-module root for application code
 - `apps/api` - main executable Spring Boot API subproject
 - `apps/shared` - shared data model library subproject
+- `apps/documents` - document business logic subproject
+- `apps/images` - image business logic subproject
+- `apps/videos` - video business logic subproject
+- `apps/audio` - audio business logic subproject
 - `docs` - architecture notes, API notes, and project documentation
 - `infra` - server/service configuration, SQL, and deployment assets
 - `scripts` - helper scripts for local operations and deployment

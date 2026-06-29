@@ -19,6 +19,10 @@ repositories {
 
 dependencies {
 	implementation project(':shared')
+	implementation project(':documents')
+	implementation project(':images')
+	implementation project(':videos')
+	implementation project(':audio')
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

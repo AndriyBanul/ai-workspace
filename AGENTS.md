@@ -37,6 +37,10 @@ Current application module:
 
 - `apps/api` - executable Spring Boot API subproject using base package `com.aiworkspace`.
 - `apps/shared` - shared data model library subproject using base package `com.aiworkspace.shared`.
+- `apps/documents` - document business logic module using base package `com.aiworkspace.documents`.
+- `apps/images` - image business logic module using base package `com.aiworkspace.images`.
+- `apps/videos` - video business logic module using base package `com.aiworkspace.videos`.
+- `apps/audio` - audio business logic module using base package `com.aiworkspace.audio`.
 
 Initial package areas inside `apps/api`:
 
@@ -44,6 +48,8 @@ Initial package areas inside `apps/api`:
 - `controllers`
 
 Use `apps/shared` for data models that are genuinely shared across application modules.
+
+Use `apps/api` as the HTTP entrypoint. Keep business logic in the relevant business module.
 
 Do not add nested Gradle roots or Gradle wrappers inside subprojects.
 

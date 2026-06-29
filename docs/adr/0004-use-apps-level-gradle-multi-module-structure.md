@@ -40,6 +40,11 @@ apps
     build.gradle
     src/main/java/com/aiworkspace/shared
     src/test/java/com/aiworkspace/shared
+
+  documents
+  images
+  videos
+  audio
 ```
 
 The initial Java package is:
@@ -56,7 +61,7 @@ com.aiworkspace
   controllers
 ```
 
-Do not add dedicated business modules until real domain complexity requires them.
+Business logic modules are added as Java library subprojects and exposed through `apps/api`.
 
 ## Responsibilities
 
@@ -88,10 +93,13 @@ It is a Java library module and must not contain application startup code, REST 
 
 ### Future Subprojects
 
-Future business modules may be added under `apps/` as library modules, for example:
+Business modules may be added under `apps/` as library modules, for example:
 
 ```text
 apps/documents
+apps/images
+apps/videos
+apps/audio
 apps/ai
 apps/knowledge
 ```

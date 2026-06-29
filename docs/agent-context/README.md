@@ -30,6 +30,10 @@ apps
   build.gradle
   api
   shared
+  documents
+  images
+  videos
+  audio
 ```
 
 Run build commands from `apps`:
@@ -42,6 +46,13 @@ Run build commands from `apps`:
 
 `apps/shared` is a Java library module for data models that are genuinely shared across application modules.
 
+Business logic modules:
+
+- `apps/documents` - document ingestion, metadata, text extraction, and document lifecycle.
+- `apps/images` - image ingestion, OCR, image analysis, and image metadata.
+- `apps/videos` - video ingestion, frame extraction, scene analysis, and video understanding.
+- `apps/audio` - audio ingestion, speech-to-text, text-to-speech, diarization, and audio metadata.
+
 The initial Java package is `com.aiworkspace`.
 
 Start with these package areas inside `apps/api`:
@@ -52,7 +63,7 @@ com.aiworkspace
   controllers
 ```
 
-Do not add dedicated business modules such as `documents` until real domain complexity requires them.
+Keep `apps/api` as the HTTP entrypoint and put business logic in the relevant business module.
 
 ## Reading Order
 
