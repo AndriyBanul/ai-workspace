@@ -1,4 +1,4 @@
-package com.aiworkspace.documents;
+package com.aiworkspace.documents.client;
 
 import java.io.IOException;
 import java.net.URI;
@@ -7,28 +7,26 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
 
-public class WebPageTextExtractor {
+public class WebPageRestClient {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
     private static final String USER_AGENT = "AI-Workspace/0.1";
 
     private final HttpClient httpClient;
 
-    public WebPageTextExtractor() {
+    public WebPageRestClient() {
         this(HttpClient.newBuilder()
                 .connectTimeout(REQUEST_TIMEOUT)
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build());
     }
 
-    WebPageTextExtractor(HttpClient httpClient) {
+    WebPageRestClient(HttpClient httpClient) {
         this.httpClient = httpClient;
     }
 
-    public ExtractedWebPage extract(String rawUrl) throws IOException, InterruptedException {
+    public FetchedWebPage fetch(String rawUrl) throws IOException, InterruptedException {
         URI uri = parseHttpUri(rawUrl);
 
         HttpRequest request = HttpRequest.newBuilder(uri)
@@ -46,10 +44,7 @@ public class WebPageTextExtractor {
             throw new IOException("Unexpected HTTP status: " + response.statusCode());
         }
 
-        Document document = Jsoup.parse(response.body(), uri.toString());
-        String content = document.body() == null ? document.text() : document.body().text();
-
-        return new ExtractedWebPage(uri.toString(), document.title(), content);
+        return new FetchedWebPage(uri.toString(), response.body());
     }
 
     private URI parseHttpUri(String rawUrl) {

@@ -1,5 +1,6 @@
-package com.aiworkspace.documents;
+package com.aiworkspace.documents.services;
 
+import com.aiworkspace.documents.domain.ParsedTextDocument;
 import java.nio.charset.StandardCharsets;
 
 public class TextDocumentParser {

@@ -1,7 +1,7 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.documents.ParsedTextDocument;
-import com.aiworkspace.documents.TextDocumentParser;
+import com.aiworkspace.documents.domain.ParsedTextDocument;
+import com.aiworkspace.documents.services.TextDocumentParser;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
