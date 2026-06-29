@@ -28,6 +28,16 @@ Make maintainable, production-oriented decisions.
 - `database.md` - PostgreSQL and Flyway rules.
 - `ai-layer.md` - AI provider abstraction and multimodal design direction.
 - `roadmap.md` - future capabilities and infrastructure.
+- `definition-of-done.md` - completion criteria for implementation tasks.
+- `git-workflow.md` - branch, commit, push, and merge rules.
+- `architecture-decisions.md` - ADR rules for important architectural choices.
+- `security.md` - secrets, sensitive data, and access-control expectations.
+- `observability.md` - logging, metrics, tracing, and diagnosability rules.
+- `ai-quality.md` - prompt, model, retrieval, and AI-output quality rules.
+- `module-boundaries.md` - modular monolith boundary rules.
+- `dependencies.md` - dependency selection and justification rules.
+- `deployment.md` - deployment preference and operational assumptions.
+- `risky-actions.md` - actions that require explicit confirmation.
 
 ## Prompt For Future Agents
 
@@ -42,7 +52,7 @@ Before making changes, read:
 2. docs/agent-context/README.md
 3. The specific files in docs/agent-context/ that are relevant to the task.
 
-Follow the architecture, coding standards, testing rules, database rules, API guidelines, and AI-layer guidelines described there.
+Follow the architecture, coding standards, testing rules, database rules, API guidelines, AI-layer guidelines, security rules, Git workflow, and definition of done described there.
 
 Do not treat this as a one-off code generation task. Make maintainable, production-oriented decisions.
 ```

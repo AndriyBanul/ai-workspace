@@ -38,3 +38,13 @@ Use the detailed project guidance in `docs/agent-context/` as long-term project 
 - `docs/agent-context/database.md`
 - `docs/agent-context/ai-layer.md`
 - `docs/agent-context/roadmap.md`
+- `docs/agent-context/definition-of-done.md`
+- `docs/agent-context/git-workflow.md`
+- `docs/agent-context/architecture-decisions.md`
+- `docs/agent-context/security.md`
+- `docs/agent-context/observability.md`
+- `docs/agent-context/ai-quality.md`
+- `docs/agent-context/module-boundaries.md`
+- `docs/agent-context/dependencies.md`
+- `docs/agent-context/deployment.md`
+- `docs/agent-context/risky-actions.md`
