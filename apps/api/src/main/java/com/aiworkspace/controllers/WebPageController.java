@@ -51,9 +51,6 @@ public class WebPageController {
             ));
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new ResponseStatusException(BAD_GATEWAY, "Interrupted while fetching web page", exception);
         } catch (IOException exception) {
             throw new ResponseStatusException(BAD_GATEWAY, "Failed to fetch web page", exception);
         }

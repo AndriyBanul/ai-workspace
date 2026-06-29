@@ -1,6 +1,6 @@
 package com.aiworkspace.documents.services;
 
-import com.aiworkspace.documents.client.RestClient;
+import com.aiworkspace.documents.client.GenericRestClient;
 import com.aiworkspace.documents.models.ExtractedWebPage;
 import com.aiworkspace.documents.models.FetchedWebPage;
 import java.io.IOException;
@@ -11,13 +11,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class WebPageTextExtractorService {
 
-    private final RestClient restClient;
+    private final GenericRestClient restClient;
 
-    public WebPageTextExtractorService(RestClient restClient) {
+    public WebPageTextExtractorService(GenericRestClient restClient) {
         this.restClient = restClient;
     }
 
-    public ExtractedWebPage extract(String rawUrl) throws IOException, InterruptedException {
+    public ExtractedWebPage extract(String rawUrl) throws IOException {
         FetchedWebPage fetchedWebPage = restClient.get(rawUrl, FetchedWebPage::new);
 
         Document document = Jsoup.parse(fetchedWebPage.html(), fetchedWebPage.url());

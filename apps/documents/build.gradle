@@ -15,5 +15,6 @@ dependencyManagement {
 dependencies {
 	implementation project(':shared')
 	compileOnly 'org.springframework:spring-context'
+	compileOnly 'org.springframework:spring-web'
 	implementation 'org.jsoup:jsoup:1.18.3'
 }

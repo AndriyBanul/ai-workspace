@@ -3,50 +3,45 @@ package com.aiworkspace.documents.client;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClientException;
 
 @Component
-public class RestClient {
+public class GenericRestClient {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
     private static final String USER_AGENT = "My-Space";
 
-    private final HttpClient httpClient;
+    private final org.springframework.web.client.RestClient restClient;
 
-    public RestClient() {
-        this(HttpClient.newBuilder()
+    public GenericRestClient() {
+        HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(REQUEST_TIMEOUT)
                 .followRedirects(HttpClient.Redirect.NORMAL)
-                .build());
-    }
-
-    RestClient(HttpClient httpClient) {
-        this.httpClient = httpClient;
-    }
-
-    public <T> T get(String rawUrl, RestResponseMapper<T> responseMapper) throws IOException, InterruptedException {
-        URI uri = parseHttpUri(rawUrl);
-
-        HttpRequest request = HttpRequest.newBuilder(uri)
-                .timeout(REQUEST_TIMEOUT)
-                .header("User-Agent", USER_AGENT)
-                .GET()
                 .build();
 
-        HttpResponse<String> response = httpClient.send(
-                request,
-                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
-        );
+        this.restClient = org.springframework.web.client.RestClient.builder()
+                .requestFactory(new JdkClientHttpRequestFactory(httpClient))
+                .defaultHeader(HttpHeaders.USER_AGENT, USER_AGENT)
+                .build();
+    }
 
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("Unexpected HTTP status: " + response.statusCode());
+    public <T> T get(String rawUrl, RestResponseMapper<T> responseMapper) throws IOException {
+        URI uri = parseHttpUri(rawUrl);
+
+        try {
+            String body = restClient.get()
+                    .uri(uri)
+                    .retrieve()
+                    .body(String.class);
+
+            return responseMapper.map(uri.toString(), body == null ? "" : body);
+        } catch (RestClientException exception) {
+            throw new IOException("Failed to execute GET request to " + uri, exception);
         }
-
-        return responseMapper.map(uri.toString(), response.body());
     }
 
     private URI parseHttpUri(String rawUrl) {
