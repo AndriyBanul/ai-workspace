@@ -1,0 +1,15 @@
+services:
+  piper:
+    image: rhasspy/wyoming-piper:latest
+    container_name: ai-workspace-piper
+    command:
+      - --voice
+      - ${PIPER_VOICE:-en_US-lessac-medium}
+    ports:
+      - "${PIPER_PORT:-10200}:10200"
+    volumes:
+      - piper-data:/data
+    restart: unless-stopped
+
+volumes:
+  piper-data:

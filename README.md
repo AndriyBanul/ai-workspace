@@ -14,6 +14,7 @@ Workspace for Java/Spring Boot services and supporting AI infrastructure.
 - `docs` - architecture notes, API notes, and project documentation
 - `infra` - server/service configuration, SQL, and deployment assets
 - `infra/docker/whisper` - optional Docker setup for local Whisper speech-to-text
+- `infra/docker/piper` - optional Docker setup for local Piper text-to-speech
 - `scripts` - helper scripts for local operations and deployment
 - `data` - local sample data and exports
 
@@ -35,3 +36,13 @@ docker compose -f infra/docker/whisper/compose.yml up -d
 ```
 
 The service listens on `http://localhost:9000` by default.
+
+## Local Piper
+
+Piper is optional supporting infrastructure for text-to-speech. Start it with Docker:
+
+```bash
+docker compose -f infra/docker/piper/compose.yml up -d
+```
+
+The service listens on Wyoming protocol port `10200` by default.

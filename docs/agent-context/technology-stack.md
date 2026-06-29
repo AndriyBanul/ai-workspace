@@ -25,6 +25,8 @@ Docker may be used for local development, optional packaging, or isolated suppor
 
 The local Whisper speech-to-text service is Docker-based because Андрій explicitly requested Docker for this component. Its compose file lives at `infra/docker/whisper/compose.yml`.
 
+The local Piper text-to-speech service is also Docker-based by explicit request. Its compose file lives at `infra/docker/piper/compose.yml`.
+
 ## Future Technologies
 
 - Kafka
