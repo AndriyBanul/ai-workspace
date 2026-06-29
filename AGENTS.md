@@ -40,8 +40,7 @@ Current application module:
 Initial package areas inside `apps/api`:
 
 - `config`
-- `platformapi`
-- `shared`
+- `controllers`
 
 Do not add nested Gradle roots or Gradle wrappers inside subprojects.
 

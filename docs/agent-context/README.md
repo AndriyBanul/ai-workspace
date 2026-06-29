@@ -46,8 +46,7 @@ Start with these package areas inside `apps/api`:
 ```text
 com.aiworkspace
   config
-  platformapi
-  shared
+  controllers
 ```
 
 Do not add dedicated business modules such as `documents` until real domain complexity requires them.

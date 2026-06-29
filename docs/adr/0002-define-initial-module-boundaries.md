@@ -15,8 +15,7 @@ apps
   api
     src/main/java/com/aiworkspace
       config
-      platformapi
-      shared
+      controllers
 ```
 
 The project is starting its implementation phase after establishing the repository, Git workflow, and project guidance.

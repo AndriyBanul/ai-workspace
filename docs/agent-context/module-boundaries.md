@@ -4,7 +4,7 @@
 - `apps/api` is the only executable Spring Boot application at the current stage.
 - Do not add nested `settings.gradle` files or Gradle wrappers inside subprojects.
 - The initial API package is `com.aiworkspace`.
-- Start with package-level areas inside `apps/api`: `config`, `platformapi`, and `shared`.
+- Start with package-level areas inside `apps/api`: `config` and `controllers`.
 - Add physical Gradle modules only when real domain complexity requires them.
 - Each module should own its domain model and persistence rules.
 - Cross-module communication should happen through interfaces or application services.

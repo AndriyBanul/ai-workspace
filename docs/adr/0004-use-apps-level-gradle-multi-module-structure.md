@@ -48,8 +48,7 @@ The initial API package areas are intentionally small:
 ```text
 com.aiworkspace
   config
-  platformapi
-  shared
+  controllers
 ```
 
 Do not add dedicated business modules until real domain complexity requires them.

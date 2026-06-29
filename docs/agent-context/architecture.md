@@ -24,8 +24,7 @@ Initial package areas inside `apps/api` are intentionally small:
 ```text
 com.aiworkspace
   config
-  platformapi
-  shared
+  controllers
 ```
 
 ## Rules
