@@ -23,6 +23,8 @@ Server deployment defaults to native/system services unless Docker is explicitly
 
 Docker may be used for local development, optional packaging, or isolated supporting services when appropriate.
 
+The local Whisper speech-to-text service is Docker-based because Андрій explicitly requested Docker for this component. Its compose file lives at `infra/docker/whisper/compose.yml`.
+
 ## Future Technologies
 
 - Kafka

@@ -13,6 +13,7 @@ Workspace for Java/Spring Boot services and supporting AI infrastructure.
 - `apps/audio` - audio business logic subproject
 - `docs` - architecture notes, API notes, and project documentation
 - `infra` - server/service configuration, SQL, and deployment assets
+- `infra/docker/whisper` - optional Docker setup for local Whisper speech-to-text
 - `scripts` - helper scripts for local operations and deployment
 - `data` - local sample data and exports
 
@@ -24,3 +25,13 @@ Run application build commands from `apps`:
 cd apps
 ./gradlew test
 ```
+
+## Local Whisper
+
+Whisper is optional supporting infrastructure for the `audio` module. Start it with Docker:
+
+```bash
+docker compose -f infra/docker/whisper/compose.yml up -d
+```
+
+The service listens on `http://localhost:9000` by default.
