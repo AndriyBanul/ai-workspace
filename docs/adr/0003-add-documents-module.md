@@ -2,9 +2,13 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0004: Use Apps-Level Gradle Multi-Module Structure](0004-use-apps-level-gradle-multi-module-structure.md)
 
 ## Context
+
+This ADR is kept for historical context only. The decision was superseded before document-related implementation started.
+
+The project now starts with a lighter `api` module containing `config`, `platformapi`, and `shared` package areas. A dedicated `documents` module will be introduced later only when real document-domain complexity requires it.
 
 The initial API structure contains `shared`, `config`, and `platformapi`.
 

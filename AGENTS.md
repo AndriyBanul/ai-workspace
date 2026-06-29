@@ -24,6 +24,27 @@ Prioritize architecture, maintainability, production readiness, testing, deploym
 
 ## Project Context
 
+Application code lives in a Gradle multi-module build rooted at `apps`.
+
+Open `apps` in IntelliJ IDEA and run Gradle commands from `apps`, for example:
+
+```bash
+cd apps
+./gradlew test
+```
+
+Current application module:
+
+- `apps/api` - executable Spring Boot API subproject using base package `com.aiworkspace`.
+
+Initial package areas inside `apps/api`:
+
+- `config`
+- `platformapi`
+- `shared`
+
+Do not add nested Gradle roots or Gradle wrappers inside subprojects.
+
 Read `docs/agent-context/README.md` before making architecture-level decisions.
 
 Use the detailed project guidance in `docs/agent-context/` as long-term project memory:

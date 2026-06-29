@@ -16,6 +16,42 @@ Act as a senior engineer working on a long-term commercial AI Platform product, 
 
 Make maintainable, production-oriented decisions.
 
+## Current Application Structure
+
+The application code is a Gradle multi-module build rooted at `apps`.
+
+Open `apps` in IntelliJ IDEA when working on application modules.
+
+Current module layout:
+
+```text
+apps
+  settings.gradle
+  build.gradle
+  api
+```
+
+Run build commands from `apps`:
+
+```bash
+./gradlew test
+```
+
+`apps/api` is the executable Spring Boot application.
+
+The initial Java package is `com.aiworkspace`.
+
+Start with these package areas inside `apps/api`:
+
+```text
+com.aiworkspace
+  config
+  platformapi
+  shared
+```
+
+Do not add dedicated business modules such as `documents` until real domain complexity requires them.
+
 ## Reading Order
 
 - `vision.md` - product vision and long-term platform direction.

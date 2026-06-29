@@ -4,11 +4,18 @@
 
 - Java 21+
 - Spring Boot
-- Gradle
+- Gradle multi-module build rooted at `apps`
 - Spring Data JPA
 - PostgreSQL
 - Flyway
 - REST APIs
+
+Build commands should be run from `apps`, for example:
+
+```bash
+cd apps
+./gradlew test
+```
 
 ## Deployment
 

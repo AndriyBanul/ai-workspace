@@ -4,6 +4,13 @@ Use this directory for important architecture decisions.
 
 Create ADRs when a decision affects module boundaries, infrastructure, database strategy, AI provider design, deployment architecture, or long-term maintainability.
 
+Current ADRs:
+
+- `0001-use-modular-monolith.md` - accepted initial architecture.
+- `0002-define-initial-module-boundaries.md` - superseded by ADR 0004.
+- `0003-add-documents-module.md` - superseded by ADR 0004.
+- `0004-use-apps-level-gradle-multi-module-structure.md` - accepted current application structure.
+
 Suggested file name:
 
 ```text

@@ -2,9 +2,22 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0004: Use Apps-Level Gradle Multi-Module Structure](0004-use-apps-level-gradle-multi-module-structure.md)
 
 ## Context
+
+This ADR is kept for historical context only. The initial package-boundary decision was refined after the project moved to an apps-level Gradle multi-module structure.
+
+The current structure is defined by ADR 0004:
+
+```text
+apps
+  api
+    src/main/java/com/aiworkspace
+      config
+      platformapi
+      shared
+```
 
 The project is starting its implementation phase after establishing the repository, Git workflow, and project guidance.
 
