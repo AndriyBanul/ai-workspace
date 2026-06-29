@@ -1,6 +1,6 @@
 package com.aiworkspace.documents.services;
 
-import com.aiworkspace.documents.domain.ParsedTextDocument;
+import com.aiworkspace.documents.models.ParsedTextDocument;
 import java.nio.charset.StandardCharsets;
 import org.springframework.stereotype.Service;
 

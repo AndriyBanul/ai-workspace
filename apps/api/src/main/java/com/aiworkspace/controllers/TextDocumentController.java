@@ -1,6 +1,6 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.documents.domain.ParsedTextDocument;
+import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.services.TextDocumentParserService;
 import java.io.IOException;
 

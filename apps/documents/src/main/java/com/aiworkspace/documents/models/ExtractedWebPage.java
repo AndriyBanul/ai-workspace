@@ -1,4 +1,4 @@
-package com.aiworkspace.documents.domain;
+package com.aiworkspace.documents.models;
 
 public record ExtractedWebPage(String url, String title, String content) {
 }

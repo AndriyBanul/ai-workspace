@@ -1,6 +1,6 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.documents.domain.ExtractedWebPage;
+import com.aiworkspace.documents.models.ExtractedWebPage;
 import com.aiworkspace.documents.services.WebPageTextExtractorService;
 import java.io.IOException;
 import org.slf4j.Logger;

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 public class RestClient {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
-    private static final String USER_AGENT = "AI-Workspace/0.1";
+    private static final String USER_AGENT = "My-Space";
 
     private final HttpClient httpClient;
 
