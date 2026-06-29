@@ -1,8 +1,8 @@
 package com.aiworkspace.config;
 
-import com.aiworkspace.documents.client.WebPageRestClient;
-import com.aiworkspace.documents.services.TextDocumentParser;
-import com.aiworkspace.documents.services.WebPageTextExtractor;
+import com.aiworkspace.documents.client.RestClient;
+import com.aiworkspace.documents.services.TextDocumentParserService;
+import com.aiworkspace.documents.services.WebPageTextExtractorService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -10,17 +10,17 @@ import org.springframework.context.annotation.Configuration;
 public class DocumentsConfig {
 
     @Bean
-    public TextDocumentParser textDocumentParser() {
-        return new TextDocumentParser();
+    public TextDocumentParserService textDocumentParserService() {
+        return new TextDocumentParserService();
     }
 
     @Bean
-    public WebPageRestClient webPageRestClient() {
-        return new WebPageRestClient();
+    public RestClient restClient() {
+        return new RestClient();
     }
 
     @Bean
-    public WebPageTextExtractor webPageTextExtractor(WebPageRestClient webPageRestClient) {
-        return new WebPageTextExtractor(webPageRestClient);
+    public WebPageTextExtractorService webPageTextExtractorService(RestClient restClient) {
+        return new WebPageTextExtractorService(restClient);
     }
 }

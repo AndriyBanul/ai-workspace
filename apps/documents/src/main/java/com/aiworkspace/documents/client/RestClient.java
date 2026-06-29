@@ -1,6 +1,5 @@
 package com.aiworkspace.documents.client;
 
-import com.aiworkspace.documents.domain.FetchedWebPage;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -9,25 +8,25 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
-public class WebPageRestClient {
+public class RestClient {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
     private static final String USER_AGENT = "AI-Workspace/0.1";
 
     private final HttpClient httpClient;
 
-    public WebPageRestClient() {
+    public RestClient() {
         this(HttpClient.newBuilder()
                 .connectTimeout(REQUEST_TIMEOUT)
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build());
     }
 
-    WebPageRestClient(HttpClient httpClient) {
+    RestClient(HttpClient httpClient) {
         this.httpClient = httpClient;
     }
 
-    public FetchedWebPage fetch(String rawUrl) throws IOException, InterruptedException {
+    public <T> T get(String rawUrl, RestResponseMapper<T> responseMapper) throws IOException, InterruptedException {
         URI uri = parseHttpUri(rawUrl);
 
         HttpRequest request = HttpRequest.newBuilder(uri)
@@ -45,7 +44,7 @@ public class WebPageRestClient {
             throw new IOException("Unexpected HTTP status: " + response.statusCode());
         }
 
-        return new FetchedWebPage(uri.toString(), response.body());
+        return responseMapper.map(uri.toString(), response.body());
     }
 
     private URI parseHttpUri(String rawUrl) {

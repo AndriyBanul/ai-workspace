@@ -1,7 +1,7 @@
 package com.aiworkspace.controllers;
 
 import com.aiworkspace.documents.domain.ExtractedWebPage;
-import com.aiworkspace.documents.services.WebPageTextExtractor;
+import com.aiworkspace.documents.services.WebPageTextExtractorService;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,10 +23,10 @@ public class WebPageController {
 
     private static final Logger log = LoggerFactory.getLogger(WebPageController.class);
 
-    private final WebPageTextExtractor webPageTextExtractor;
+    private final WebPageTextExtractorService webPageTextExtractorService;
 
-    public WebPageController(WebPageTextExtractor webPageTextExtractor) {
-        this.webPageTextExtractor = webPageTextExtractor;
+    public WebPageController(WebPageTextExtractorService webPageTextExtractorService) {
+        this.webPageTextExtractorService = webPageTextExtractorService;
     }
 
     @PostMapping("/web-page")
@@ -36,7 +36,7 @@ public class WebPageController {
         }
 
         try {
-            ExtractedWebPage page = webPageTextExtractor.extract(request.url());
+            ExtractedWebPage page = webPageTextExtractorService.extract(request.url());
             String loggedContent = contentForLog(page.content());
             boolean truncated = loggedContent.length() < page.content().length();
 

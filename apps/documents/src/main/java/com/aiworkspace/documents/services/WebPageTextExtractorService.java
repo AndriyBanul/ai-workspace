@@ -1,22 +1,22 @@
 package com.aiworkspace.documents.services;
 
-import com.aiworkspace.documents.client.WebPageRestClient;
+import com.aiworkspace.documents.client.RestClient;
 import com.aiworkspace.documents.domain.ExtractedWebPage;
 import com.aiworkspace.documents.domain.FetchedWebPage;
 import java.io.IOException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
-public class WebPageTextExtractor {
+public class WebPageTextExtractorService {
 
-    private final WebPageRestClient webPageRestClient;
+    private final RestClient restClient;
 
-    public WebPageTextExtractor(WebPageRestClient webPageRestClient) {
-        this.webPageRestClient = webPageRestClient;
+    public WebPageTextExtractorService(RestClient restClient) {
+        this.restClient = restClient;
     }
 
     public ExtractedWebPage extract(String rawUrl) throws IOException, InterruptedException {
-        FetchedWebPage fetchedWebPage = webPageRestClient.fetch(rawUrl);
+        FetchedWebPage fetchedWebPage = restClient.get(rawUrl, FetchedWebPage::new);
 
         Document document = Jsoup.parse(fetchedWebPage.html(), fetchedWebPage.url());
         String content = document.body() == null ? document.text() : document.body().text();
