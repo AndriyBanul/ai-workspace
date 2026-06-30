@@ -46,3 +46,13 @@ docker compose -f infra/docker/piper/compose.yml up -d
 ```
 
 The service listens on Wyoming protocol port `10200` by default.
+
+## Image Descriptions
+
+The `images` module can describe uploaded images through Gemini. Configure `GEMINI_API_KEY`
+before starting the API.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/images/descriptions \
+  -F "file=@/path/to/image.png"
+```
