@@ -56,3 +56,13 @@ before starting the API.
 curl -X POST http://localhost:8080/api/v1/images/descriptions \
   -F "file=@/path/to/image.png"
 ```
+
+The `images` module can also generate images through FLUX.1 Dev. Configure
+`HUGGING_FACE_API_TOKEN` before starting the API.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/images/generations \
+  -H 'Content-Type: application/json' \
+  -d '{"description":"A small cabin in a snowy forest at sunrise."}' \
+  --output generated-image.png
+```
