@@ -66,3 +66,13 @@ curl -X POST http://localhost:8080/api/v1/images/generations \
   -d '{"description":"A small cabin in a snowy forest at sunrise."}' \
   --output generated-image.png
 ```
+
+## Video Descriptions
+
+The `videos` module can describe uploaded videos through Gemini. Configure
+`GEMINI_API_KEY` before starting the API.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/videos/descriptions \
+  -F "file=@/path/to/video.mp4"
+```
