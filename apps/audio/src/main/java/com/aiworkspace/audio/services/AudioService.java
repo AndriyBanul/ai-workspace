@@ -1,7 +1,9 @@
 package com.aiworkspace.audio.services;
 
+import com.aiworkspace.audio.client.PiperClient;
 import com.aiworkspace.audio.client.WhisperClient;
 import com.aiworkspace.audio.models.AudioTranscription;
+import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.models.WhisperTranscriptionResponse;
 import java.io.IOException;
 import java.util.Locale;
@@ -9,19 +11,21 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 
 @Service
-public class AudioTranscriptionService {
+public class AudioService {
 
     private static final long MAX_FILE_SIZE_BYTES = 25L * 1024L * 1024L;
-    private static final Set<String> SUPPORTED_EXTENSIONS = Set.of("wav", "mp3", "mp4", "avi");
+    private static final Set<String> SUPPORTED_TRANSCRIPTION_EXTENSIONS = Set.of("wav", "mp3", "mp4", "avi");
 
     private final WhisperClient whisperClient;
+    private final PiperClient piperClient;
 
-    public AudioTranscriptionService(WhisperClient whisperClient) {
+    public AudioService(WhisperClient whisperClient, PiperClient piperClient) {
         this.whisperClient = whisperClient;
+        this.piperClient = piperClient;
     }
 
     public AudioTranscription transcribe(String filename, byte[] fileContent) throws IOException, InterruptedException {
-        validate(filename, fileContent);
+        validateTranscriptionFile(filename, fileContent);
 
         WhisperTranscriptionResponse transcription = whisperClient.transcribe(filename, fileContent);
 
@@ -32,7 +36,15 @@ public class AudioTranscriptionService {
         );
     }
 
-    private void validate(String filename, byte[] fileContent) {
+    public SynthesizedSpeech synthesize(String text) throws IOException {
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException("Text must not be blank");
+        }
+
+        return piperClient.synthesize(text);
+    }
+
+    private void validateTranscriptionFile(String filename, byte[] fileContent) {
         if (fileContent == null || fileContent.length == 0) {
             throw new IllegalArgumentException("File must not be empty");
         }
@@ -42,7 +54,7 @@ public class AudioTranscriptionService {
         }
 
         String extension = extension(filename);
-        if (!SUPPORTED_EXTENSIONS.contains(extension)) {
+        if (!SUPPORTED_TRANSCRIPTION_EXTENSIONS.contains(extension)) {
             throw new IllegalArgumentException("Only WAV, MP3, MP4, and AVI files are supported");
         }
     }

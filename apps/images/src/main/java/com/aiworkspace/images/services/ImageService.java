@@ -1,6 +1,8 @@
 package com.aiworkspace.images.services;
 
+import com.aiworkspace.images.client.FluxImageClient;
 import com.aiworkspace.images.client.GeminiImageClient;
+import com.aiworkspace.images.models.GeneratedImage;
 import com.aiworkspace.images.models.ImageDescription;
 import java.io.IOException;
 import java.util.Locale;
@@ -10,9 +12,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
-public class ImageDescriptionService {
+public class ImageService {
 
     private static final long MAX_FILE_SIZE_BYTES = 10L * 1024L * 1024L;
+    private static final int MAX_GENERATION_DESCRIPTION_LENGTH = 4_000;
     private static final Set<String> SUPPORTED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
     private static final Map<String, String> MIME_TYPES_BY_EXTENSION = Map.of(
             "jpg", "image/jpeg",
@@ -22,27 +25,36 @@ public class ImageDescriptionService {
     );
 
     private final GeminiImageClient geminiImageClient;
-    private final String prompt;
+    private final FluxImageClient fluxImageClient;
+    private final String descriptionPrompt;
 
-    public ImageDescriptionService(
+    public ImageService(
             GeminiImageClient geminiImageClient,
-            @Value("${ai-workspace.gemini.image-description-prompt:Describe this image clearly and concisely.}") String prompt
+            FluxImageClient fluxImageClient,
+            @Value("${ai-workspace.gemini.image-description-prompt:Describe this image clearly and concisely.}") String descriptionPrompt
     ) {
         this.geminiImageClient = geminiImageClient;
-        this.prompt = prompt;
+        this.fluxImageClient = fluxImageClient;
+        this.descriptionPrompt = descriptionPrompt;
     }
 
     public ImageDescription describe(String filename, String contentType, byte[] imageContent)
             throws IOException, InterruptedException {
-        validate(filename, imageContent);
+        validateImage(filename, imageContent);
 
         String mimeType = mimeType(filename, contentType);
-        String description = geminiImageClient.describe(imageContent, mimeType, prompt);
+        String description = geminiImageClient.describe(imageContent, mimeType, descriptionPrompt);
 
         return new ImageDescription(filename, mimeType, description);
     }
 
-    private void validate(String filename, byte[] imageContent) {
+    public GeneratedImage generate(String description) throws IOException, InterruptedException {
+        validateGenerationDescription(description);
+
+        return fluxImageClient.generate(description.trim());
+    }
+
+    private void validateImage(String filename, byte[] imageContent) {
         if (imageContent == null || imageContent.length == 0) {
             throw new IllegalArgumentException("File must not be empty");
         }
@@ -54,6 +66,16 @@ public class ImageDescriptionService {
         String extension = extension(filename);
         if (!SUPPORTED_EXTENSIONS.contains(extension)) {
             throw new IllegalArgumentException("Only JPG, PNG, and WEBP images are supported");
+        }
+    }
+
+    private void validateGenerationDescription(String description) {
+        if (description == null || description.isBlank()) {
+            throw new IllegalArgumentException("Description must not be blank");
+        }
+
+        if (description.length() > MAX_GENERATION_DESCRIPTION_LENGTH) {
+            throw new IllegalArgumentException("Description must not be longer than 4000 characters");
         }
     }
 
