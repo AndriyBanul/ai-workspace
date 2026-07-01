@@ -42,6 +42,7 @@ Current application module:
 - `apps/videos` - video business logic module using base package `com.aiworkspace.videos`.
 - `apps/audio` - audio business logic module using base package `com.aiworkspace.audio`.
 - `apps/knowledge` - knowledge business logic module using base package `com.aiworkspace.knowledge`.
+- `apps/orchestrator` - async multimodal orchestration module using base package `com.aiworkspace.orchestrator`.
 
 Initial package areas inside `apps/api`:
 

@@ -12,6 +12,7 @@ Workspace for Java/Spring Boot services and supporting AI infrastructure.
 - `apps/videos` - video business logic subproject
 - `apps/audio` - audio business logic subproject
 - `apps/knowledge` - knowledge and workspace retrieval business logic subproject
+- `apps/orchestrator` - async multimodal orchestration subproject
 - `docs` - architecture notes, API notes, and project documentation
 - `infra` - server/service configuration, SQL, and deployment assets
 - `infra/docker/whisper` - optional Docker setup for local Whisper speech-to-text
@@ -71,6 +72,16 @@ Ask a question against a workspace context:
 curl -X POST http://localhost:8080/api/v1/knowledge/workspaces/default-workspace/answers \
   -H 'Content-Type: application/json' \
   -d '{"question":"What do we know about this workspace?"}'
+```
+
+Run async multimodal ingestion:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/orchestrator/ingestions \
+  -F "document=@/path/to/document.txt" \
+  -F "audio=@/path/to/audio.mp3" \
+  -F "image=@/path/to/image.png" \
+  -F "video=@/path/to/video.mp4"
 ```
 
 ## Image Descriptions

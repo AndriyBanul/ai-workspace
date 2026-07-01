@@ -17,6 +17,7 @@ apps
   videos
   audio
   knowledge
+  orchestrator
 ```
 
 `apps` is the Gradle root opened by IntelliJ IDEA.
@@ -32,6 +33,7 @@ Business logic lives in dedicated Java library subprojects:
 - `apps/videos`
 - `apps/audio`
 - `apps/knowledge`
+- `apps/orchestrator`
 
 The initial API package is `com.aiworkspace`.
 
