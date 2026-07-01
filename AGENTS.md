@@ -55,6 +55,10 @@ Do not add nested Gradle roots or Gradle wrappers inside subprojects.
 
 Read `docs/agent-context/README.md` before making architecture-level decisions.
 
+Read `DEVELOPER_CODE_PREFERENCES.md` before making code changes.
+
+`DEVELOPER_CODE_PREFERENCES.md` captures Andrii's code-writing preferences and has higher priority than the general guidance in `docs/agent-context/`. If it conflicts with other project guidance, follow `DEVELOPER_CODE_PREFERENCES.md` first unless Andrii explicitly says otherwise.
+
 Use the detailed project guidance in `docs/agent-context/` as long-term project memory:
 
 - `docs/agent-context/vision.md`
