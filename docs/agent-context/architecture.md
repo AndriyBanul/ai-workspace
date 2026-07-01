@@ -16,6 +16,7 @@ apps
   images
   videos
   audio
+  knowledge
 ```
 
 `apps` is the Gradle root opened by IntelliJ IDEA.
@@ -30,6 +31,7 @@ Business logic lives in dedicated Java library subprojects:
 - `apps/images`
 - `apps/videos`
 - `apps/audio`
+- `apps/knowledge`
 
 The initial API package is `com.aiworkspace`.
 
@@ -59,4 +61,4 @@ Future migration to microservices should require minimal code changes.
 
 Each future microservice should correspond to one existing module.
 
-Additional business modules such as `knowledge` and `ai` should be added when their boundaries become concrete.
+Additional business modules such as `ai` should be added when their boundaries become concrete.

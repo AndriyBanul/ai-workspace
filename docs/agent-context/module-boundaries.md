@@ -3,7 +3,7 @@
 - `apps` is the Gradle root for application modules.
 - `apps/api` is the only executable Spring Boot application at the current stage.
 - `apps/shared` is a Java library module for genuinely shared data models.
-- `apps/documents`, `apps/images`, `apps/videos`, and `apps/audio` are business logic modules.
+- `apps/documents`, `apps/images`, `apps/videos`, `apps/audio`, and `apps/knowledge` are business logic modules.
 - Do not add nested `settings.gradle` files or Gradle wrappers inside subprojects.
 - The initial API package is `com.aiworkspace`.
 - Start with package-level areas inside `apps/api`: `config` and `controllers`.

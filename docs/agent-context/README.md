@@ -37,6 +37,7 @@ apps
   images
   videos
   audio
+  knowledge
 ```
 
 Run build commands from `apps`:
@@ -55,6 +56,7 @@ Business logic modules:
 - `apps/images` - image ingestion, OCR, image analysis, and image metadata.
 - `apps/videos` - video ingestion, frame extraction, scene analysis, and video understanding.
 - `apps/audio` - audio ingestion, speech-to-text, text-to-speech, diarization, and audio metadata.
+- `apps/knowledge` - knowledge organization, retrieval, and future knowledge-base workflows.
 
 The initial Java package is `com.aiworkspace`.
 

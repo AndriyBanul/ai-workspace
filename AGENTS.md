@@ -41,6 +41,7 @@ Current application module:
 - `apps/images` - image business logic module using base package `com.aiworkspace.images`.
 - `apps/videos` - video business logic module using base package `com.aiworkspace.videos`.
 - `apps/audio` - audio business logic module using base package `com.aiworkspace.audio`.
+- `apps/knowledge` - knowledge business logic module using base package `com.aiworkspace.knowledge`.
 
 Initial package areas inside `apps/api`:
 
