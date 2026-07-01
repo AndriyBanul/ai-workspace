@@ -1,13 +1,17 @@
 package com.aiworkspace.controllers;
 
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
+import com.aiworkspace.knowledge.models.WorkspaceKnowledgeAnswer;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import java.io.IOException;
+import java.util.NoSuchElementException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -40,5 +44,29 @@ public class KnowledgeController {
             log.warn("Failed to fetch knowledge for workspace '{}'", workspaceId, exception);
             throw new ResponseStatusException(BAD_GATEWAY, "Failed to fetch workspace knowledge", exception);
         }
+    }
+
+    @PostMapping("/workspaces/{workspaceId}/answers")
+    public ResponseEntity<WorkspaceKnowledgeAnswer> answerWorkspaceQuestion(
+            @PathVariable String workspaceId,
+            @RequestBody WorkspaceQuestionRequest request
+    ) {
+        if (request == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Request body must not be empty");
+        }
+
+        try {
+            return ResponseEntity.ok(knowledgeService.answerWorkspaceQuestion(workspaceId, request.question()));
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
+        } catch (NoSuchElementException exception) {
+            throw new ResponseStatusException(NOT_FOUND, exception.getMessage(), exception);
+        } catch (IOException exception) {
+            log.warn("Failed to answer question for workspace '{}'", workspaceId, exception);
+            throw new ResponseStatusException(BAD_GATEWAY, "Failed to answer workspace question", exception);
+        }
+    }
+
+    public record WorkspaceQuestionRequest(String question) {
     }
 }

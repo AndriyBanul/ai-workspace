@@ -65,6 +65,14 @@ workspace id `default-workspace`.
 curl http://localhost:8080/api/v1/knowledge/workspaces/{workspaceId}
 ```
 
+Ask a question against a workspace context:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/knowledge/workspaces/default-workspace/answers \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"What do we know about this workspace?"}'
+```
+
 ## Image Descriptions
 
 The `images` module can describe uploaded images through Gemini. Configure `GEMINI_API_KEY`
