@@ -54,8 +54,8 @@ The `knowledge` module reads workspace knowledge from OpenSearch. Configure
 `OPENSEARCH_URL` if OpenSearch is not available at `http://localhost:9200`.
 
 The API creates the `workspace` index on first access if it does not exist. The
-index stores `workspaceId`, `documentsInfo`, `audioInfo`, `videoInfo`, and
-`imagesInfo`.
+index stores `workspaceId` as a keyword and `documentsInfo`, `audioInfo`,
+`videoInfo`, and `imagesInfo` as strings.
 
 ```bash
 curl http://localhost:8080/api/v1/knowledge/workspaces/{workspaceId}

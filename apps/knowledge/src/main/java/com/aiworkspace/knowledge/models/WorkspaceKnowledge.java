@@ -4,10 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 public record WorkspaceKnowledge(
         String workspaceId,
-        JsonNode documentsInfo,
-        JsonNode audioInfo,
-        JsonNode videoInfo,
-        JsonNode imagesInfo
+        String documentsInfo,
+        String audioInfo,
+        String videoInfo,
+        String imagesInfo
 ) {
 
     public static WorkspaceKnowledge fromSource(String requestedWorkspaceId, JsonNode source) {
@@ -15,16 +15,24 @@ public record WorkspaceKnowledge(
 
         return new WorkspaceKnowledge(
                 sourceWorkspaceId,
-                source.get("documentsInfo"),
-                source.get("audioInfo"),
-                source.get("videoInfo"),
-                source.get("imagesInfo")
+                textOrNull(source.get("documentsInfo")),
+                textOrNull(source.get("audioInfo")),
+                textOrNull(source.get("videoInfo")),
+                textOrNull(source.get("imagesInfo"))
         );
     }
 
     private static String textOrDefault(JsonNode node, String defaultValue) {
         if (node == null || node.isNull() || node.asText().isBlank()) {
             return defaultValue;
+        }
+
+        return node.asText();
+    }
+
+    private static String textOrNull(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
         }
 
         return node.asText();

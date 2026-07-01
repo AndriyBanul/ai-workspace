@@ -1,6 +1,7 @@
 package com.aiworkspace.knowledge.client;
 
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
+import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -71,6 +72,31 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         }
     }
 
+    @Override
+    public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value)
+            throws IOException {
+        ensureWorkspaceIndex();
+
+        Map<String, Object> document = new LinkedHashMap<>();
+        document.put("workspaceId", workspaceId);
+        document.put(field.fieldName(), value);
+
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("doc", document);
+        request.put("doc_as_upsert", true);
+
+        try {
+            restClient.post()
+                    .uri(updateDocumentUri(workspaceId))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(objectMapper.writeValueAsString(request))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException exception) {
+            throw openSearchException("Failed to update workspace knowledge", exception);
+        }
+    }
+
     private void ensureWorkspaceIndex() throws IOException {
         if (workspaceIndexChecked) {
             return;
@@ -127,10 +153,10 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
     private String workspaceIndexMapping() throws IOException {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("workspaceId", Map.of("type", "keyword"));
-        properties.put("documentsInfo", Map.of("type", "object", "enabled", true));
-        properties.put("audioInfo", Map.of("type", "object", "enabled", true));
-        properties.put("videoInfo", Map.of("type", "object", "enabled", true));
-        properties.put("imagesInfo", Map.of("type", "object", "enabled", true));
+        properties.put("documentsInfo", Map.of("type", "text"));
+        properties.put("audioInfo", Map.of("type", "text"));
+        properties.put("videoInfo", Map.of("type", "text"));
+        properties.put("imagesInfo", Map.of("type", "text"));
 
         return objectMapper.writeValueAsString(Map.of("mappings", Map.of("properties", properties)));
     }
@@ -141,6 +167,10 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
 
     private URI documentUri(String workspaceId) {
         return URI.create(baseUri + "/" + WORKSPACE_INDEX + "/_doc/" + encodePathSegment(workspaceId));
+    }
+
+    private URI updateDocumentUri(String workspaceId) {
+        return URI.create(baseUri + "/" + WORKSPACE_INDEX + "/_update/" + encodePathSegment(workspaceId));
     }
 
     private String encodePathSegment(String value) {
