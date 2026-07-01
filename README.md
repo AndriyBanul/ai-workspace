@@ -11,6 +11,7 @@ Workspace for Java/Spring Boot services and supporting AI infrastructure.
 - `apps/images` - image business logic subproject
 - `apps/videos` - video business logic subproject
 - `apps/audio` - audio business logic subproject
+- `apps/knowledge` - knowledge and workspace retrieval business logic subproject
 - `docs` - architecture notes, API notes, and project documentation
 - `infra` - server/service configuration, SQL, and deployment assets
 - `infra/docker/whisper` - optional Docker setup for local Whisper speech-to-text
@@ -46,6 +47,19 @@ docker compose -f infra/docker/piper/compose.yml up -d
 ```
 
 The service listens on Wyoming protocol port `10200` by default.
+
+## Knowledge
+
+The `knowledge` module reads workspace knowledge from OpenSearch. Configure
+`OPENSEARCH_URL` if OpenSearch is not available at `http://localhost:9200`.
+
+The API creates the `workspace` index on first access if it does not exist. The
+index stores `workspaceId`, `documentsInfo`, `audioInfo`, `videoInfo`, and
+`imagesInfo`.
+
+```bash
+curl http://localhost:8080/api/v1/knowledge/workspaces/{workspaceId}
+```
 
 ## Image Descriptions
 
