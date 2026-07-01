@@ -6,31 +6,30 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class VeoVideoClient {
 
-    private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(2);
     private static final int MAX_POLL_ATTEMPTS = 60;
-    private static final Duration POLL_INTERVAL = Duration.ofSeconds(5);
+    private static final long POLL_INTERVAL_MILLIS = 5_000L;
 
     private final URI baseUri;
     private final String apiKey;
     private final String model;
     private final String aspectRatio;
-    private final HttpClient httpClient;
+    private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
     @Autowired
@@ -38,16 +37,15 @@ public class VeoVideoClient {
             @Value("${ai-workspace.veo.base-url:https://generativelanguage.googleapis.com/v1beta}") String baseUrl,
             @Value("${ai-workspace.veo.api-key:${GEMINI_API_KEY:}}") String apiKey,
             @Value("${ai-workspace.veo.model:veo-3.0-generate-preview}") String model,
-            @Value("${ai-workspace.veo.aspect-ratio:16:9}") String aspectRatio
+            @Value("${ai-workspace.veo.aspect-ratio:16:9}") String aspectRatio,
+            RestClient restClient
     ) {
         this(
                 URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
                 apiKey,
                 model,
                 aspectRatio,
-                HttpClient.newBuilder()
-                        .connectTimeout(Duration.ofSeconds(10))
-                        .build(),
+                restClient,
                 new ObjectMapper()
         );
     }
@@ -57,14 +55,14 @@ public class VeoVideoClient {
             String apiKey,
             String model,
             String aspectRatio,
-            HttpClient httpClient,
+            RestClient restClient,
             ObjectMapper objectMapper
     ) {
         this.baseUri = baseUri;
         this.apiKey = apiKey;
         this.model = model;
         this.aspectRatio = aspectRatio;
-        this.httpClient = httpClient;
+        this.restClient = restClient;
         this.objectMapper = objectMapper;
     }
 
@@ -90,18 +88,23 @@ public class VeoVideoClient {
     }
 
     private String startGeneration(String description) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(generationUri())
-                .timeout(REQUEST_TIMEOUT)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(generationRequestBody(description)))
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("Veo returned HTTP " + response.statusCode() + ": " + response.body());
+        ResponseEntity<String> response;
+        try {
+            response = restClient.post()
+                    .uri(generationUri())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(generationRequestBody(description))
+                    .retrieve()
+                    .toEntity(String.class);
+        } catch (RestClientResponseException exception) {
+            throw new IOException(
+                    "Veo returned HTTP " + exception.getStatusCode().value() + ": "
+                            + exception.getResponseBodyAsString(),
+                    exception
+            );
         }
 
-        JsonNode responseJson = objectMapper.readTree(response.body());
+        JsonNode responseJson = objectMapper.readTree(response.getBody() == null ? "" : response.getBody());
         String operationName = responseJson.path("name").asText();
         if (operationName == null || operationName.isBlank()) {
             throw new IOException("Veo did not return an operation name");
@@ -112,17 +115,21 @@ public class VeoVideoClient {
 
     private JsonNode waitForOperation(String operationName) throws IOException, InterruptedException {
         for (int attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
-            HttpRequest request = HttpRequest.newBuilder(operationUri(operationName))
-                    .timeout(REQUEST_TIMEOUT)
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IOException("Veo operation returned HTTP " + response.statusCode() + ": " + response.body());
+            ResponseEntity<String> response;
+            try {
+                response = restClient.get()
+                        .uri(operationUri(operationName))
+                        .retrieve()
+                        .toEntity(String.class);
+            } catch (RestClientResponseException exception) {
+                throw new IOException(
+                        "Veo operation returned HTTP " + exception.getStatusCode().value() + ": "
+                                + exception.getResponseBodyAsString(),
+                        exception
+                );
             }
 
-            JsonNode operation = objectMapper.readTree(response.body());
+            JsonNode operation = objectMapper.readTree(response.getBody() == null ? "" : response.getBody());
             if (operation.path("done").asBoolean(false)) {
                 JsonNode error = operation.get("error");
                 if (error != null && !error.isNull()) {
@@ -132,34 +139,37 @@ public class VeoVideoClient {
                 return operation;
             }
 
-            Thread.sleep(POLL_INTERVAL.toMillis());
+            Thread.sleep(POLL_INTERVAL_MILLIS);
         }
 
         throw new IOException("Timed out while waiting for Veo video generation");
     }
 
     private GeneratedVideo downloadVideo(String videoUri) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(downloadUri(videoUri))
-                .timeout(REQUEST_TIMEOUT)
-                .GET()
-                .build();
-
-        HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("Veo video download returned HTTP " + response.statusCode() + ": "
-                    + new String(response.body(), StandardCharsets.UTF_8));
+        ResponseEntity<byte[]> response;
+        try {
+            response = restClient.get()
+                    .uri(downloadUri(videoUri))
+                    .retrieve()
+                    .toEntity(byte[].class);
+        } catch (RestClientResponseException exception) {
+            throw new IOException(
+                    "Veo video download returned HTTP " + exception.getStatusCode().value() + ": "
+                            + exception.getResponseBodyAsString(),
+                    exception
+            );
         }
 
-        String mediaType = response.headers()
-                .firstValue("Content-Type")
-                .map(value -> value.split(";", 2)[0])
-                .orElse("video/mp4");
+        byte[] body = response.getBody() == null ? new byte[0] : response.getBody();
+        String mediaType = response.getHeaders().getContentType() == null
+                ? "video/mp4"
+                : response.getHeaders().getContentType().toString().split(";", 2)[0];
 
         if (!mediaType.startsWith("video/")) {
             throw new IOException("Veo did not return video content");
         }
 
-        return new GeneratedVideo(filename(mediaType), mediaType, response.body());
+        return new GeneratedVideo(filename(mediaType), mediaType, body);
     }
 
     private URI generationUri() {

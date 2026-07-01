@@ -2,31 +2,17 @@ package com.aiworkspace.documents.client;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.time.Duration;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
 public class GenericRestClient {
 
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
-    private static final String USER_AGENT = "My-Space";
+    private final RestClient restClient;
 
-    private final org.springframework.web.client.RestClient restClient;
-
-    public GenericRestClient() {
-        HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(REQUEST_TIMEOUT)
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
-
-        this.restClient = org.springframework.web.client.RestClient.builder()
-                .requestFactory(new JdkClientHttpRequestFactory(httpClient))
-                .defaultHeader(HttpHeaders.USER_AGENT, USER_AGENT)
-                .build();
+    public GenericRestClient(RestClient restClient) {
+        this.restClient = restClient;
     }
 
     public <T> T get(String rawUrl, RestResponseMapper<T> responseMapper) throws IOException {

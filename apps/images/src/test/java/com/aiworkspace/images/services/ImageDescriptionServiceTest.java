@@ -3,6 +3,7 @@ package com.aiworkspace.images.services;
 import com.aiworkspace.images.client.GeminiImageClient;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestClient;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -10,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class ImageDescriptionServiceTest {
 
     private final ImageDescriptionService service = new ImageDescriptionService(
-            new GeminiImageClient("http://localhost", "test-key", "test-model") {
+            new GeminiImageClient("http://localhost", "test-key", "test-model", RestClient.builder().build()) {
                 @Override
                 public String describe(byte[] imageContent, String mimeType, String prompt) {
                     return "A concise image description.";

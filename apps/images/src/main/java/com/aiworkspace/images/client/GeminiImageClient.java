@@ -5,43 +5,40 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class GeminiImageClient {
 
-    private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(2);
-
     private final URI baseUri;
     private final String apiKey;
     private final String model;
-    private final HttpClient httpClient;
+    private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
     @Autowired
     public GeminiImageClient(
             @Value("${ai-workspace.gemini.base-url:https://generativelanguage.googleapis.com/v1beta}") String baseUrl,
             @Value("${ai-workspace.gemini.api-key:}") String apiKey,
-            @Value("${ai-workspace.gemini.image-model:gemini-2.5-flash}") String model
+            @Value("${ai-workspace.gemini.image-model:gemini-2.5-flash}") String model,
+            RestClient restClient
     ) {
         this(
                 URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
                 apiKey,
                 model,
-                HttpClient.newBuilder()
-                        .connectTimeout(Duration.ofSeconds(10))
-                        .build(),
+                restClient,
                 new ObjectMapper()
         );
     }
@@ -50,13 +47,13 @@ public class GeminiImageClient {
             URI baseUri,
             String apiKey,
             String model,
-            HttpClient httpClient,
+            RestClient restClient,
             ObjectMapper objectMapper
     ) {
         this.baseUri = baseUri;
         this.apiKey = apiKey;
         this.model = model;
-        this.httpClient = httpClient;
+        this.restClient = restClient;
         this.objectMapper = objectMapper;
     }
 
@@ -65,18 +62,22 @@ public class GeminiImageClient {
             throw new IOException("Gemini API key is not configured");
         }
 
-        HttpRequest request = HttpRequest.newBuilder(generationUri())
-                .timeout(REQUEST_TIMEOUT)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody(imageContent, mimeType, prompt)))
-                .build();
+        try {
+            ResponseEntity<String> response = restClient.post()
+                    .uri(generationUri())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(requestBody(imageContent, mimeType, prompt))
+                    .retrieve()
+                    .toEntity(String.class);
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("Gemini returned HTTP " + response.statusCode() + ": " + response.body());
+            return descriptionFrom(response.getBody() == null ? "" : response.getBody());
+        } catch (RestClientResponseException exception) {
+            throw new IOException(
+                    "Gemini returned HTTP " + exception.getStatusCode().value() + ": "
+                            + exception.getResponseBodyAsString(),
+                    exception
+            );
         }
-
-        return descriptionFrom(response.body());
     }
 
     private URI generationUri() {
