@@ -1,19 +1,28 @@
 package com.aiworkspace.videos.services;
 
 import com.aiworkspace.videos.client.GeminiVideoClient;
+import com.aiworkspace.videos.client.VeoVideoClient;
+import com.aiworkspace.videos.models.GeneratedVideo;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class VideoDescriptionServiceTest {
+class VideoServiceTest {
 
-    private final VideoDescriptionService service = new VideoDescriptionService(
+    private final VideoService service = new VideoService(
             new GeminiVideoClient("http://localhost", "test-key", "test-model") {
                 @Override
                 public String describe(byte[] videoContent, String mimeType, String prompt) {
                     return "A concise video description.";
+                }
+            },
+            new VeoVideoClient("http://localhost", "test-key", "test-model", "16:9") {
+                @Override
+                public GeneratedVideo generate(String description) {
+                    return new GeneratedVideo("generated-video.mp4", "video/mp4", new byte[] {1, 2, 3});
                 }
             },
             "Describe this video."
@@ -26,6 +35,15 @@ class VideoDescriptionServiceTest {
         assertEquals("clip.mp4", description.filename());
         assertEquals("video/mp4", description.mimeType());
         assertEquals("A concise video description.", description.description());
+    }
+
+    @Test
+    void generatesVideoFromDescription() throws IOException, InterruptedException {
+        GeneratedVideo video = service.generate("A cinematic shot of a mountain lake.");
+
+        assertEquals("generated-video.mp4", video.filename());
+        assertEquals("video/mp4", video.mediaType());
+        assertArrayEquals(new byte[] {1, 2, 3}, video.content());
     }
 
     @Test
@@ -46,5 +64,15 @@ class VideoDescriptionServiceTest {
         );
 
         assertEquals("File must not be empty", exception.getMessage());
+    }
+
+    @Test
+    void rejectsBlankGenerationDescription() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.generate(" ")
+        );
+
+        assertEquals("Description must not be blank", exception.getMessage());
     }
 }

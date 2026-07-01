@@ -76,3 +76,13 @@ The `videos` module can describe uploaded videos through Gemini. Configure
 curl -X POST http://localhost:8080/api/v1/videos/descriptions \
   -F "file=@/path/to/video.mp4"
 ```
+
+The `videos` module can also generate videos through Google Veo. Configure
+`GEMINI_API_KEY` before starting the API.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/videos/generations \
+  -H 'Content-Type: application/json' \
+  -d '{"description":"A cinematic shot of a mountain lake at sunrise."}' \
+  --output generated-video.mp4
+```
