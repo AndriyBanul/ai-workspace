@@ -1,5 +1,6 @@
 package com.aiworkspace.controllers;
 
+import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.VideoDescriptionResponse;
 import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.models.VideoDescription;
@@ -29,9 +30,11 @@ public class VideoController {
     private static final Logger log = LoggerFactory.getLogger(VideoController.class);
 
     private final VideoService videoService;
+    private final KnowledgeService knowledgeService;
 
-    public VideoController(VideoService videoService) {
+    public VideoController(VideoService videoService, KnowledgeService knowledgeService) {
         this.videoService = videoService;
+        this.knowledgeService = knowledgeService;
     }
 
     @PostMapping(path = "/descriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -42,6 +45,7 @@ public class VideoController {
                     file.getContentType(),
                     file.getBytes()
             );
+            knowledgeService.recordVideoInfo(description.description());
 
             return ResponseEntity.ok(new VideoDescriptionResponse(
                     description.filename(),

@@ -57,6 +57,10 @@ The API creates the `workspace` index on first access if it does not exist. The
 index stores `workspaceId` as a keyword and `documentsInfo`, `audioInfo`,
 `videoInfo`, and `imagesInfo` as strings.
 
+Text produced by document parsing/web extraction, audio transcription, image
+description, and video description is currently stored under the hardcoded
+workspace id `default-workspace`.
+
 ```bash
 curl http://localhost:8080/api/v1/knowledge/workspaces/{workspaceId}
 ```

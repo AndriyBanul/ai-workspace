@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class KnowledgeService {
 
+    private static final String HARDCODED_WORKSPACE_ID = "default-workspace";
+
     private final KnowledgeRepository knowledgeRepository;
 
     public KnowledgeService(KnowledgeRepository knowledgeRepository) {
@@ -31,6 +33,22 @@ public class KnowledgeService {
         }
 
         knowledgeRepository.updateWorkspaceKnowledgeField(normalizedWorkspaceId(workspaceId), field, value.trim());
+    }
+
+    public void recordDocumentsInfo(String value) throws IOException {
+        updateWorkspaceKnowledgeField(HARDCODED_WORKSPACE_ID, WorkspaceKnowledgeField.DOCUMENTS_INFO, value);
+    }
+
+    public void recordAudioInfo(String value) throws IOException {
+        updateWorkspaceKnowledgeField(HARDCODED_WORKSPACE_ID, WorkspaceKnowledgeField.AUDIO_INFO, value);
+    }
+
+    public void recordVideoInfo(String value) throws IOException {
+        updateWorkspaceKnowledgeField(HARDCODED_WORKSPACE_ID, WorkspaceKnowledgeField.VIDEO_INFO, value);
+    }
+
+    public void recordImagesInfo(String value) throws IOException {
+        updateWorkspaceKnowledgeField(HARDCODED_WORKSPACE_ID, WorkspaceKnowledgeField.IMAGES_INFO, value);
     }
 
     private String normalizedWorkspaceId(String workspaceId) {

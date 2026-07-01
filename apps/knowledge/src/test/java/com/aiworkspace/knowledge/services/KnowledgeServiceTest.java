@@ -47,6 +47,54 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    void recordsDocumentsInfoWithHardcodedWorkspaceId() throws IOException {
+        CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
+        KnowledgeService service = new KnowledgeService(repository);
+
+        service.recordDocumentsInfo("Document text");
+
+        assertEquals("default-workspace", repository.workspaceId);
+        assertEquals(WorkspaceKnowledgeField.DOCUMENTS_INFO, repository.field);
+        assertEquals("Document text", repository.value);
+    }
+
+    @Test
+    void recordsAudioInfoWithHardcodedWorkspaceId() throws IOException {
+        CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
+        KnowledgeService service = new KnowledgeService(repository);
+
+        service.recordAudioInfo("Audio transcript");
+
+        assertEquals("default-workspace", repository.workspaceId);
+        assertEquals(WorkspaceKnowledgeField.AUDIO_INFO, repository.field);
+        assertEquals("Audio transcript", repository.value);
+    }
+
+    @Test
+    void recordsVideoInfoWithHardcodedWorkspaceId() throws IOException {
+        CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
+        KnowledgeService service = new KnowledgeService(repository);
+
+        service.recordVideoInfo("Video description");
+
+        assertEquals("default-workspace", repository.workspaceId);
+        assertEquals(WorkspaceKnowledgeField.VIDEO_INFO, repository.field);
+        assertEquals("Video description", repository.value);
+    }
+
+    @Test
+    void recordsImagesInfoWithHardcodedWorkspaceId() throws IOException {
+        CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
+        KnowledgeService service = new KnowledgeService(repository);
+
+        service.recordImagesInfo("Image description");
+
+        assertEquals("default-workspace", repository.workspaceId);
+        assertEquals(WorkspaceKnowledgeField.IMAGES_INFO, repository.field);
+        assertEquals("Image description", repository.value);
+    }
+
+    @Test
     void rejectsMissingKnowledgeField() {
         KnowledgeService service = new KnowledgeService(new CapturingKnowledgeRepository());
 

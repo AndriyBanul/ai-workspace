@@ -3,6 +3,7 @@ package com.aiworkspace.controllers;
 import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.services.AudioService;
+import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.AudioTranscriptionResponse;
 import java.io.IOException;
 import org.slf4j.Logger;
@@ -29,9 +30,11 @@ public class AudioController {
     private static final Logger log = LoggerFactory.getLogger(AudioController.class);
 
     private final AudioService audioService;
+    private final KnowledgeService knowledgeService;
 
-    public AudioController(AudioService audioService) {
+    public AudioController(AudioService audioService, KnowledgeService knowledgeService) {
         this.audioService = audioService;
+        this.knowledgeService = knowledgeService;
     }
 
     @PostMapping(path = "/transcriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -41,6 +44,7 @@ public class AudioController {
                     file.getOriginalFilename(),
                     file.getBytes()
             );
+            knowledgeService.recordAudioInfo(transcription.text());
 
             return ResponseEntity.ok(new AudioTranscriptionResponse(
                     transcription.filename(),

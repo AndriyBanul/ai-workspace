@@ -3,6 +3,7 @@ package com.aiworkspace.controllers;
 import com.aiworkspace.images.models.GeneratedImage;
 import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.services.ImageService;
+import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.ImageDescriptionResponse;
 import java.io.IOException;
 import org.slf4j.Logger;
@@ -29,9 +30,11 @@ public class ImageController {
     private static final Logger log = LoggerFactory.getLogger(ImageController.class);
 
     private final ImageService imageService;
+    private final KnowledgeService knowledgeService;
 
-    public ImageController(ImageService imageService) {
+    public ImageController(ImageService imageService, KnowledgeService knowledgeService) {
         this.imageService = imageService;
+        this.knowledgeService = knowledgeService;
     }
 
     @PostMapping(path = "/descriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -42,6 +45,7 @@ public class ImageController {
                     file.getContentType(),
                     file.getBytes()
             );
+            knowledgeService.recordImagesInfo(description.description());
 
             return ResponseEntity.ok(new ImageDescriptionResponse(
                     description.filename(),

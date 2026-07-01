@@ -3,6 +3,7 @@ package com.aiworkspace.controllers;
 import com.aiworkspace.documents.models.ExtractedWebPage;
 import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.services.DocumentService;
+import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.TextDocumentUploadResponse;
 import java.io.IOException;
 import org.slf4j.Logger;
@@ -29,27 +30,36 @@ public class DocumentController {
     private static final Logger log = LoggerFactory.getLogger(DocumentController.class);
 
     private final DocumentService documentService;
+    private final KnowledgeService knowledgeService;
 
-    public DocumentController(DocumentService documentService) {
+    public DocumentController(DocumentService documentService, KnowledgeService knowledgeService) {
         this.documentService = documentService;
+        this.knowledgeService = knowledgeService;
     }
 
     @PostMapping(path = "/text", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<TextDocumentUploadResponse> uploadTextDocument(@RequestParam("file") MultipartFile file)
-            throws IOException {
+    public ResponseEntity<TextDocumentUploadResponse> uploadTextDocument(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, "File must not be empty");
         }
 
-        ParsedTextDocument document = documentService.parseTextDocument(file.getOriginalFilename(), file.getBytes());
+        try {
+            ParsedTextDocument document = documentService.parseTextDocument(file.getOriginalFilename(), file.getBytes());
+            knowledgeService.recordDocumentsInfo(document.content());
 
-        log.info("Parsed text document '{}':\n{}", document.filename(), document.content());
+            log.info("Parsed text document '{}':\n{}", document.filename(), document.content());
 
-        return ResponseEntity.ok(new TextDocumentUploadResponse(
-                document.filename(),
-                file.getSize(),
-                document.content().length()
-        ));
+            return ResponseEntity.ok(new TextDocumentUploadResponse(
+                    document.filename(),
+                    file.getSize(),
+                    document.content().length()
+            ));
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
+        } catch (IOException exception) {
+            log.warn("Failed to parse or store text document '{}'", file.getOriginalFilename(), exception);
+            throw new ResponseStatusException(BAD_GATEWAY, "Failed to parse or store text document", exception);
+        }
     }
 
     @PostMapping("/web-page")
@@ -64,6 +74,7 @@ public class DocumentController {
             boolean truncated = loggedContent.length() < page.content().length();
 
             log.info("Extracted web page '{}' from '{}':\n{}", page.title(), page.url(), loggedContent);
+            knowledgeService.recordDocumentsInfo(page.content());
 
             return ResponseEntity.ok(new WebPageExtractResponse(
                     page.url(),
@@ -75,7 +86,7 @@ public class DocumentController {
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
         } catch (IOException exception) {
-            throw new ResponseStatusException(BAD_GATEWAY, "Failed to fetch web page", exception);
+            throw new ResponseStatusException(BAD_GATEWAY, "Failed to fetch or store web page", exception);
         }
     }
 
