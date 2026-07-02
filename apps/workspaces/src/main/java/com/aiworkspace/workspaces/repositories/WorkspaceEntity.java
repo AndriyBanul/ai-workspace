@@ -5,8 +5,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.Getter;
 
 @Entity
+@Getter
 @Table(name = "workspaces")
 public class WorkspaceEntity {
 
@@ -30,21 +32,5 @@ public class WorkspaceEntity {
         this.name = name;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
     }
 }

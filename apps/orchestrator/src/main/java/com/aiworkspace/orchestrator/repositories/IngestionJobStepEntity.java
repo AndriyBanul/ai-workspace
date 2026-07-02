@@ -9,8 +9,11 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.Getter;
 
 @Entity
+@Getter(AccessLevel.PACKAGE)
 @Table(name = "ingestion_job_steps")
 class IngestionJobStepEntity {
 
@@ -56,34 +59,6 @@ class IngestionJobStepEntity {
         this.startedAt = startedAt;
         this.completedAt = completedAt;
         this.errorMessage = errorMessage;
-    }
-
-    String getId() {
-        return id;
-    }
-
-    String getJobId() {
-        return jobId;
-    }
-
-    IngestionContentType getContentType() {
-        return contentType;
-    }
-
-    IngestionStepStatus getStatus() {
-        return status;
-    }
-
-    Instant getStartedAt() {
-        return startedAt;
-    }
-
-    Instant getCompletedAt() {
-        return completedAt;
-    }
-
-    String getErrorMessage() {
-        return errorMessage;
     }
 
     void updateStatus(

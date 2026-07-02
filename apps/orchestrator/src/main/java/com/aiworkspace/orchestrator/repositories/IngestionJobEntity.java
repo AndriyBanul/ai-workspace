@@ -8,8 +8,11 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.Getter;
 
 @Entity
+@Getter(AccessLevel.PACKAGE)
 @Table(name = "ingestion_jobs")
 class IngestionJobEntity {
 
@@ -49,30 +52,6 @@ class IngestionJobEntity {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.completedAt = completedAt;
-    }
-
-    String getId() {
-        return id;
-    }
-
-    String getWorkspaceId() {
-        return workspaceId;
-    }
-
-    IngestionJobStatus getStatus() {
-        return status;
-    }
-
-    Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    Instant getCompletedAt() {
-        return completedAt;
     }
 
     void updateStatus(IngestionJobStatus status, Instant updatedAt, Instant completedAt) {
