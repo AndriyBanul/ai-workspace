@@ -79,6 +79,10 @@ public class IngestionJobService {
 
     @Transactional
     public void markStepRunning(String jobId, IngestionContentType contentType) {
+        if (isStepTerminal(jobId, contentType)) {
+            return;
+        }
+
         Instant now = Instant.now();
         ingestionJobRepository.updateStepStatus(
                 normalizedJobId(jobId),
@@ -93,6 +97,10 @@ public class IngestionJobService {
 
     @Transactional
     public void markStepCompleted(String jobId, IngestionContentType contentType) {
+        if (isStepTerminal(jobId, contentType)) {
+            return;
+        }
+
         Instant now = Instant.now();
         ingestionJobRepository.updateStepStatus(
                 normalizedJobId(jobId),
@@ -107,6 +115,10 @@ public class IngestionJobService {
 
     @Transactional
     public void markStepFailed(String jobId, IngestionContentType contentType, Exception exception) {
+        if (isStepTerminal(jobId, contentType)) {
+            return;
+        }
+
         Instant now = Instant.now();
         ingestionJobRepository.updateStepStatus(
                 normalizedJobId(jobId),
@@ -117,6 +129,15 @@ public class IngestionJobService {
                 errorMessage(exception)
         );
         recalculateJobStatus(jobId);
+    }
+
+    private boolean isStepTerminal(String jobId, IngestionContentType contentType) {
+        return ingestionJobRepository.findSteps(normalizedJobId(jobId)).stream()
+                .filter(step -> step.contentType() == contentType)
+                .map(IngestionJobStep::status)
+                .anyMatch(status -> status == IngestionStepStatus.COMPLETED
+                        || status == IngestionStepStatus.FAILED
+                        || status == IngestionStepStatus.SKIPPED);
     }
 
     private void recalculateJobStatus(String jobId) {

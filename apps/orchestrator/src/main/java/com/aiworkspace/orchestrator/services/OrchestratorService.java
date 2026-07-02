@@ -17,7 +17,10 @@ import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -27,6 +30,7 @@ import org.springframework.stereotype.Service;
 public class OrchestratorService {
 
     private static final Logger log = LoggerFactory.getLogger(OrchestratorService.class);
+    private static final long TASK_TIMEOUT_SECONDS = 45;
 
     private final DocumentService documentService;
     private final AudioService audioService;
@@ -126,7 +130,50 @@ public class OrchestratorService {
             return;
         }
 
-        CompletableFuture.runAsync(() -> runTask(jobId, contentType, task), executor);
+        CompletableFuture.runAsync(() -> runTask(jobId, contentType, task), executor)
+                .orTimeout(TASK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .exceptionally(exception -> {
+                    if (isTimeout(exception)) {
+                        TimeoutException timeout = new TimeoutException(
+                                contentType.apiName() + " orchestration task timed out after "
+                                        + TASK_TIMEOUT_SECONDS + " seconds"
+                        );
+                        ingestionJobService.markStepFailed(jobId, contentType, timeout);
+                        log.warn("Timed out while running {} orchestration task", contentType.apiName(), timeout);
+                    } else {
+                        Throwable cause = rootCause(exception);
+                        RuntimeException failure = new RuntimeException(
+                                contentType.apiName() + " orchestration task failed unexpectedly",
+                                cause
+                        );
+                        ingestionJobService.markStepFailed(jobId, contentType, failure);
+                        log.warn("Unhandled failure while running {} orchestration task", contentType.apiName(), cause);
+                    }
+
+                    return null;
+                });
+    }
+
+    private boolean isTimeout(Throwable exception) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof TimeoutException) {
+                return true;
+            }
+
+            current = current.getCause();
+        }
+
+        return false;
+    }
+
+    private Throwable rootCause(Throwable exception) {
+        Throwable current = exception;
+        while (current instanceof CompletionException && current.getCause() != null) {
+            current = current.getCause();
+        }
+
+        return current == null ? exception : current;
     }
 
     private void runTask(String jobId, IngestionContentType contentType, OrchestrationTask task) {

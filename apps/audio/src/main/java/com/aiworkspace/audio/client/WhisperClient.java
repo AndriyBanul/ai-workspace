@@ -3,24 +3,27 @@ package com.aiworkspace.audio.client;
 import com.aiworkspace.audio.models.WhisperTranscriptionResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class WhisperClient {
 
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
+
     private final URI baseUri;
-    private final RestClient restClient;
+    private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     @Autowired
@@ -37,48 +40,62 @@ public class WhisperClient {
 
     WhisperClient(URI baseUri, RestClient restClient, ObjectMapper objectMapper) {
         this.baseUri = baseUri;
-        this.restClient = restClient;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
         this.objectMapper = objectMapper;
     }
 
     public WhisperTranscriptionResponse transcribe(String filename, byte[] fileContent)
             throws IOException, InterruptedException {
-        try {
-            ResponseEntity<String> response = restClient.post()
-                    .uri(transcriptionUri())
-                    .contentType(MediaType.MULTIPART_FORM_DATA)
-                    .body(multipartBody(filename, fileContent))
-                    .retrieve()
-                    .toEntity(String.class);
+        String boundary = "ai-workspace-" + UUID.randomUUID();
+        HttpRequest request = HttpRequest.newBuilder(transcriptionUri())
+                .version(HttpClient.Version.HTTP_1_1)
+                .timeout(REQUEST_TIMEOUT)
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody(boundary, filename, fileContent)))
+                .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-            JsonNode responseJson = objectMapper.readTree(response.getBody() == null ? "" : response.getBody());
-            return new WhisperTranscriptionResponse(
-                    textValue(responseJson, "text"),
-                    textValue(responseJson, "language")
-            );
-        } catch (RestClientResponseException exception) {
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IOException(
-                    "Whisper returned HTTP " + exception.getStatusCode().value() + ": "
-                            + exception.getResponseBodyAsString(),
-                    exception
+                    "Whisper returned HTTP " + response.statusCode() + ": " + response.body()
             );
         }
+
+        JsonNode responseJson = objectMapper.readTree(response.body() == null ? "" : response.body());
+        return new WhisperTranscriptionResponse(
+                textValue(responseJson, "text"),
+                textValue(responseJson, "language")
+        );
     }
 
     private URI transcriptionUri() {
         return URI.create(baseUri + "/asr?task=transcribe&output=json");
     }
 
-    private MultiValueMap<String, Object> multipartBody(String filename, byte[] fileContent) {
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("audio_file", new ByteArrayResource(fileContent) {
-            @Override
-            public String getFilename() {
-                return filename;
-            }
-        });
+    private byte[] multipartBody(
+            String boundary,
+            String filename,
+            byte[] fileContent
+    ) throws IOException {
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        body.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+        body.write(("Content-Disposition: form-data; name=\"audio_file\"; filename=\""
+                + safeFilename(filename) + "\"\r\n").getBytes(StandardCharsets.UTF_8));
+        body.write("Content-Type: application/octet-stream\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+        body.write(fileContent);
+        body.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        return body.toByteArray();
+    }
 
-        return body;
+    private String safeFilename(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return "audio";
+        }
+
+        return filename.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private String textValue(JsonNode json, String fieldName) {

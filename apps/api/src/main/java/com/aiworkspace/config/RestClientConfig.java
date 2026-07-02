@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClient;
 public class RestClientConfig {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(30);
     private static final String USER_AGENT = "AI-Workspace";
 
     @Bean
@@ -21,8 +22,11 @@ public class RestClientConfig {
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
 
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(READ_TIMEOUT);
+
         return RestClient.builder()
-                .requestFactory(new JdkClientHttpRequestFactory(httpClient))
+                .requestFactory(requestFactory)
                 .defaultHeader(HttpHeaders.USER_AGENT, USER_AGENT)
                 .build();
     }
