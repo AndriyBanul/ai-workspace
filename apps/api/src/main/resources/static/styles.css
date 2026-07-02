@@ -282,6 +282,24 @@ p {
     color: var(--danger);
 }
 
+.app-alert {
+    margin-bottom: 16px;
+    padding: 11px 13px;
+    border: 1px solid #f1a39d;
+    border-radius: 8px;
+    background: #fff1f0;
+    color: var(--danger);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.app-alert.info {
+    border-color: var(--border);
+    background: var(--panel-muted);
+    color: var(--muted);
+}
+
 .grid-two {
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);

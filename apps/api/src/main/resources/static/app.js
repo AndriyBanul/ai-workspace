@@ -1,10 +1,12 @@
 const state = {
     workspaces: [],
     selectedWorkspaceId: localStorage.getItem("aiWorkspace.selectedWorkspaceId"),
-    pollTimer: null
+    pollTimer: null,
+    busy: new Set()
 };
 
 const elements = {
+    appAlert: document.querySelector("#app-alert"),
     workspaceForm: document.querySelector("#workspace-form"),
     workspaceName: document.querySelector("#workspace-name"),
     refreshWorkspaces: document.querySelector("#refresh-workspaces"),
@@ -25,22 +27,67 @@ const elements = {
 };
 
 const terminalJobStatuses = new Set(["COMPLETED", "PARTIALLY_FAILED", "FAILED"]);
+const fileInputs = ["#document-file", "#audio-file", "#image-file", "#video-file"]
+    .map((selector) => document.querySelector(selector));
 
 function setStatus(label, mode = "") {
     elements.systemStatus.textContent = label;
     elements.systemStatus.className = `status-pill ${mode}`.trim();
 }
 
+function showAlert(message, mode = "error") {
+    elements.appAlert.textContent = message;
+    elements.appAlert.className = `app-alert ${mode}`.trim();
+}
+
+function clearAlert() {
+    elements.appAlert.textContent = "";
+    elements.appAlert.className = "app-alert hidden";
+}
+
+function setBusy(scope, busy) {
+    if (busy) {
+        state.busy.add(scope);
+    } else {
+        state.busy.delete(scope);
+    }
+
+    const workspaceBusy = state.busy.has("workspaces") || state.busy.has("create-workspace");
+    const ingestionBusy = state.busy.has("ingestion");
+    const memoryBusy = state.busy.has("memory");
+    const questionBusy = state.busy.has("question");
+
+    elements.workspaceForm.querySelector("button").disabled = state.busy.has("create-workspace");
+    elements.refreshWorkspaces.disabled = workspaceBusy;
+    elements.ingestionForm.querySelector("button").disabled = ingestionBusy;
+    elements.refreshMemory.disabled = memoryBusy || !state.selectedWorkspaceId;
+    elements.questionForm.querySelector("button").disabled = questionBusy || !state.selectedWorkspaceId;
+
+    elements.workspaceName.disabled = state.busy.has("create-workspace");
+    elements.question.disabled = questionBusy || !state.selectedWorkspaceId;
+    for (const input of fileInputs) {
+        input.disabled = ingestionBusy || !state.selectedWorkspaceId;
+    }
+}
+
 async function request(path, options = {}) {
-    const response = await fetch(path, options);
+    let response;
+    try {
+        response = await fetch(path, options);
+    } catch (error) {
+        throw new Error("Backend is not reachable. Check that the API server is running.");
+    }
+
     const contentType = response.headers.get("content-type") || "";
     const body = contentType.includes("application/json")
         ? await response.json()
         : await response.text();
 
     if (!response.ok) {
-        const message = typeof body === "object" && body.detail ? body.detail : response.statusText;
-        throw new Error(message || "Request failed");
+        const message = typeof body === "object"
+            ? body.detail || body.message || body.error
+            : body;
+        throw new Error(message || `${response.status} ${response.statusText}` || "Request failed");
     }
 
     return body;
@@ -52,7 +99,7 @@ function selectedWorkspace() {
 
 function requireWorkspace() {
     if (!state.selectedWorkspaceId) {
-        throw new Error("Select a workspace");
+        throw new Error("Create or select a workspace first.");
     }
 }
 
@@ -95,42 +142,63 @@ function renderWorkspaces() {
 function renderSelectedWorkspace() {
     const workspace = selectedWorkspace();
     elements.selectedWorkspaceTitle.textContent = workspace ? workspace.name : "No workspace selected";
+    setBusy("selection", false);
 }
 
 async function loadWorkspaces() {
-    setStatus("Loading", "busy");
-    state.workspaces = await request("/api/v1/workspaces");
+    try {
+        clearAlert();
+        setBusy("workspaces", true);
+        setStatus("Loading", "busy");
+        state.workspaces = await request("/api/v1/workspaces");
 
-    if (state.selectedWorkspaceId && !selectedWorkspace()) {
-        state.selectedWorkspaceId = null;
-        localStorage.removeItem("aiWorkspace.selectedWorkspaceId");
+        if (state.selectedWorkspaceId && !selectedWorkspace()) {
+            state.selectedWorkspaceId = null;
+            localStorage.removeItem("aiWorkspace.selectedWorkspaceId");
+            clearAnswer("No answer yet");
+            renderMemoryEmpty("Select a workspace", "No items loaded");
+        }
+
+        renderWorkspaces();
+        renderSelectedWorkspace();
+        setStatus("Ready", "ok");
+        return true;
+    } catch (error) {
+        showError(error, "Unable to load workspaces");
+        return false;
+    } finally {
+        setBusy("workspaces", false);
     }
-
-    renderWorkspaces();
-    renderSelectedWorkspace();
-    setStatus("Ready", "ok");
 }
 
 async function createWorkspace(event) {
     event.preventDefault();
     const name = elements.workspaceName.value.trim();
     if (!name) {
-        setStatus("Name required", "error");
+        showError(new Error("Workspace name is required."));
         return;
     }
 
-    setStatus("Creating", "busy");
-    const workspace = await request("/api/v1/workspaces", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({name})
-    });
+    try {
+        clearAlert();
+        setBusy("create-workspace", true);
+        setStatus("Creating", "busy");
+        const workspace = await request("/api/v1/workspaces", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({name})
+        });
 
-    elements.workspaceName.value = "";
-    state.selectedWorkspaceId = workspace.id;
-    localStorage.setItem("aiWorkspace.selectedWorkspaceId", workspace.id);
-    await loadWorkspaces();
-    await refreshMemory();
+        elements.workspaceName.value = "";
+        state.selectedWorkspaceId = workspace.id;
+        localStorage.setItem("aiWorkspace.selectedWorkspaceId", workspace.id);
+        await loadWorkspaces();
+        await refreshMemory();
+    } catch (error) {
+        showError(error, "Unable to create workspace");
+    } finally {
+        setBusy("create-workspace", false);
+    }
 }
 
 async function selectWorkspace(workspaceId) {
@@ -138,7 +206,9 @@ async function selectWorkspace(workspaceId) {
     localStorage.setItem("aiWorkspace.selectedWorkspaceId", workspaceId);
     renderWorkspaces();
     renderSelectedWorkspace();
-    clearAnswer();
+    clearAlert();
+    clearAnswer("No answer yet");
+    renderMemoryEmpty("Loading workspace memory", "Loading");
     await refreshMemory();
 }
 
@@ -153,6 +223,7 @@ async function submitIngestion(event) {
     event.preventDefault();
 
     try {
+        clearAlert();
         requireWorkspace();
         const formData = new FormData();
         formData.append("workspaceId", state.selectedWorkspaceId);
@@ -161,6 +232,11 @@ async function submitIngestion(event) {
         appendFile(formData, "image", "#image-file");
         appendFile(formData, "video", "#video-file");
 
+        if (!["document", "audio", "image", "video"].some((key) => formData.has(key))) {
+            throw new Error("Select at least one file to upload.");
+        }
+
+        setBusy("ingestion", true);
         setStatus("Uploading", "busy");
         const submission = await request("/api/v1/orchestrator/ingestions", {
             method: "POST",
@@ -175,9 +251,11 @@ async function submitIngestion(event) {
                 ...submission.skipped.map((type) => ({type, status: "SKIPPED"}))
             ]
         });
+        setStatus("RUNNING", "busy");
         pollJob(submission.jobId);
     } catch (error) {
-        showError(error);
+        setBusy("ingestion", false);
+        showError(error, "Upload failed");
     }
 }
 
@@ -204,7 +282,7 @@ function pollJob(jobId) {
         clearInterval(state.pollTimer);
     }
 
-    state.pollTimer = setInterval(async () => {
+    const refreshJob = async () => {
         try {
             const job = await request(`/api/v1/orchestrator/jobs/${jobId}`);
             renderJob(job);
@@ -213,33 +291,46 @@ function pollJob(jobId) {
             if (terminalJobStatuses.has(job.status)) {
                 clearInterval(state.pollTimer);
                 state.pollTimer = null;
+                setBusy("ingestion", false);
                 await refreshMemory();
             }
         } catch (error) {
             clearInterval(state.pollTimer);
             state.pollTimer = null;
-            showError(error);
+            setBusy("ingestion", false);
+            showError(error, "Unable to refresh job status");
         }
-    }, 1800);
+    };
+
+    refreshJob();
+    state.pollTimer = setInterval(refreshJob, 1800);
 }
 
 async function refreshMemory() {
     try {
+        clearAlert();
         requireWorkspace();
+        setBusy("memory", true);
         setStatus("Loading", "busy");
         const memory = await request(`/api/v1/knowledge/workspaces/${state.selectedWorkspaceId}`);
         renderMemory(memory);
         setStatus("Ready", "ok");
     } catch (error) {
         if (error.message.includes("not found") || error.message.includes("Not Found")) {
-            elements.memoryView.className = "memory-view empty-state";
-            elements.memoryView.textContent = "No workspace memory";
-            elements.memoryCount.textContent = "No items loaded";
+            renderMemoryEmpty("No workspace memory", "No items loaded");
             setStatus("Ready", "ok");
             return;
         }
-        showError(error);
+        showError(error, "Unable to load workspace memory");
+    } finally {
+        setBusy("memory", false);
     }
+}
+
+function renderMemoryEmpty(message, countLabel) {
+    elements.memoryView.className = "memory-view empty-state";
+    elements.memoryView.textContent = message;
+    elements.memoryCount.textContent = countLabel;
 }
 
 function renderMemory(memory) {
@@ -255,8 +346,7 @@ function renderMemory(memory) {
     elements.memoryCount.textContent = `${sections.length} sections`;
 
     if (sections.length === 0) {
-        elements.memoryView.className = "memory-view empty-state";
-        elements.memoryView.textContent = "No workspace memory";
+        renderMemoryEmpty("No workspace memory", "No items loaded");
         return;
     }
 
@@ -276,14 +366,18 @@ async function askWorkspace(event) {
     event.preventDefault();
 
     try {
+        clearAlert();
         requireWorkspace();
         const question = elements.question.value.trim();
         if (!question) {
-            setStatus("Question required", "error");
+            showError(new Error("Question is required."));
             return;
         }
 
+        setBusy("question", true);
         setStatus("Asking", "busy");
+        elements.answerView.className = "answer-view empty-state";
+        elements.answerView.textContent = "Asking workspace";
         const answer = await request(`/api/v1/knowledge/workspaces/${state.selectedWorkspaceId}/answers`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
@@ -293,7 +387,10 @@ async function askWorkspace(event) {
         renderAnswer(answer);
         setStatus("Ready", "ok");
     } catch (error) {
-        showError(error);
+        showError(error, "Unable to answer question");
+        clearAnswer(error.message);
+    } finally {
+        setBusy("question", false);
     }
 }
 
@@ -331,15 +428,15 @@ function renderAnswer(answer) {
     elements.answerView.append(list);
 }
 
-function clearAnswer() {
+function clearAnswer(message = "No answer yet") {
     elements.answerView.className = "answer-view empty-state";
-    elements.answerView.textContent = "No answer yet";
+    elements.answerView.textContent = message;
 }
 
-function showError(error) {
+function showError(error, prefix = null) {
+    const message = prefix ? `${prefix}: ${error.message}` : error.message;
     setStatus("Error", "error");
-    elements.answerView.className = "answer-view empty-state";
-    elements.answerView.textContent = error.message;
+    showAlert(message);
 }
 
 elements.workspaceForm.addEventListener("submit", createWorkspace);
@@ -348,12 +445,19 @@ elements.ingestionForm.addEventListener("submit", submitIngestion);
 elements.refreshMemory.addEventListener("click", () => refreshMemory().catch(showError));
 elements.questionForm.addEventListener("submit", askWorkspace);
 
-loadWorkspaces()
-    .then(() => {
-        if (state.selectedWorkspaceId) {
-            return refreshMemory();
-        }
-        setStatus("Ready", "ok");
-        return null;
-    })
-    .catch(showError);
+async function initialize() {
+    const loaded = await loadWorkspaces();
+    if (!loaded) {
+        return;
+    }
+
+    if (state.selectedWorkspaceId && selectedWorkspace()) {
+        await refreshMemory();
+        return;
+    }
+
+    renderMemoryEmpty("Select a workspace", "No items loaded");
+    setStatus("Ready", "ok");
+}
+
+initialize();
