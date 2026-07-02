@@ -19,10 +19,16 @@ dependencies {
 	implementation project(':knowledge')
 	implementation project(':videos')
 	compileOnly 'org.slf4j:slf4j-api'
+	compileOnly 'jakarta.persistence:jakarta.persistence-api'
+	compileOnly 'org.springframework.data:spring-data-jpa'
 	compileOnly 'org.springframework:spring-beans'
 	compileOnly 'org.springframework:spring-context'
+	compileOnly 'org.springframework:spring-tx'
 	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testImplementation 'jakarta.persistence:jakarta.persistence-api'
+	testImplementation 'org.springframework.data:spring-data-jpa'
 	testImplementation 'org.slf4j:slf4j-api'
+	testImplementation 'org.springframework:spring-tx'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

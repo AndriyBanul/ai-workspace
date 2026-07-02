@@ -84,6 +84,13 @@ curl -X POST http://localhost:8080/api/v1/orchestrator/ingestions \
   -F "video=@/path/to/video.mp4"
 ```
 
+The endpoint returns `202 Accepted` with an ingestion `jobId`. Check async
+processing status with:
+
+```bash
+curl http://localhost:8080/api/v1/orchestrator/jobs/{jobId}
+```
+
 ## Image Descriptions
 
 The `images` module can describe uploaded images through Gemini. Configure `GEMINI_API_KEY`

@@ -35,6 +35,11 @@ Business logic lives in dedicated Java library subprojects:
 - `apps/knowledge`
 - `apps/orchestrator`
 
+`apps/orchestrator` owns async multimodal ingestion coordination and ingestion
+job lifecycle tracking. Ingestion job and step status are application state and
+are persisted in PostgreSQL through Flyway-managed tables. Extracted multimodal
+knowledge remains stored in OpenSearch through the `apps/knowledge` module.
+
 The initial API package is `com.aiworkspace`.
 
 Initial package areas inside `apps/api` are intentionally small:

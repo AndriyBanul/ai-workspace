@@ -7,6 +7,8 @@ import com.aiworkspace.documents.services.DocumentService;
 import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
+import com.aiworkspace.orchestrator.models.IngestionContentType;
+import com.aiworkspace.orchestrator.models.IngestionJobDetails;
 import com.aiworkspace.orchestrator.models.OrchestrationContent;
 import com.aiworkspace.orchestrator.models.OrchestrationSubmission;
 import com.aiworkspace.videos.models.VideoDescription;
@@ -24,12 +26,14 @@ import org.springframework.stereotype.Service;
 public class OrchestratorService {
 
     private static final Logger log = LoggerFactory.getLogger(OrchestratorService.class);
+    private static final String HARDCODED_WORKSPACE_ID = "default-workspace";
 
     private final DocumentService documentService;
     private final AudioService audioService;
     private final ImageService imageService;
     private final VideoService videoService;
     private final KnowledgeService knowledgeService;
+    private final IngestionJobService ingestionJobService;
     private final Executor executor;
 
     public OrchestratorService(
@@ -38,6 +42,7 @@ public class OrchestratorService {
             ImageService imageService,
             VideoService videoService,
             KnowledgeService knowledgeService,
+            IngestionJobService ingestionJobService,
             @Qualifier("orchestratorTaskExecutor") Executor executor
     ) {
         this.documentService = documentService;
@@ -45,6 +50,7 @@ public class OrchestratorService {
         this.imageService = imageService;
         this.videoService = videoService;
         this.knowledgeService = knowledgeService;
+        this.ingestionJobService = ingestionJobService;
         this.executor = executor;
     }
 
@@ -54,41 +60,73 @@ public class OrchestratorService {
             OrchestrationContent image,
             OrchestrationContent video
     ) {
-        List<String> submitted = new ArrayList<>();
-        List<String> skipped = new ArrayList<>();
+        List<IngestionContentType> submittedTypes = new ArrayList<>();
+        List<IngestionContentType> skippedTypes = new ArrayList<>();
 
-        submitIfPresent("documents", document, submitted, skipped, () -> processDocument(document));
-        submitIfPresent("audio", audio, submitted, skipped, () -> processAudio(audio));
-        submitIfPresent("images", image, submitted, skipped, () -> processImage(image));
-        submitIfPresent("videos", video, submitted, skipped, () -> processVideo(video));
+        collectContentType(IngestionContentType.DOCUMENTS, document, submittedTypes, skippedTypes);
+        collectContentType(IngestionContentType.AUDIO, audio, submittedTypes, skippedTypes);
+        collectContentType(IngestionContentType.IMAGES, image, submittedTypes, skippedTypes);
+        collectContentType(IngestionContentType.VIDEOS, video, submittedTypes, skippedTypes);
 
-        return new OrchestrationSubmission(List.copyOf(submitted), List.copyOf(skipped));
+        IngestionJobDetails job = ingestionJobService.createJob(HARDCODED_WORKSPACE_ID, submittedTypes, skippedTypes);
+
+        submitIfPresent(job.jobId(), IngestionContentType.DOCUMENTS, document, () -> processDocument(document));
+        submitIfPresent(job.jobId(), IngestionContentType.AUDIO, audio, () -> processAudio(audio));
+        submitIfPresent(job.jobId(), IngestionContentType.IMAGES, image, () -> processImage(image));
+        submitIfPresent(job.jobId(), IngestionContentType.VIDEOS, video, () -> processVideo(video));
+
+        return new OrchestrationSubmission(
+                job.jobId(),
+                job.workspaceId(),
+                job.status(),
+                submittedTypes.stream().map(IngestionContentType::apiName).toList(),
+                skippedTypes.stream().map(IngestionContentType::apiName).toList()
+        );
     }
 
-    private void submitIfPresent(
-            String module,
+    public IngestionJobDetails findJob(String jobId) {
+        return ingestionJobService.getJob(jobId);
+    }
+
+    private void collectContentType(
+            IngestionContentType contentType,
             OrchestrationContent content,
-            List<String> submitted,
-            List<String> skipped,
-            OrchestrationTask task
+            List<IngestionContentType> submitted,
+            List<IngestionContentType> skipped
     ) {
         if (content == null || content.isEmpty()) {
-            skipped.add(module);
+            skipped.add(contentType);
             return;
         }
 
-        submitted.add(module);
-        CompletableFuture.runAsync(() -> runTask(module, task), executor);
+        submitted.add(contentType);
     }
 
-    private void runTask(String module, OrchestrationTask task) {
+    private void submitIfPresent(
+            String jobId,
+            IngestionContentType contentType,
+            OrchestrationContent content,
+            OrchestrationTask task
+    ) {
+        if (content == null || content.isEmpty()) {
+            return;
+        }
+
+        CompletableFuture.runAsync(() -> runTask(jobId, contentType, task), executor);
+    }
+
+    private void runTask(String jobId, IngestionContentType contentType, OrchestrationTask task) {
         try {
+            ingestionJobService.markStepRunning(jobId, contentType);
             task.run();
+            ingestionJobService.markStepCompleted(jobId, contentType);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            log.warn("Interrupted while running {} orchestration task", module, exception);
+            ingestionJobService.markStepFailed(jobId, contentType, exception);
+            log.warn("Interrupted while running {} orchestration task", contentType.apiName(), exception);
         } catch (Exception exception) {
-            log.warn("Failed to run {} orchestration task", module, exception);
+            ingestionJobService.markStepFailed(jobId, contentType, exception);
+            log.warn("Failed to run {} orchestration task", contentType.apiName(), exception);
         }
     }
 

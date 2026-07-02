@@ -10,27 +10,40 @@ import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.knowledge.services.KnowledgeService;
+import com.aiworkspace.orchestrator.models.IngestionContentType;
+import com.aiworkspace.orchestrator.models.IngestionJob;
+import com.aiworkspace.orchestrator.models.IngestionJobStatus;
+import com.aiworkspace.orchestrator.models.IngestionJobStep;
+import com.aiworkspace.orchestrator.models.IngestionStepStatus;
 import com.aiworkspace.orchestrator.models.OrchestrationContent;
+import com.aiworkspace.orchestrator.repositories.IngestionJobRepository;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.services.VideoService;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class OrchestratorServiceTest {
 
     @Test
     void processesProvidedContentAndSkipsMissingContent() {
         CapturingKnowledgeRepository knowledgeRepository = new CapturingKnowledgeRepository();
+        CapturingIngestionJobRepository jobRepository = new CapturingIngestionJobRepository();
         OrchestratorService service = new OrchestratorService(
                 new TestDocumentService(),
                 new TestAudioService(),
                 new TestImageService(),
                 new TestVideoService(),
                 new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
+                new IngestionJobService(jobRepository),
                 Runnable::run
         );
 
@@ -41,10 +54,47 @@ class OrchestratorServiceTest {
                 new OrchestrationContent("video.mp4", "video/mp4", new byte[0])
         );
 
-        assertEquals(java.util.List.of("documents", "images"), submission.submitted());
-        assertEquals(java.util.List.of("audio", "videos"), submission.skipped());
+        assertNotNull(submission.jobId());
+        assertEquals("default-workspace", submission.workspaceId());
+        assertEquals(IngestionJobStatus.RUNNING, submission.status());
+        assertEquals(List.of("documents", "images"), submission.submitted());
+        assertEquals(List.of("audio", "videos"), submission.skipped());
         assertEquals("Parsed document text", knowledgeRepository.values.get(WorkspaceKnowledgeField.DOCUMENTS_INFO));
         assertEquals("Image description", knowledgeRepository.values.get(WorkspaceKnowledgeField.IMAGES_INFO));
+
+        var job = service.findJob(submission.jobId());
+        assertEquals(IngestionJobStatus.COMPLETED, job.status());
+        assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.DOCUMENTS, IngestionStepStatus.COMPLETED);
+        assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.AUDIO, IngestionStepStatus.SKIPPED);
+        assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.IMAGES, IngestionStepStatus.COMPLETED);
+        assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.VIDEOS, IngestionStepStatus.SKIPPED);
+    }
+
+    @Test
+    void marksFailedStepAndPartiallyFailedJobWhenTaskFails() {
+        CapturingKnowledgeRepository knowledgeRepository = new CapturingKnowledgeRepository();
+        CapturingIngestionJobRepository jobRepository = new CapturingIngestionJobRepository();
+        OrchestratorService service = new OrchestratorService(
+                new TestDocumentService(),
+                new FailingAudioService(),
+                new TestImageService(),
+                new TestVideoService(),
+                new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
+                new IngestionJobService(jobRepository),
+                Runnable::run
+        );
+
+        var submission = service.process(
+                new OrchestrationContent("document.txt", "text/plain", "Document input".getBytes()),
+                new OrchestrationContent("audio.mp3", "audio/mpeg", new byte[] {1}),
+                null,
+                null
+        );
+
+        var job = service.findJob(submission.jobId());
+        assertEquals(IngestionJobStatus.PARTIALLY_FAILED, job.status());
+        assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.DOCUMENTS, IngestionStepStatus.COMPLETED);
+        assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.AUDIO, IngestionStepStatus.FAILED);
     }
 
     private static class TestDocumentService extends DocumentService {
@@ -68,6 +118,14 @@ class OrchestratorServiceTest {
         @Override
         public AudioTranscription transcribe(String filename, byte[] fileContent) {
             return new AudioTranscription(filename, "Audio transcript", "en");
+        }
+    }
+
+    private static class FailingAudioService extends TestAudioService {
+
+        @Override
+        public AudioTranscription transcribe(String filename, byte[] fileContent) {
+            throw new IllegalStateException("Audio provider unavailable");
         }
     }
 
@@ -108,6 +166,83 @@ class OrchestratorServiceTest {
         public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value)
                 throws IOException {
             values.put(field, value);
+        }
+    }
+
+    private static void assertStepStatus(
+            CapturingIngestionJobRepository repository,
+            String jobId,
+            IngestionContentType contentType,
+            IngestionStepStatus expectedStatus
+    ) {
+        assertEquals(
+                expectedStatus,
+                repository.steps.get(jobId).get(contentType).status()
+        );
+    }
+
+    private static class CapturingIngestionJobRepository implements IngestionJobRepository {
+
+        private final Map<String, IngestionJob> jobs = new HashMap<>();
+        private final Map<String, EnumMap<IngestionContentType, IngestionJobStep>> steps = new HashMap<>();
+
+        @Override
+        public void create(IngestionJob job, List<IngestionJobStep> steps) {
+            jobs.put(job.id(), job);
+            EnumMap<IngestionContentType, IngestionJobStep> stepsByType = new EnumMap<>(IngestionContentType.class);
+            for (IngestionJobStep step : steps) {
+                stepsByType.put(step.contentType(), step);
+            }
+            this.steps.put(job.id(), stepsByType);
+        }
+
+        @Override
+        public Optional<IngestionJob> findJob(String jobId) {
+            return Optional.ofNullable(jobs.get(jobId));
+        }
+
+        @Override
+        public List<IngestionJobStep> findSteps(String jobId) {
+            return List.copyOf(steps.get(jobId).values());
+        }
+
+        @Override
+        public void updateJobStatus(
+                String jobId,
+                IngestionJobStatus status,
+                Instant updatedAt,
+                Instant completedAt
+        ) {
+            IngestionJob job = jobs.get(jobId);
+            jobs.put(jobId, new IngestionJob(
+                    job.id(),
+                    job.workspaceId(),
+                    status,
+                    job.createdAt(),
+                    updatedAt,
+                    completedAt
+            ));
+        }
+
+        @Override
+        public void updateStepStatus(
+                String jobId,
+                IngestionContentType contentType,
+                IngestionStepStatus status,
+                Instant startedAt,
+                Instant completedAt,
+                String errorMessage
+        ) {
+            IngestionJobStep existingStep = steps.get(jobId).get(contentType);
+            steps.get(jobId).put(contentType, new IngestionJobStep(
+                    existingStep.id(),
+                    existingStep.jobId(),
+                    existingStep.contentType(),
+                    status,
+                    startedAt == null ? existingStep.startedAt() : startedAt,
+                    completedAt,
+                    errorMessage
+            ));
         }
     }
 }

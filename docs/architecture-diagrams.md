@@ -15,7 +15,7 @@ flowchart LR
     api["AI Workspace API\nSpring Boot modular monolith"]
     llm["External LLM APIs\nGemini / future providers"]
     opensearch[("OpenSearch\nworkspace index")]
-    postgres[("PostgreSQL\nfuture workspace/user metadata")]
+    postgres[("PostgreSQL\ningestion jobs + future metadata")]
     redis[("Redis\nfuture async/job/cache support")]
     localServices["Optional local AI services\nWhisper / Piper"]
 
@@ -23,7 +23,7 @@ flowchart LR
     api -->|"store and read\nworkspace knowledge"| opensearch
     api -->|"prompt + workspace context"| llm
     llm -->|"AI answer / descriptions"| api
-    api -.->|"future metadata persistence"| postgres
+    api -->|"ingestion job status\nfuture metadata persistence"| postgres
     api -.->|"future job state / queues / cache"| redis
     api -.->|"optional speech and voice workflows"| localServices
 ```
@@ -46,6 +46,7 @@ flowchart TB
     end
 
     opensearch[("OpenSearch\nworkspace index")]
+    postgres[("PostgreSQL\ningestion job tables")]
     llm["Gemini / external AI providers"]
     whisper["Whisper\noptional local service"]
     piper["Piper\noptional local service"]
@@ -66,6 +67,7 @@ flowchart TB
     images --> knowledge
     videos --> knowledge
     knowledge --> opensearch
+    orchestrator --> postgres
     knowledge --> llm
     audio -.-> whisper
     audio -.-> piper
