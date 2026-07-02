@@ -8,11 +8,10 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import lombok.AccessLevel;
 import lombok.Getter;
 
 @Entity
-@Getter(AccessLevel.PACKAGE)
+@Getter
 @Table(name = "ingestion_jobs")
 class IngestionJobEntity {
 

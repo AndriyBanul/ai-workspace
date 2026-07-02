@@ -16,33 +16,36 @@ class JpaIngestionJobRepository implements IngestionJobRepository {
 
     private final JpaIngestionJobEntityRepository jobRepository;
     private final JpaIngestionJobStepEntityRepository stepRepository;
+    private final IngestionJobEntityMapper mapper;
 
     JpaIngestionJobRepository(
             JpaIngestionJobEntityRepository jobRepository,
-            JpaIngestionJobStepEntityRepository stepRepository
+            JpaIngestionJobStepEntityRepository stepRepository,
+            IngestionJobEntityMapper mapper
     ) {
         this.jobRepository = jobRepository;
         this.stepRepository = stepRepository;
+        this.mapper = mapper;
     }
 
     @Override
     public void create(IngestionJob job, List<IngestionJobStep> steps) {
-        jobRepository.save(toEntity(job));
+        jobRepository.save(mapper.toEntity(job));
         stepRepository.saveAll(steps.stream()
-                .map(this::toEntity)
+                .map(mapper::toEntity)
                 .toList());
     }
 
     @Override
     public Optional<IngestionJob> findJob(String jobId) {
         return jobRepository.findById(jobId)
-                .map(this::toModel);
+                .map(mapper::toModel);
     }
 
     @Override
     public List<IngestionJobStep> findSteps(String jobId) {
         return stepRepository.findByJobId(jobId).stream()
-                .map(this::toModel)
+                .map(mapper::toModel)
                 .toList();
     }
 
@@ -72,51 +75,5 @@ class JpaIngestionJobRepository implements IngestionJobRepository {
                 errorMessage
         );
         stepRepository.save(step);
-    }
-
-    private IngestionJobEntity toEntity(IngestionJob job) {
-        return new IngestionJobEntity(
-                job.id(),
-                job.workspaceId(),
-                job.status(),
-                job.createdAt(),
-                job.updatedAt(),
-                job.completedAt()
-        );
-    }
-
-    private IngestionJobStepEntity toEntity(IngestionJobStep step) {
-        return new IngestionJobStepEntity(
-                step.id(),
-                step.jobId(),
-                step.contentType(),
-                step.status(),
-                step.startedAt(),
-                step.completedAt(),
-                step.errorMessage()
-        );
-    }
-
-    private IngestionJob toModel(IngestionJobEntity entity) {
-        return new IngestionJob(
-                entity.getId(),
-                entity.getWorkspaceId(),
-                entity.getStatus(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt(),
-                entity.getCompletedAt()
-        );
-    }
-
-    private IngestionJobStep toModel(IngestionJobStepEntity entity) {
-        return new IngestionJobStep(
-                entity.getId(),
-                entity.getJobId(),
-                entity.getContentType(),
-                entity.getStatus(),
-                entity.getStartedAt(),
-                entity.getCompletedAt(),
-                entity.getErrorMessage()
-        );
     }
 }

@@ -5,7 +5,6 @@ import com.aiworkspace.orchestrator.models.IngestionJob;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
 import com.aiworkspace.orchestrator.models.IngestionJobStatus;
 import com.aiworkspace.orchestrator.models.IngestionJobStep;
-import com.aiworkspace.orchestrator.models.IngestionJobStepDetails;
 import com.aiworkspace.orchestrator.models.IngestionStepStatus;
 import com.aiworkspace.orchestrator.repositories.IngestionJobRepository;
 import java.time.Instant;
@@ -24,9 +23,11 @@ public class IngestionJobService {
     private static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
 
     private final IngestionJobRepository ingestionJobRepository;
+    private final IngestionJobDetailsMapper detailsMapper;
 
-    public IngestionJobService(IngestionJobRepository ingestionJobRepository) {
+    public IngestionJobService(IngestionJobRepository ingestionJobRepository, IngestionJobDetailsMapper detailsMapper) {
         this.ingestionJobRepository = ingestionJobRepository;
+        this.detailsMapper = detailsMapper;
     }
 
     @Transactional
@@ -182,27 +183,12 @@ public class IngestionJobService {
     }
 
     private IngestionJobDetails details(IngestionJob job, List<IngestionJobStep> steps) {
-        return new IngestionJobDetails(
-                job.id(),
-                job.workspaceId(),
-                job.status(),
-                job.createdAt(),
-                job.updatedAt(),
-                job.completedAt(),
+        return detailsMapper.toDetails(
+                job,
                 steps.stream()
                         .sorted(Comparator.comparing(IngestionJobStep::contentType))
-                        .map(this::details)
+                        .map(detailsMapper::toDetails)
                         .toList()
-        );
-    }
-
-    private IngestionJobStepDetails details(IngestionJobStep step) {
-        return new IngestionJobStepDetails(
-                step.contentType().apiName(),
-                step.status(),
-                step.startedAt(),
-                step.completedAt(),
-                step.errorMessage()
         );
     }
 

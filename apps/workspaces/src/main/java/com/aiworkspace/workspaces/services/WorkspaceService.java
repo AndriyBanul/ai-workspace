@@ -15,9 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class WorkspaceService {
 
     private final WorkspaceRepository workspaceRepository;
+    private final WorkspaceMapper workspaceMapper;
 
-    public WorkspaceService(WorkspaceRepository workspaceRepository) {
+    public WorkspaceService(WorkspaceRepository workspaceRepository, WorkspaceMapper workspaceMapper) {
         this.workspaceRepository = workspaceRepository;
+        this.workspaceMapper = workspaceMapper;
     }
 
     @Transactional
@@ -31,21 +33,21 @@ public class WorkspaceService {
                 now
         );
 
-        return toModel(workspaceRepository.save(entity));
+        return workspaceMapper.toModel(workspaceRepository.save(entity));
     }
 
     @Transactional(readOnly = true)
     public List<Workspace> listWorkspaces() {
         return workspaceRepository.findAll().stream()
                 .sorted(Comparator.comparing(WorkspaceEntity::getCreatedAt).reversed())
-                .map(this::toModel)
+                .map(workspaceMapper::toModel)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public Workspace getWorkspace(String workspaceId) {
         return workspaceRepository.findById(normalizedWorkspaceId(workspaceId))
-                .map(this::toModel)
+                .map(workspaceMapper::toModel)
                 .orElseThrow(() -> new NoSuchElementException("Workspace was not found"));
     }
 
@@ -65,12 +67,4 @@ public class WorkspaceService {
         return workspaceId.trim();
     }
 
-    private Workspace toModel(WorkspaceEntity entity) {
-        return new Workspace(
-                entity.getId(),
-                entity.getName(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
-        );
-    }
 }

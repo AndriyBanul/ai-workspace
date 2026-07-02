@@ -48,7 +48,7 @@ class OrchestratorServiceTest {
                 new TestImageService(),
                 new TestVideoService(),
                 new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
-                new IngestionJobService(jobRepository),
+                new IngestionJobService(jobRepository, new IngestionJobDetailsMapperImpl()),
                 new TestWorkspaceService(),
                 new OrchestratorProperties(Duration.ofSeconds(45)),
                 Runnable::run
@@ -88,7 +88,7 @@ class OrchestratorServiceTest {
                 new TestImageService(),
                 new TestVideoService(),
                 new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
-                new IngestionJobService(jobRepository),
+                new IngestionJobService(jobRepository, new IngestionJobDetailsMapperImpl()),
                 new TestWorkspaceService(),
                 new OrchestratorProperties(Duration.ofSeconds(45)),
                 Runnable::run
@@ -167,7 +167,7 @@ class OrchestratorServiceTest {
     private static class TestWorkspaceService extends WorkspaceService {
 
         TestWorkspaceService() {
-            super(null);
+            super(null, null);
         }
 
         @Override
