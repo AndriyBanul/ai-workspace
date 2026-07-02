@@ -284,7 +284,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
     }
 
     private URI knowledgeItemDocumentUri(String id) {
-        return URI.create(baseUri + "/" + KNOWLEDGE_ITEMS_INDEX + "/_doc/" + encodePathSegment(id));
+        return URI.create(baseUri + "/" + KNOWLEDGE_ITEMS_INDEX + "/_doc/" + encodePathSegment(id) + "?refresh=wait_for");
     }
 
     private String encodePathSegment(String value) {
