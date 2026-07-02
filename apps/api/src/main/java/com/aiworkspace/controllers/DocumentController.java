@@ -16,10 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
-
-import static org.springframework.http.HttpStatus.BAD_GATEWAY;
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 @RestController
 @RequestMapping("/api/v1/documents")
@@ -41,56 +37,44 @@ public class DocumentController {
     public ResponseEntity<TextDocumentUploadResponse> uploadTextDocument(
             @RequestParam("workspaceId") String workspaceId,
             @RequestParam("file") MultipartFile file
-    ) {
+    ) throws IOException {
         if (file.isEmpty()) {
-            throw new ResponseStatusException(BAD_REQUEST, "File must not be empty");
+            throw new IllegalArgumentException("File must not be empty");
         }
 
-        try {
-            ParsedTextDocument document = documentService.parseTextDocument(file.getOriginalFilename(), file.getBytes());
-            knowledgeService.recordDocumentsInfo(workspaceId, document.filename(), null, document.content());
+        ParsedTextDocument document = documentService.parseTextDocument(file.getOriginalFilename(), file.getBytes());
+        knowledgeService.recordDocumentsInfo(workspaceId, document.filename(), null, document.content());
 
-            log.info("Parsed text document '{}':\n{}", document.filename(), document.content());
+        log.info("Parsed text document '{}':\n{}", document.filename(), document.content());
 
-            return ResponseEntity.ok(new TextDocumentUploadResponse(
-                    document.filename(),
-                    file.getSize(),
-                    document.content().length()
-            ));
-        } catch (IllegalArgumentException exception) {
-            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
-        } catch (IOException exception) {
-            log.warn("Failed to parse or store text document '{}'", file.getOriginalFilename(), exception);
-            throw new ResponseStatusException(BAD_GATEWAY, "Failed to parse or store text document", exception);
-        }
+        return ResponseEntity.ok(new TextDocumentUploadResponse(
+                document.filename(),
+                file.getSize(),
+                document.content().length()
+        ));
     }
 
     @PostMapping("/web-page")
-    public ResponseEntity<WebPageExtractResponse> extractWebPage(@RequestBody WebPageExtractRequest request) {
+    public ResponseEntity<WebPageExtractResponse> extractWebPage(@RequestBody WebPageExtractRequest request)
+            throws IOException {
         if (request == null) {
-            throw new ResponseStatusException(BAD_REQUEST, "Request body must not be empty");
+            throw new IllegalArgumentException("Request body must not be empty");
         }
 
-        try {
-            ExtractedWebPage page = documentService.extractWebPage(request.url());
-            String loggedContent = contentForLog(page.content());
-            boolean truncated = loggedContent.length() < page.content().length();
+        ExtractedWebPage page = documentService.extractWebPage(request.url());
+        String loggedContent = contentForLog(page.content());
+        boolean truncated = loggedContent.length() < page.content().length();
 
-            log.info("Extracted web page '{}' from '{}':\n{}", page.title(), page.url(), loggedContent);
-            knowledgeService.recordDocumentsInfo(request.workspaceId(), page.title(), null, page.content());
+        log.info("Extracted web page '{}' from '{}':\n{}", page.title(), page.url(), loggedContent);
+        knowledgeService.recordDocumentsInfo(request.workspaceId(), page.title(), null, page.content());
 
-            return ResponseEntity.ok(new WebPageExtractResponse(
-                    page.url(),
-                    page.title(),
-                    page.content().length(),
-                    loggedContent.length(),
-                    truncated
-            ));
-        } catch (IllegalArgumentException exception) {
-            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
-        } catch (IOException exception) {
-            throw new ResponseStatusException(BAD_GATEWAY, "Failed to fetch or store web page", exception);
-        }
+        return ResponseEntity.ok(new WebPageExtractResponse(
+                page.url(),
+                page.title(),
+                page.content().length(),
+                loggedContent.length(),
+                truncated
+        ));
     }
 
     private String contentForLog(String content) {

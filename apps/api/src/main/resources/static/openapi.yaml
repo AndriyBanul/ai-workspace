@@ -1,0 +1,569 @@
+openapi: 3.1.0
+info:
+  title: AI Workspace API
+  version: 0.1.0
+  description: Workspace-scoped multimodal ingestion, knowledge retrieval, and generation API.
+servers:
+  - url: /
+paths:
+  /api/v1/workspaces:
+    get:
+      summary: List workspaces
+      tags: [Workspaces]
+      responses:
+        "200":
+          description: Workspaces ordered by creation time.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Workspace"
+    post:
+      summary: Create workspace
+      tags: [Workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkspaceRequest"
+      responses:
+        "201":
+          description: Created workspace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/workspaces/{workspaceId}:
+    get:
+      summary: Get workspace
+      tags: [Workspaces]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "200":
+          description: Workspace metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/orchestrator/ingestions:
+    post:
+      summary: Submit multimodal ingestion job
+      tags: [Orchestrator]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [workspaceId]
+              properties:
+                workspaceId:
+                  type: string
+                document:
+                  type: string
+                  format: binary
+                audio:
+                  type: string
+                  format: binary
+                image:
+                  type: string
+                  format: binary
+                video:
+                  type: string
+                  format: binary
+      responses:
+        "202":
+          description: Ingestion job submitted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrchestrationSubmission"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/orchestrator/jobs/{jobId}:
+    get:
+      summary: Get ingestion job status
+      tags: [Orchestrator]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Job status and step details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestionJobDetails"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/knowledge/workspaces/{workspaceId}:
+    get:
+      summary: Get workspace memory
+      tags: [Knowledge]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "200":
+          description: Aggregated workspace knowledge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceKnowledge"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+  /api/v1/knowledge/workspaces/{workspaceId}/answers:
+    post:
+      summary: Ask a workspace question
+      tags: [Knowledge]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkspaceQuestionRequest"
+      responses:
+        "200":
+          description: LLM answer with source snippets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceKnowledgeAnswer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+  /api/v1/documents/text:
+    post:
+      summary: Upload text document directly
+      tags: [Documents]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [workspaceId, file]
+              properties:
+                workspaceId:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Parsed text document summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TextDocumentUploadResponse"
+  /api/v1/documents/web-page:
+    post:
+      summary: Extract and store web page text
+      tags: [Documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebPageExtractRequest"
+      responses:
+        "200":
+          description: Web page extraction summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebPageExtractResponse"
+  /api/v1/audio/transcriptions:
+    post:
+      summary: Transcribe audio directly
+      tags: [Audio]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [workspaceId, file]
+              properties:
+                workspaceId:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Audio transcription.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudioTranscriptionResponse"
+  /api/v1/audio/speech:
+    post:
+      summary: Synthesize speech
+      tags: [Audio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TextToSpeechRequest"
+      responses:
+        "200":
+          description: WAV audio file.
+          content:
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+  /api/v1/images/descriptions:
+    post:
+      summary: Describe image directly
+      tags: [Images]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [workspaceId, file]
+              properties:
+                workspaceId:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Image description.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImageDescriptionResponse"
+  /api/v1/images/generations:
+    post:
+      summary: Generate image
+      tags: [Images]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerationRequest"
+      responses:
+        "200":
+          description: Generated image.
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+  /api/v1/videos/descriptions:
+    post:
+      summary: Describe video directly
+      tags: [Videos]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [workspaceId, file]
+              properties:
+                workspaceId:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Video description.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoDescriptionResponse"
+  /api/v1/videos/generations:
+    post:
+      summary: Generate video
+      tags: [Videos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerationRequest"
+      responses:
+        "200":
+          description: Generated video.
+          content:
+            video/*:
+              schema:
+                type: string
+                format: binary
+components:
+  parameters:
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      schema:
+        type: string
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    NotFound:
+      description: Resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    BadGateway:
+      description: Upstream or storage dependency failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+  schemas:
+    ApiErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        detail:
+          type: string
+        path:
+          type: string
+    Workspace:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateWorkspaceRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+    OrchestrationSubmission:
+      type: object
+      properties:
+        jobId:
+          type: string
+        workspaceId:
+          type: string
+        status:
+          type: string
+        submitted:
+          type: array
+          items:
+            type: string
+        skipped:
+          type: array
+          items:
+            type: string
+    IngestionJobDetails:
+      type: object
+      properties:
+        jobId:
+          type: string
+        workspaceId:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/IngestionJobStepDetails"
+    IngestionJobStepDetails:
+      type: object
+      properties:
+        type:
+          type: string
+        status:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+    WorkspaceKnowledge:
+      type: object
+      properties:
+        workspaceId:
+          type: string
+        documentsInfo:
+          type: string
+          nullable: true
+        audioInfo:
+          type: string
+          nullable: true
+        videoInfo:
+          type: string
+          nullable: true
+        imagesInfo:
+          type: string
+          nullable: true
+    WorkspaceQuestionRequest:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+    WorkspaceKnowledgeAnswer:
+      type: object
+      properties:
+        workspaceId:
+          type: string
+        question:
+          type: string
+        answer:
+          type: string
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkspaceKnowledgeSource"
+    WorkspaceKnowledgeSource:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        sourceName:
+          type: string
+          nullable: true
+        jobId:
+          type: string
+          nullable: true
+        snippet:
+          type: string
+    TextDocumentUploadResponse:
+      type: object
+      properties:
+        filename:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        characterCount:
+          type: integer
+    WebPageExtractRequest:
+      type: object
+      required: [workspaceId, url]
+      properties:
+        workspaceId:
+          type: string
+        url:
+          type: string
+          format: uri
+    WebPageExtractResponse:
+      type: object
+      properties:
+        url:
+          type: string
+        title:
+          type: string
+        characterCount:
+          type: integer
+        loggedCharacterCount:
+          type: integer
+        truncated:
+          type: boolean
+    AudioTranscriptionResponse:
+      type: object
+      properties:
+        filename:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        language:
+          type: string
+        text:
+          type: string
+    TextToSpeechRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+    ImageDescriptionResponse:
+      type: object
+      properties:
+        filename:
+          type: string
+        size:
+          type: integer
+          format: int64
+        mimeType:
+          type: string
+        description:
+          type: string
+    VideoDescriptionResponse:
+      type: object
+      properties:
+        filename:
+          type: string
+        size:
+          type: integer
+          format: int64
+        mimeType:
+          type: string
+        description:
+          type: string
+    GenerationRequest:
+      type: object
+      required: [description]
+      properties:
+        description:
+          type: string

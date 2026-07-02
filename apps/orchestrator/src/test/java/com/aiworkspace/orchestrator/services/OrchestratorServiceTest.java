@@ -11,6 +11,7 @@ import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.knowledge.services.KnowledgeService;
+import com.aiworkspace.orchestrator.config.OrchestratorProperties;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJob;
 import com.aiworkspace.orchestrator.models.IngestionJobStatus;
@@ -24,6 +25,7 @@ import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -48,6 +50,7 @@ class OrchestratorServiceTest {
                 new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
                 new IngestionJobService(jobRepository),
                 new TestWorkspaceService(),
+                new OrchestratorProperties(Duration.ofSeconds(45)),
                 Runnable::run
         );
 
@@ -87,6 +90,7 @@ class OrchestratorServiceTest {
                 new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
                 new IngestionJobService(jobRepository),
                 new TestWorkspaceService(),
+                new OrchestratorProperties(Duration.ofSeconds(45)),
                 Runnable::run
         );
 

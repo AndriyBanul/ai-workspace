@@ -6,8 +6,6 @@ import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.ImageDescriptionResponse;
 import java.io.IOException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -18,16 +16,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
-
-import static org.springframework.http.HttpStatus.BAD_GATEWAY;
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 @RestController
 @RequestMapping("/api/v1/images")
 public class ImageController {
-
-    private static final Logger log = LoggerFactory.getLogger(ImageController.class);
 
     private final ImageService imageService;
     private final KnowledgeService knowledgeService;
@@ -41,60 +33,41 @@ public class ImageController {
     public ResponseEntity<ImageDescriptionResponse> describe(
             @RequestParam("workspaceId") String workspaceId,
             @RequestParam("file") MultipartFile file
-    ) {
-        try {
-            ImageDescription description = imageService.describe(
-                    file.getOriginalFilename(),
-                    file.getContentType(),
-                    file.getBytes()
-            );
-            knowledgeService.recordImagesInfo(workspaceId, description.filename(), null, description.description());
+    ) throws IOException, InterruptedException {
+        ImageDescription description = imageService.describe(
+                file.getOriginalFilename(),
+                file.getContentType(),
+                file.getBytes()
+        );
+        knowledgeService.recordImagesInfo(workspaceId, description.filename(), null, description.description());
 
-            return ResponseEntity.ok(new ImageDescriptionResponse(
-                    description.filename(),
-                    file.getSize(),
-                    description.mimeType(),
-                    description.description()
-            ));
-        } catch (IllegalArgumentException exception) {
-            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new ResponseStatusException(BAD_GATEWAY, "Interrupted while describing image", exception);
-        } catch (IOException exception) {
-            log.warn("Failed to describe image '{}'", file.getOriginalFilename(), exception);
-            throw new ResponseStatusException(BAD_GATEWAY, "Failed to describe image", exception);
-        }
+        return ResponseEntity.ok(new ImageDescriptionResponse(
+                description.filename(),
+                file.getSize(),
+                description.mimeType(),
+                description.description()
+        ));
     }
 
     @PostMapping(path = "/generations", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<byte[]> generate(@RequestBody ImageGenerationRequest request) {
+    public ResponseEntity<byte[]> generate(@RequestBody ImageGenerationRequest request)
+            throws IOException, InterruptedException {
         if (request == null) {
-            throw new ResponseStatusException(BAD_REQUEST, "Request body must not be empty");
+            throw new IllegalArgumentException("Request body must not be empty");
         }
 
-        try {
-            GeneratedImage image = imageService.generate(request.description());
+        GeneratedImage image = imageService.generate(request.description());
 
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(image.mediaType()))
-                    .header(
-                            HttpHeaders.CONTENT_DISPOSITION,
-                            ContentDisposition.attachment()
-                                    .filename(image.filename())
-                                    .build()
-                                    .toString()
-                    )
-                    .body(image.content());
-        } catch (IllegalArgumentException exception) {
-            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new ResponseStatusException(BAD_GATEWAY, "Interrupted while generating image", exception);
-        } catch (IOException exception) {
-            log.warn("Failed to generate image", exception);
-            throw new ResponseStatusException(BAD_GATEWAY, "Failed to generate image", exception);
-        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(image.mediaType()))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(image.filename())
+                                .build()
+                                .toString()
+                )
+                .body(image.content());
     }
 
     public record ImageGenerationRequest(String description) {

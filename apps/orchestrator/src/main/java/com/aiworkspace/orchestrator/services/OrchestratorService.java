@@ -7,6 +7,7 @@ import com.aiworkspace.documents.services.DocumentService;
 import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
+import com.aiworkspace.orchestrator.config.OrchestratorProperties;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
 import com.aiworkspace.orchestrator.models.OrchestrationContent;
@@ -30,7 +31,6 @@ import org.springframework.stereotype.Service;
 public class OrchestratorService {
 
     private static final Logger log = LoggerFactory.getLogger(OrchestratorService.class);
-    private static final long TASK_TIMEOUT_SECONDS = 45;
 
     private final DocumentService documentService;
     private final AudioService audioService;
@@ -39,6 +39,7 @@ public class OrchestratorService {
     private final KnowledgeService knowledgeService;
     private final IngestionJobService ingestionJobService;
     private final WorkspaceService workspaceService;
+    private final OrchestratorProperties properties;
     private final Executor executor;
 
     public OrchestratorService(
@@ -49,6 +50,7 @@ public class OrchestratorService {
             KnowledgeService knowledgeService,
             IngestionJobService ingestionJobService,
             WorkspaceService workspaceService,
+            OrchestratorProperties properties,
             @Qualifier("orchestratorTaskExecutor") Executor executor
     ) {
         this.documentService = documentService;
@@ -58,6 +60,7 @@ public class OrchestratorService {
         this.knowledgeService = knowledgeService;
         this.ingestionJobService = ingestionJobService;
         this.workspaceService = workspaceService;
+        this.properties = properties;
         this.executor = executor;
     }
 
@@ -131,12 +134,12 @@ public class OrchestratorService {
         }
 
         CompletableFuture.runAsync(() -> runTask(jobId, contentType, task), executor)
-                .orTimeout(TASK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .orTimeout(properties.taskTimeout().toSeconds(), TimeUnit.SECONDS)
                 .exceptionally(exception -> {
                     if (isTimeout(exception)) {
                         TimeoutException timeout = new TimeoutException(
                                 contentType.apiName() + " orchestration task timed out after "
-                                        + TASK_TIMEOUT_SECONDS + " seconds"
+                                        + properties.taskTimeout().toSeconds() + " seconds"
                         );
                         ingestionJobService.markStepFailed(jobId, contentType, timeout);
                         log.warn("Timed out while running {} orchestration task", contentType.apiName(), timeout);

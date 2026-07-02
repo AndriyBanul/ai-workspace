@@ -17,4 +17,12 @@ dependencies {
 	compileOnly 'org.springframework:spring-context'
 	compileOnly 'org.springframework:spring-web'
 	implementation 'org.jsoup:jsoup:1.18.3'
+	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testImplementation 'org.springframework:spring-context'
+	testImplementation 'org.springframework:spring-web'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
 }

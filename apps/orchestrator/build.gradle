@@ -21,6 +21,7 @@ dependencies {
 	implementation project(':workspaces')
 	compileOnly 'org.slf4j:slf4j-api'
 	compileOnly 'jakarta.persistence:jakarta.persistence-api'
+	compileOnly 'org.springframework.boot:spring-boot'
 	compileOnly 'org.springframework.data:spring-data-jpa'
 	compileOnly 'org.springframework:spring-beans'
 	compileOnly 'org.springframework:spring-context'
