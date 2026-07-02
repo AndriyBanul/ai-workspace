@@ -30,6 +30,15 @@ cd apps
 ./gradlew test
 ```
 
+## Demo UI
+
+The API serves a simple demo console from `/` when the Spring Boot application is
+running.
+
+```bash
+open http://localhost:8080/
+```
+
 ## Local Whisper
 
 Whisper is optional supporting infrastructure for the `audio` module. Start it with Docker:

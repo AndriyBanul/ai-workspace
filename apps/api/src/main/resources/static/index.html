@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI Workspace Demo</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand-row">
+            <div class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 40 40" role="img">
+                    <rect x="5" y="6" width="12" height="12" rx="3"></rect>
+                    <rect x="23" y="6" width="12" height="12" rx="3"></rect>
+                    <rect x="14" y="22" width="12" height="12" rx="3"></rect>
+                    <path d="M17 12h6M20 22l-4-4M24 18l-4 4"></path>
+                </svg>
+            </div>
+            <div>
+                <h1>AI Workspace</h1>
+                <p>Demo console</p>
+            </div>
+        </div>
+
+        <form id="workspace-form" class="workspace-form">
+            <label for="workspace-name">Workspace name</label>
+            <div class="inline-form">
+                <input id="workspace-name" name="workspaceName" type="text" autocomplete="off" placeholder="Investor demo">
+                <button type="submit">Create</button>
+            </div>
+        </form>
+
+        <div class="section-heading">
+            <span>Workspaces</span>
+            <button id="refresh-workspaces" type="button" class="ghost-button">Refresh</button>
+        </div>
+        <div id="workspace-list" class="workspace-list" aria-live="polite"></div>
+    </aside>
+
+    <main class="main-panel">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">Current workspace</p>
+                <h2 id="selected-workspace-title">No workspace selected</h2>
+            </div>
+            <div id="system-status" class="status-pill">Idle</div>
+        </header>
+
+        <section class="grid-two">
+            <form id="ingestion-form" class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Multimodal Ingestion</h3>
+                        <p id="ingestion-subtitle">Documents, audio, images, and video</p>
+                    </div>
+                    <button type="submit">Upload</button>
+                </div>
+
+                <div class="file-grid">
+                    <label class="file-slot">
+                        <span>Document</span>
+                        <input id="document-file" type="file" name="document">
+                    </label>
+                    <label class="file-slot">
+                        <span>Audio</span>
+                        <input id="audio-file" type="file" name="audio" accept="audio/*">
+                    </label>
+                    <label class="file-slot">
+                        <span>Image</span>
+                        <input id="image-file" type="file" name="image" accept="image/*">
+                    </label>
+                    <label class="file-slot">
+                        <span>Video</span>
+                        <input id="video-file" type="file" name="video" accept="video/*">
+                    </label>
+                </div>
+
+                <div id="job-panel" class="job-panel hidden">
+                    <div class="job-summary">
+                        <span id="job-id">Job</span>
+                        <strong id="job-status">RUNNING</strong>
+                    </div>
+                    <div id="job-steps" class="job-steps"></div>
+                </div>
+            </form>
+
+            <section class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Workspace Memory</h3>
+                        <p id="memory-count">No items loaded</p>
+                    </div>
+                    <button id="refresh-memory" type="button">Refresh</button>
+                </div>
+                <div id="memory-view" class="memory-view empty-state">Select a workspace</div>
+            </section>
+        </section>
+
+        <section class="panel ask-panel">
+            <div class="panel-header">
+                <div>
+                    <h3>Ask Workspace</h3>
+                    <p>Answer with source snippets</p>
+                </div>
+            </div>
+            <form id="question-form" class="question-form">
+                <textarea id="question" rows="3" placeholder="What do we know about this workspace?"></textarea>
+                <button type="submit">Ask</button>
+            </form>
+            <div id="answer-view" class="answer-view empty-state">No answer yet</div>
+        </section>
+    </main>
+</div>
+
+<template id="workspace-item-template">
+    <button type="button" class="workspace-item">
+        <span class="workspace-name"></span>
+        <span class="workspace-date"></span>
+    </button>
+</template>
+
+<script src="/app.js"></script>
+</body>
+</html>
