@@ -37,6 +37,7 @@ public class OrchestratorController {
 
     @PostMapping(path = "/ingestions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<OrchestrationSubmission> ingest(
+            @RequestParam("workspaceId") String workspaceId,
             @RequestParam(value = "document", required = false) MultipartFile document,
             @RequestParam(value = "audio", required = false) MultipartFile audio,
             @RequestParam(value = "image", required = false) MultipartFile image,
@@ -44,6 +45,7 @@ public class OrchestratorController {
     ) {
         try {
             OrchestrationSubmission submission = orchestratorService.process(
+                    workspaceId,
                     contentFrom(document),
                     contentFrom(audio),
                     contentFrom(image),
@@ -51,6 +53,10 @@ public class OrchestratorController {
             );
 
             return ResponseEntity.status(ACCEPTED).body(submission);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(BAD_REQUEST, exception.getMessage(), exception);
+        } catch (NoSuchElementException exception) {
+            throw new ResponseStatusException(NOT_FOUND, exception.getMessage(), exception);
         } catch (IOException exception) {
             log.warn("Failed to read orchestration upload", exception);
             throw new ResponseStatusException(BAD_REQUEST, "Failed to read uploaded content", exception);

@@ -13,6 +13,7 @@ Workspace for Java/Spring Boot services and supporting AI infrastructure.
 - `apps/audio` - audio business logic subproject
 - `apps/knowledge` - knowledge and workspace retrieval business logic subproject
 - `apps/orchestrator` - async multimodal orchestration subproject
+- `apps/workspaces` - workspace metadata business logic subproject
 - `docs` - architecture notes, API notes, and project documentation
 - `infra` - server/service configuration, SQL, and deployment assets
 - `infra/docker/whisper` - optional Docker setup for local Whisper speech-to-text
@@ -51,16 +52,35 @@ The service listens on Wyoming protocol port `10200` by default.
 
 ## Knowledge
 
+Create a workspace:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/workspaces \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Investor demo workspace"}'
+```
+
+List workspaces:
+
+```bash
+curl http://localhost:8080/api/v1/workspaces
+```
+
+Get one workspace:
+
+```bash
+curl http://localhost:8080/api/v1/workspaces/{workspaceId}
+```
+
 The `knowledge` module reads workspace knowledge from OpenSearch. Configure
 `OPENSEARCH_URL` if OpenSearch is not available at `http://localhost:9200`.
 
-The API creates the `workspace` index on first access if it does not exist. The
-index stores `workspaceId` as a keyword and `documentsInfo`, `audioInfo`,
-`videoInfo`, and `imagesInfo` as strings.
+The API creates the `knowledge-items` index on first access if it does not
+exist. Each extracted result is stored as a separate knowledge item with
+`workspaceId`, `sourceType`, `sourceName`, `jobId`, `content`, and `createdAt`.
 
 Text produced by document parsing/web extraction, audio transcription, image
-description, and video description is currently stored under the hardcoded
-workspace id `default-workspace`.
+description, and video description is attached to the selected workspace.
 
 ```bash
 curl http://localhost:8080/api/v1/knowledge/workspaces/{workspaceId}
@@ -69,7 +89,7 @@ curl http://localhost:8080/api/v1/knowledge/workspaces/{workspaceId}
 Ask a question against a workspace context:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/knowledge/workspaces/default-workspace/answers \
+curl -X POST http://localhost:8080/api/v1/knowledge/workspaces/{workspaceId}/answers \
   -H 'Content-Type: application/json' \
   -d '{"question":"What do we know about this workspace?"}'
 ```
@@ -78,6 +98,7 @@ Run async multimodal ingestion:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/orchestrator/ingestions \
+  -F "workspaceId={workspaceId}" \
   -F "document=@/path/to/document.txt" \
   -F "audio=@/path/to/audio.mp3" \
   -F "image=@/path/to/image.png" \
@@ -98,6 +119,7 @@ before starting the API.
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/images/descriptions \
+  -F "workspaceId={workspaceId}" \
   -F "file=@/path/to/image.png"
 ```
 
@@ -118,6 +140,7 @@ The `videos` module can describe uploaded videos through Gemini. Configure
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/videos/descriptions \
+  -F "workspaceId={workspaceId}" \
   -F "file=@/path/to/video.mp4"
 ```
 

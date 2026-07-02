@@ -13,6 +13,7 @@ import com.aiworkspace.orchestrator.models.OrchestrationContent;
 import com.aiworkspace.orchestrator.models.OrchestrationSubmission;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.services.VideoService;
+import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -26,7 +27,6 @@ import org.springframework.stereotype.Service;
 public class OrchestratorService {
 
     private static final Logger log = LoggerFactory.getLogger(OrchestratorService.class);
-    private static final String HARDCODED_WORKSPACE_ID = "default-workspace";
 
     private final DocumentService documentService;
     private final AudioService audioService;
@@ -34,6 +34,7 @@ public class OrchestratorService {
     private final VideoService videoService;
     private final KnowledgeService knowledgeService;
     private final IngestionJobService ingestionJobService;
+    private final WorkspaceService workspaceService;
     private final Executor executor;
 
     public OrchestratorService(
@@ -43,6 +44,7 @@ public class OrchestratorService {
             VideoService videoService,
             KnowledgeService knowledgeService,
             IngestionJobService ingestionJobService,
+            WorkspaceService workspaceService,
             @Qualifier("orchestratorTaskExecutor") Executor executor
     ) {
         this.documentService = documentService;
@@ -51,15 +53,19 @@ public class OrchestratorService {
         this.videoService = videoService;
         this.knowledgeService = knowledgeService;
         this.ingestionJobService = ingestionJobService;
+        this.workspaceService = workspaceService;
         this.executor = executor;
     }
 
     public OrchestrationSubmission process(
+            String workspaceId,
             OrchestrationContent document,
             OrchestrationContent audio,
             OrchestrationContent image,
             OrchestrationContent video
     ) {
+        String normalizedWorkspaceId = normalizedWorkspaceId(workspaceId);
+        workspaceService.getWorkspace(normalizedWorkspaceId);
         List<IngestionContentType> submittedTypes = new ArrayList<>();
         List<IngestionContentType> skippedTypes = new ArrayList<>();
 
@@ -68,12 +74,12 @@ public class OrchestratorService {
         collectContentType(IngestionContentType.IMAGES, image, submittedTypes, skippedTypes);
         collectContentType(IngestionContentType.VIDEOS, video, submittedTypes, skippedTypes);
 
-        IngestionJobDetails job = ingestionJobService.createJob(HARDCODED_WORKSPACE_ID, submittedTypes, skippedTypes);
+        IngestionJobDetails job = ingestionJobService.createJob(normalizedWorkspaceId, submittedTypes, skippedTypes);
 
-        submitIfPresent(job.jobId(), IngestionContentType.DOCUMENTS, document, () -> processDocument(document));
-        submitIfPresent(job.jobId(), IngestionContentType.AUDIO, audio, () -> processAudio(audio));
-        submitIfPresent(job.jobId(), IngestionContentType.IMAGES, image, () -> processImage(image));
-        submitIfPresent(job.jobId(), IngestionContentType.VIDEOS, video, () -> processVideo(video));
+        submitIfPresent(job.jobId(), IngestionContentType.DOCUMENTS, document, () -> processDocument(job, document));
+        submitIfPresent(job.jobId(), IngestionContentType.AUDIO, audio, () -> processAudio(job, audio));
+        submitIfPresent(job.jobId(), IngestionContentType.IMAGES, image, () -> processImage(job, image));
+        submitIfPresent(job.jobId(), IngestionContentType.VIDEOS, video, () -> processVideo(job, video));
 
         return new OrchestrationSubmission(
                 job.jobId(),
@@ -86,6 +92,14 @@ public class OrchestratorService {
 
     public IngestionJobDetails findJob(String jobId) {
         return ingestionJobService.getJob(jobId);
+    }
+
+    private String normalizedWorkspaceId(String workspaceId) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            throw new IllegalArgumentException("Workspace ID must not be blank");
+        }
+
+        return workspaceId.trim();
     }
 
     private void collectContentType(
@@ -130,24 +144,24 @@ public class OrchestratorService {
         }
     }
 
-    private void processDocument(OrchestrationContent document) throws Exception {
+    private void processDocument(IngestionJobDetails job, OrchestrationContent document) throws Exception {
         ParsedTextDocument parsedDocument = documentService.parseTextDocument(document.filename(), document.content());
-        knowledgeService.recordDocumentsInfo(parsedDocument.content());
+        knowledgeService.recordDocumentsInfo(job.workspaceId(), document.filename(), job.jobId(), parsedDocument.content());
     }
 
-    private void processAudio(OrchestrationContent audio) throws Exception {
+    private void processAudio(IngestionJobDetails job, OrchestrationContent audio) throws Exception {
         AudioTranscription transcription = audioService.transcribe(audio.filename(), audio.content());
-        knowledgeService.recordAudioInfo(transcription.text());
+        knowledgeService.recordAudioInfo(job.workspaceId(), audio.filename(), job.jobId(), transcription.text());
     }
 
-    private void processImage(OrchestrationContent image) throws Exception {
+    private void processImage(IngestionJobDetails job, OrchestrationContent image) throws Exception {
         ImageDescription description = imageService.describe(image.filename(), image.contentType(), image.content());
-        knowledgeService.recordImagesInfo(description.description());
+        knowledgeService.recordImagesInfo(job.workspaceId(), image.filename(), job.jobId(), description.description());
     }
 
-    private void processVideo(OrchestrationContent video) throws Exception {
+    private void processVideo(IngestionJobDetails job, OrchestrationContent video) throws Exception {
         VideoDescription description = videoService.describe(video.filename(), video.contentType(), video.content());
-        knowledgeService.recordVideoInfo(description.description());
+        knowledgeService.recordVideoInfo(job.workspaceId(), video.filename(), job.jobId(), description.description());
     }
 
     @FunctionalInterface

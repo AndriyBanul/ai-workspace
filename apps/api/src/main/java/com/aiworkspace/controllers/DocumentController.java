@@ -38,14 +38,17 @@ public class DocumentController {
     }
 
     @PostMapping(path = "/text", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<TextDocumentUploadResponse> uploadTextDocument(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<TextDocumentUploadResponse> uploadTextDocument(
+            @RequestParam("workspaceId") String workspaceId,
+            @RequestParam("file") MultipartFile file
+    ) {
         if (file.isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, "File must not be empty");
         }
 
         try {
             ParsedTextDocument document = documentService.parseTextDocument(file.getOriginalFilename(), file.getBytes());
-            knowledgeService.recordDocumentsInfo(document.content());
+            knowledgeService.recordDocumentsInfo(workspaceId, document.filename(), null, document.content());
 
             log.info("Parsed text document '{}':\n{}", document.filename(), document.content());
 
@@ -74,7 +77,7 @@ public class DocumentController {
             boolean truncated = loggedContent.length() < page.content().length();
 
             log.info("Extracted web page '{}' from '{}':\n{}", page.title(), page.url(), loggedContent);
-            knowledgeService.recordDocumentsInfo(page.content());
+            knowledgeService.recordDocumentsInfo(request.workspaceId(), page.title(), null, page.content());
 
             return ResponseEntity.ok(new WebPageExtractResponse(
                     page.url(),
@@ -98,7 +101,7 @@ public class DocumentController {
         return content.substring(0, MAX_LOGGED_CHARACTERS);
     }
 
-    public record WebPageExtractRequest(String url) {
+    public record WebPageExtractRequest(String workspaceId, String url) {
     }
 
     public record WebPageExtractResponse(

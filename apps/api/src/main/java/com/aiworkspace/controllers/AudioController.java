@@ -38,13 +38,16 @@ public class AudioController {
     }
 
     @PostMapping(path = "/transcriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<AudioTranscriptionResponse> transcribe(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<AudioTranscriptionResponse> transcribe(
+            @RequestParam("workspaceId") String workspaceId,
+            @RequestParam("file") MultipartFile file
+    ) {
         try {
             AudioTranscription transcription = audioService.transcribe(
                     file.getOriginalFilename(),
                     file.getBytes()
             );
-            knowledgeService.recordAudioInfo(transcription.text());
+            knowledgeService.recordAudioInfo(workspaceId, transcription.filename(), null, transcription.text());
 
             return ResponseEntity.ok(new AudioTranscriptionResponse(
                     transcription.filename(),

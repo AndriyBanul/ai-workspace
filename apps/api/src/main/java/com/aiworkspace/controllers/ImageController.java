@@ -38,14 +38,17 @@ public class ImageController {
     }
 
     @PostMapping(path = "/descriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ImageDescriptionResponse> describe(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<ImageDescriptionResponse> describe(
+            @RequestParam("workspaceId") String workspaceId,
+            @RequestParam("file") MultipartFile file
+    ) {
         try {
             ImageDescription description = imageService.describe(
                     file.getOriginalFilename(),
                     file.getContentType(),
                     file.getBytes()
             );
-            knowledgeService.recordImagesInfo(description.description());
+            knowledgeService.recordImagesInfo(workspaceId, description.filename(), null, description.description());
 
             return ResponseEntity.ok(new ImageDescriptionResponse(
                     description.filename(),

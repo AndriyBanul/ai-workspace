@@ -39,6 +39,7 @@ apps
   audio
   knowledge
   orchestrator
+  workspaces
 ```
 
 Run build commands from `apps`:
@@ -59,6 +60,7 @@ Business logic modules:
 - `apps/audio` - audio ingestion, speech-to-text, text-to-speech, diarization, and audio metadata.
 - `apps/knowledge` - knowledge organization, retrieval, and future knowledge-base workflows.
 - `apps/orchestrator` - async coordination across multimodal business modules.
+- `apps/workspaces` - workspace metadata and workspace lifecycle.
 
 The initial Java package is `com.aiworkspace`.
 

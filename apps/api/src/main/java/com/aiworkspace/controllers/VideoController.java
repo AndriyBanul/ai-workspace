@@ -38,14 +38,17 @@ public class VideoController {
     }
 
     @PostMapping(path = "/descriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<VideoDescriptionResponse> describe(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<VideoDescriptionResponse> describe(
+            @RequestParam("workspaceId") String workspaceId,
+            @RequestParam("file") MultipartFile file
+    ) {
         try {
             VideoDescription description = videoService.describe(
                     file.getOriginalFilename(),
                     file.getContentType(),
                     file.getBytes()
             );
-            knowledgeService.recordVideoInfo(description.description());
+            knowledgeService.recordVideoInfo(workspaceId, description.filename(), null, description.description());
 
             return ResponseEntity.ok(new VideoDescriptionResponse(
                     description.filename(),

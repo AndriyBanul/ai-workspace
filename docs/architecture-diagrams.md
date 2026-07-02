@@ -14,7 +14,7 @@ flowchart LR
     user["User / Future UI"]
     api["AI Workspace API\nSpring Boot modular monolith"]
     llm["External LLM APIs\nGemini / future providers"]
-    opensearch[("OpenSearch\nworkspace index")]
+    opensearch[("OpenSearch\nknowledge-items index")]
     postgres[("PostgreSQL\ningestion jobs + future metadata")]
     redis[("Redis\nfuture async/job/cache support")]
     localServices["Optional local AI services\nWhisper / Piper"]
@@ -42,10 +42,11 @@ flowchart TB
         images["apps/images\nimage description and generation"]
         videos["apps/videos\nvideo description and generation"]
         knowledge["apps/knowledge\nworkspace knowledge and answers"]
+        workspaces["apps/workspaces\nworkspace metadata"]
         shared["apps/shared\nshared stable models"]
     end
 
-    opensearch[("OpenSearch\nworkspace index")]
+    opensearch[("OpenSearch\nknowledge-items index")]
     postgres[("PostgreSQL\ningestion job tables")]
     llm["Gemini / external AI providers"]
     whisper["Whisper\noptional local service"]
@@ -57,16 +58,19 @@ flowchart TB
     api --> images
     api --> videos
     api --> knowledge
+    api --> workspaces
     orchestrator --> documents
     orchestrator --> audio
     orchestrator --> images
     orchestrator --> videos
     orchestrator --> knowledge
+    orchestrator --> workspaces
     documents --> knowledge
     audio --> knowledge
     images --> knowledge
     videos --> knowledge
     knowledge --> opensearch
+    workspaces --> postgres
     orchestrator --> postgres
     knowledge --> llm
     audio -.-> whisper
@@ -112,11 +116,18 @@ flowchart TB
         geminiAnswerClient["GeminiKnowledgeAnswerClient"]
     end
 
+    subgraph workspacesModule["apps/workspaces"]
+        workspaceService["WorkspaceService"]
+        workspaceRepository["WorkspaceRepository"]
+    end
+
     opensearch[("OpenSearch")]
+    postgres[("PostgreSQL")]
     gemini["Gemini API"]
 
     orchestratorController --> orchestratorService
     knowledgeController --> knowledgeService
+    orchestratorService --> workspaceService
     documentController --> documentService
     audioController --> audioService
     imageController --> imageService
@@ -136,6 +147,8 @@ flowchart TB
 
     knowledgeService --> knowledgeRepository
     knowledgeRepository --> opensearch
+    workspaceService --> workspaceRepository
+    workspaceRepository --> postgres
     knowledgeService --> answerProvider
     answerProvider --> geminiAnswerClient
     geminiAnswerClient --> gemini
@@ -163,9 +176,9 @@ sequenceDiagram
     participant Knowledge as KnowledgeService
     participant OS as OpenSearch
 
-    User->>API: POST /api/v1/orchestrator/ingestions
+    User->>API: POST /api/v1/orchestrator/ingestions with workspaceId
     API->>API: Read multipart files into bytes
-    API->>Orchestrator: ingest(document, audio, image, video)
+    API->>Orchestrator: ingest(workspaceId, document, audio, image, video)
     Orchestrator->>Executor: submit task for each present content type
     API-->>User: 202 Accepted with submitted/skipped modules
 
@@ -173,22 +186,22 @@ sequenceDiagram
         Executor->>Documents: parseTextDocument(file)
         Documents-->>Executor: extracted text
         Executor->>Knowledge: recordDocumentsInfo(text)
-        Knowledge->>OS: upsert documentsInfo for default-workspace
+        Knowledge->>OS: add document knowledge item for workspaceId
     and Audio present
         Executor->>Audio: transcribe(file)
         Audio-->>Executor: transcript
         Executor->>Knowledge: recordAudioInfo(transcript)
-        Knowledge->>OS: upsert audioInfo for default-workspace
+        Knowledge->>OS: add audio knowledge item for workspaceId
     and Image present
         Executor->>Images: describe(file)
         Images-->>Executor: image description
         Executor->>Knowledge: recordImagesInfo(description)
-        Knowledge->>OS: upsert imagesInfo for default-workspace
+        Knowledge->>OS: add image knowledge item for workspaceId
     and Video present
         Executor->>Videos: describe(file)
         Videos-->>Executor: video description
         Executor->>Knowledge: recordVideoInfo(description)
-        Knowledge->>OS: upsert videoInfo for default-workspace
+        Knowledge->>OS: add video knowledge item for workspaceId
     end
 ```
 
@@ -211,11 +224,11 @@ sequenceDiagram
     User->>API: POST /api/v1/knowledge/workspaces/{workspaceId}/answers
     API->>API: Validate request body and question
     API->>Knowledge: answerWorkspaceQuestion(workspaceId, question)
-    Knowledge->>Repository: findByWorkspaceId(workspaceId)
-    Repository->>OS: get workspace document
-    OS-->>Repository: WorkspaceKnowledge document
-    Repository-->>Knowledge: documents/audio/images/video fields
-    Knowledge->>Knowledge: Build workspace context from stored fields
+    Knowledge->>Repository: searchKnowledgeItems(workspaceId, question, topN)
+    Repository->>OS: search top relevant knowledge items
+    OS-->>Repository: KnowledgeItem hits
+    Repository-->>Knowledge: relevant items
+    Knowledge->>Knowledge: Build context from top snippets
     Knowledge->>AnswerProvider: answer(question, context)
     AnswerProvider->>Gemini: prompt with question + context
     Gemini-->>AnswerProvider: answer text
@@ -247,10 +260,10 @@ flowchart TD
     submitImage["Submit async image task"]
     submitVideo["Submit async video task"]
 
-    documentFlow["Parse text document\nand save documentsInfo"]
-    audioFlow["Transcribe audio\nand save audioInfo"]
-    imageFlow["Describe image\nand save imagesInfo"]
-    videoFlow["Describe video\nand save videoInfo"]
+    documentFlow["Parse text document\nand add document knowledge item"]
+    audioFlow["Transcribe audio\nand add audio knowledge item"]
+    imageFlow["Describe image\nand add image knowledge item"]
+    videoFlow["Describe video\nand add video knowledge item"]
 
     response["Return 202 Accepted\nsubmitted + skipped"]
     background["Async tasks continue in background"]
@@ -307,7 +320,7 @@ flowchart LR
     videoProcessor["Video understanding\nVideoService"]
 
     normalized["Normalized text knowledge\nproject facts, notes, descriptions"]
-    workspaceDoc[("OpenSearch workspace document\ndocumentsInfo / audioInfo / imagesInfo / videoInfo")]
+    workspaceDoc[("OpenSearch knowledge-items\nappend-only workspace memory")]
     context["Workspace context builder\nKnowledgeService"]
     prompt["LLM prompt\nquestion + context"]
     answer["Workspace answer\nreturned to API client"]

@@ -23,6 +23,7 @@ If this file conflicts with other project guidance, follow this file first unles
   - `apps/videos`
   - `apps/knowledge`
   - `apps/orchestrator`
+  - `apps/workspaces`
 - Keep shared models in `apps/shared` only when they are genuinely shared.
 - Avoid circular dependencies between business modules.
 - Provider-specific code should stay behind module clients/services.

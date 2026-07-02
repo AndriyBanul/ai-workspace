@@ -1,10 +1,15 @@
 package com.aiworkspace.knowledge.services;
 
+import com.aiworkspace.knowledge.models.KnowledgeItem;
+import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.providers.KnowledgeAnswerProvider;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import java.io.IOException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -47,56 +52,58 @@ class KnowledgeServiceTest {
         service.updateWorkspaceKnowledgeField(" workspace-1 ", WorkspaceKnowledgeField.DOCUMENTS_INFO, " New info ");
 
         assertEquals("workspace-1", repository.workspaceId);
-        assertEquals(WorkspaceKnowledgeField.DOCUMENTS_INFO, repository.field);
-        assertEquals("New info", repository.value);
+        assertEquals(KnowledgeSourceType.DOCUMENT, repository.items.get(0).sourceType());
+        assertEquals("New info", repository.items.get(0).content());
     }
 
     @Test
-    void recordsDocumentsInfoWithHardcodedWorkspaceId() throws IOException {
+    void recordsDocumentsInfoForWorkspace() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
         KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
 
-        service.recordDocumentsInfo("Document text");
+        service.recordDocumentsInfo("workspace-1", "document.txt", "job-1", "Document text");
 
-        assertEquals("default-workspace", repository.workspaceId);
-        assertEquals(WorkspaceKnowledgeField.DOCUMENTS_INFO, repository.field);
-        assertEquals("Document text", repository.value);
+        assertEquals("workspace-1", repository.workspaceId);
+        assertEquals(KnowledgeSourceType.DOCUMENT, repository.items.get(0).sourceType());
+        assertEquals("document.txt", repository.items.get(0).sourceName());
+        assertEquals("job-1", repository.items.get(0).jobId());
+        assertEquals("Document text", repository.items.get(0).content());
     }
 
     @Test
-    void recordsAudioInfoWithHardcodedWorkspaceId() throws IOException {
+    void recordsAudioInfoForWorkspace() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
         KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
 
-        service.recordAudioInfo("Audio transcript");
+        service.recordAudioInfo("workspace-1", "meeting.mp3", "job-1", "Audio transcript");
 
-        assertEquals("default-workspace", repository.workspaceId);
-        assertEquals(WorkspaceKnowledgeField.AUDIO_INFO, repository.field);
-        assertEquals("Audio transcript", repository.value);
+        assertEquals("workspace-1", repository.workspaceId);
+        assertEquals(KnowledgeSourceType.AUDIO, repository.items.get(0).sourceType());
+        assertEquals("Audio transcript", repository.items.get(0).content());
     }
 
     @Test
-    void recordsVideoInfoWithHardcodedWorkspaceId() throws IOException {
+    void recordsVideoInfoForWorkspace() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
         KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
 
-        service.recordVideoInfo("Video description");
+        service.recordVideoInfo("workspace-1", "video.mp4", "job-1", "Video description");
 
-        assertEquals("default-workspace", repository.workspaceId);
-        assertEquals(WorkspaceKnowledgeField.VIDEO_INFO, repository.field);
-        assertEquals("Video description", repository.value);
+        assertEquals("workspace-1", repository.workspaceId);
+        assertEquals(KnowledgeSourceType.VIDEO, repository.items.get(0).sourceType());
+        assertEquals("Video description", repository.items.get(0).content());
     }
 
     @Test
-    void recordsImagesInfoWithHardcodedWorkspaceId() throws IOException {
+    void recordsImagesInfoForWorkspace() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
         KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
 
-        service.recordImagesInfo("Image description");
+        service.recordImagesInfo("workspace-1", "image.png", "job-1", "Image description");
 
-        assertEquals("default-workspace", repository.workspaceId);
-        assertEquals(WorkspaceKnowledgeField.IMAGES_INFO, repository.field);
-        assertEquals("Image description", repository.value);
+        assertEquals("workspace-1", repository.workspaceId);
+        assertEquals(KnowledgeSourceType.IMAGE, repository.items.get(0).sourceType());
+        assertEquals("Image description", repository.items.get(0).content());
     }
 
     @Test
@@ -139,6 +146,26 @@ class KnowledgeServiceTest {
                 "Video context",
                 "Image context"
         ));
+        repository.searchResults = List.of(
+                new KnowledgeItem(
+                        "item-1",
+                        "workspace-1",
+                        KnowledgeSourceType.DOCUMENT,
+                        "document.txt",
+                        "job-1",
+                        "Document context",
+                        Instant.parse("2026-07-02T00:00:00Z")
+                ),
+                new KnowledgeItem(
+                        "item-2",
+                        "workspace-1",
+                        KnowledgeSourceType.AUDIO,
+                        "meeting.mp3",
+                        "job-1",
+                        "Audio context",
+                        Instant.parse("2026-07-02T00:00:01Z")
+                )
+        );
         CapturingKnowledgeAnswerProvider answerProvider = new CapturingKnowledgeAnswerProvider();
         KnowledgeService service = new KnowledgeService(repository, answerProvider);
 
@@ -147,11 +174,11 @@ class KnowledgeServiceTest {
         assertEquals("workspace-1", repository.workspaceId);
         assertEquals("What do we know?", answer.question());
         assertEquals("Answer from LLM", answer.answer());
+        assertEquals(2, answer.sources().size());
+        assertEquals("document.txt", answer.sources().get(0).sourceName());
         assertEquals("What do we know?", answerProvider.question);
         org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Document context"));
         org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Audio context"));
-        org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Video context"));
-        org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Image context"));
     }
 
     @Test
@@ -202,8 +229,8 @@ class KnowledgeServiceTest {
     private static class CapturingKnowledgeRepository implements KnowledgeRepository {
 
         private String workspaceId;
-        private WorkspaceKnowledgeField field;
-        private String value;
+        private final List<KnowledgeItem> items = new ArrayList<>();
+        private List<KnowledgeItem> searchResults = List.of();
         private Optional<WorkspaceKnowledge> knowledge = Optional.empty();
 
         @Override
@@ -213,10 +240,39 @@ class KnowledgeServiceTest {
         }
 
         @Override
-        public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value) {
+        public List<KnowledgeItem> findKnowledgeItemsByWorkspaceId(String workspaceId) {
             this.workspaceId = workspaceId;
-            this.field = field;
-            this.value = value;
+            return items;
+        }
+
+        @Override
+        public List<KnowledgeItem> searchKnowledgeItems(String workspaceId, String query, int limit) {
+            this.workspaceId = workspaceId;
+            return searchResults;
+        }
+
+        @Override
+        public void addKnowledgeItem(KnowledgeItem item) {
+            this.workspaceId = item.workspaceId();
+            items.add(item);
+        }
+
+        @Override
+        public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value) {
+            addKnowledgeItem(new KnowledgeItem(
+                    "item-" + items.size(),
+                    workspaceId,
+                    switch (field) {
+                        case DOCUMENTS_INFO -> KnowledgeSourceType.DOCUMENT;
+                        case AUDIO_INFO -> KnowledgeSourceType.AUDIO;
+                        case IMAGES_INFO -> KnowledgeSourceType.IMAGE;
+                        case VIDEO_INFO -> KnowledgeSourceType.VIDEO;
+                    },
+                    field.fieldName(),
+                    null,
+                    value,
+                    Instant.now()
+            ));
         }
     }
 

@@ -8,6 +8,7 @@ import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
+import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
@@ -19,6 +20,8 @@ import com.aiworkspace.orchestrator.models.OrchestrationContent;
 import com.aiworkspace.orchestrator.repositories.IngestionJobRepository;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.services.VideoService;
+import com.aiworkspace.workspaces.models.Workspace;
+import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.EnumMap;
@@ -44,10 +47,12 @@ class OrchestratorServiceTest {
                 new TestVideoService(),
                 new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
                 new IngestionJobService(jobRepository),
+                new TestWorkspaceService(),
                 Runnable::run
         );
 
         var submission = service.process(
+                "workspace-1",
                 new OrchestrationContent("document.txt", "text/plain", "Document input".getBytes()),
                 null,
                 new OrchestrationContent("image.png", "image/png", new byte[] {1, 2, 3}),
@@ -55,12 +60,12 @@ class OrchestratorServiceTest {
         );
 
         assertNotNull(submission.jobId());
-        assertEquals("default-workspace", submission.workspaceId());
+        assertEquals("workspace-1", submission.workspaceId());
         assertEquals(IngestionJobStatus.RUNNING, submission.status());
         assertEquals(List.of("documents", "images"), submission.submitted());
         assertEquals(List.of("audio", "videos"), submission.skipped());
-        assertEquals("Parsed document text", knowledgeRepository.values.get(WorkspaceKnowledgeField.DOCUMENTS_INFO));
-        assertEquals("Image description", knowledgeRepository.values.get(WorkspaceKnowledgeField.IMAGES_INFO));
+        assertEquals("Parsed document text", knowledgeRepository.items.get(0).content());
+        assertEquals("Image description", knowledgeRepository.items.get(1).content());
 
         var job = service.findJob(submission.jobId());
         assertEquals(IngestionJobStatus.COMPLETED, job.status());
@@ -81,10 +86,12 @@ class OrchestratorServiceTest {
                 new TestVideoService(),
                 new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
                 new IngestionJobService(jobRepository),
+                new TestWorkspaceService(),
                 Runnable::run
         );
 
         var submission = service.process(
+                "workspace-1",
                 new OrchestrationContent("document.txt", "text/plain", "Document input".getBytes()),
                 new OrchestrationContent("audio.mp3", "audio/mpeg", new byte[] {1}),
                 null,
@@ -153,9 +160,21 @@ class OrchestratorServiceTest {
         }
     }
 
+    private static class TestWorkspaceService extends WorkspaceService {
+
+        TestWorkspaceService() {
+            super(null);
+        }
+
+        @Override
+        public Workspace getWorkspace(String workspaceId) {
+            return new Workspace(workspaceId, "Test workspace", Instant.now(), Instant.now());
+        }
+    }
+
     private static class CapturingKnowledgeRepository implements KnowledgeRepository {
 
-        private final EnumMap<WorkspaceKnowledgeField, String> values = new EnumMap<>(WorkspaceKnowledgeField.class);
+        private final List<KnowledgeItem> items = new java.util.ArrayList<>();
 
         @Override
         public Optional<WorkspaceKnowledge> findByWorkspaceId(String workspaceId) {
@@ -163,9 +182,23 @@ class OrchestratorServiceTest {
         }
 
         @Override
+        public List<KnowledgeItem> findKnowledgeItemsByWorkspaceId(String workspaceId) {
+            return List.of();
+        }
+
+        @Override
+        public List<KnowledgeItem> searchKnowledgeItems(String workspaceId, String query, int limit) {
+            return List.of();
+        }
+
+        @Override
+        public void addKnowledgeItem(KnowledgeItem item) {
+            items.add(item);
+        }
+
+        @Override
         public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value)
                 throws IOException {
-            values.put(field, value);
         }
     }
 

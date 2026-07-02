@@ -18,6 +18,7 @@ apps
   audio
   knowledge
   orchestrator
+  workspaces
 ```
 
 `apps` is the Gradle root opened by IntelliJ IDEA.
@@ -34,11 +35,17 @@ Business logic lives in dedicated Java library subprojects:
 - `apps/audio`
 - `apps/knowledge`
 - `apps/orchestrator`
+- `apps/workspaces`
 
 `apps/orchestrator` owns async multimodal ingestion coordination and ingestion
 job lifecycle tracking. Ingestion job and step status are application state and
 are persisted in PostgreSQL through Flyway-managed tables. Extracted multimodal
-knowledge remains stored in OpenSearch through the `apps/knowledge` module.
+knowledge is stored as append-only knowledge items in OpenSearch through the
+`apps/knowledge` module.
+
+`apps/workspaces` owns workspace metadata persisted in PostgreSQL. Business
+flows that attach knowledge to a workspace should use a real `workspaceId`
+instead of hardcoded workspace identifiers.
 
 The initial API package is `com.aiworkspace`.
 
