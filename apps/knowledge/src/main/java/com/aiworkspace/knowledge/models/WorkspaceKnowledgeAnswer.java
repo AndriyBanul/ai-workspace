@@ -9,6 +9,7 @@ public record WorkspaceKnowledgeAnswer(
         String workspaceId,
         String question,
         String answer,
+        List<WorkspaceKnowledgeSourceFile> sourceFiles,
         List<WorkspaceKnowledgeSource> sources
 ) {
 }

@@ -101,6 +101,7 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider {
                 You answer questions using only the workspace context below.
                 If the context does not contain enough information, say that the workspace context does not contain enough information.
                 Keep the answer concise and practical.
+                When making claims, mention the relevant source file names when useful.
 
                 Workspace context:
                 %s

@@ -174,11 +174,18 @@ class KnowledgeServiceTest {
         assertEquals("workspace-1", repository.workspaceId);
         assertEquals("What do we know?", answer.question());
         assertEquals("Answer from LLM", answer.answer());
+        assertEquals(2, answer.sourceFiles().size());
+        assertEquals("document.txt", answer.sourceFiles().get(0).name());
+        assertEquals("documents", answer.sourceFiles().get(0).type());
+        assertEquals("job-1", answer.sourceFiles().get(0).jobId());
+        assertEquals(1, answer.sourceFiles().get(0).sourceCount());
         assertEquals(2, answer.sources().size());
         assertEquals("document.txt", answer.sources().get(0).sourceName());
+        assertEquals("documents:document.txt:job-1", answer.sources().get(0).sourceFileKey());
         assertEquals("What do we know?", answerProvider.question);
         org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Document context"));
         org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Audio context"));
+        org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Source file: document.txt"));
     }
 
     @Test

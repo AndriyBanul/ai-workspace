@@ -8,6 +8,7 @@ public record WorkspaceKnowledgeSource(
         String type,
         String sourceName,
         String jobId,
-        String snippet
+        String snippet,
+        String sourceFileKey
 ) {
 }
