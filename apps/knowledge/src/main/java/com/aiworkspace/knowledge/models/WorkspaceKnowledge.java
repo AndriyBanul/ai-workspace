@@ -1,7 +1,9 @@
 package com.aiworkspace.knowledge.models;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import lombok.Builder;
 
+@Builder
 public record WorkspaceKnowledge(
         String workspaceId,
         String documentsInfo,

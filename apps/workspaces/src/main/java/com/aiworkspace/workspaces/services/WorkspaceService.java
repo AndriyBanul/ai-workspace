@@ -25,11 +25,11 @@ public class WorkspaceService {
 
     @Transactional
     public Workspace createWorkspace(String name) {
-        String normalizedName = normalizedName(name);
+        validateName(name);
         Instant now = Instant.now();
         WorkspaceEntity entity = new WorkspaceEntity(
                 UUID.randomUUID().toString(),
-                normalizedName,
+                name.trim(),
                 now,
                 now
         );
@@ -47,25 +47,22 @@ public class WorkspaceService {
 
     @Transactional(readOnly = true)
     public Workspace getWorkspace(String workspaceId) {
-        return workspaceRepository.findById(normalizedWorkspaceId(workspaceId))
+        validateWorkspaceId(workspaceId);
+        return workspaceRepository.findById(workspaceId.trim())
                 .map(workspaceMapper::toModel)
                 .orElseThrow(() -> new NoSuchElementException("Workspace was not found"));
     }
 
-    private String normalizedName(String name) {
+    private void validateName(String name) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Workspace name must not be blank");
         }
-
-        return name.trim();
     }
 
-    private String normalizedWorkspaceId(String workspaceId) {
+    private void validateWorkspaceId(String workspaceId) {
         if (workspaceId == null || workspaceId.isBlank()) {
             throw new IllegalArgumentException("Workspace ID must not be blank");
         }
-
-        return workspaceId.trim();
     }
 
 }

@@ -32,7 +32,8 @@ public class KnowledgeService {
     }
 
     public Optional<WorkspaceKnowledge> findWorkspaceKnowledge(String workspaceId) throws IOException {
-        return knowledgeRepository.findByWorkspaceId(normalizedWorkspaceId(workspaceId));
+        validateWorkspaceId(workspaceId);
+        return knowledgeRepository.findByWorkspaceId(workspaceId.trim());
     }
 
     public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value)
@@ -45,7 +46,8 @@ public class KnowledgeService {
             throw new IllegalArgumentException("Knowledge field value must not be blank");
         }
 
-        knowledgeRepository.updateWorkspaceKnowledgeField(normalizedWorkspaceId(workspaceId), field, value.trim());
+        validateWorkspaceId(workspaceId);
+        knowledgeRepository.updateWorkspaceKnowledgeField(workspaceId.trim(), field, value.trim());
     }
 
     public void recordDocumentsInfo(String workspaceId, String sourceName, String jobId, String value) throws IOException {
@@ -65,22 +67,24 @@ public class KnowledgeService {
     }
 
     public WorkspaceKnowledgeAnswer answerWorkspaceQuestion(String workspaceId, String question) throws IOException {
-        String normalizedWorkspaceId = normalizedWorkspaceId(workspaceId);
-        String normalizedQuestion = normalizedQuestion(question);
+        validateWorkspaceId(workspaceId);
+        validateQuestion(question);
+        String trimmedWorkspaceId = workspaceId.trim();
+        String trimmedQuestion = question.trim();
         List<KnowledgeItem> items = knowledgeRepository.searchKnowledgeItems(
-                normalizedWorkspaceId,
-                normalizedQuestion,
+                trimmedWorkspaceId,
+                trimmedQuestion,
                 RETRIEVAL_LIMIT
         );
         if (items.isEmpty()) {
             throw new NoSuchElementException("Workspace knowledge was not found");
         }
 
-        String answer = knowledgeAnswerProvider.answer(normalizedQuestion, contextFrom(normalizedWorkspaceId, items));
+        String answer = knowledgeAnswerProvider.answer(trimmedQuestion, contextFrom(trimmedWorkspaceId, items));
 
         return new WorkspaceKnowledgeAnswer(
-                normalizedWorkspaceId,
-                normalizedQuestion,
+                trimmedWorkspaceId,
+                trimmedQuestion,
                 answer,
                 items.stream().map(this::sourceFrom).toList()
         );
@@ -97,9 +101,10 @@ public class KnowledgeService {
             throw new IllegalArgumentException("Knowledge item content must not be blank");
         }
 
+        validateWorkspaceId(workspaceId);
         knowledgeRepository.addKnowledgeItem(new KnowledgeItem(
                 UUID.randomUUID().toString(),
-                normalizedWorkspaceId(workspaceId),
+                workspaceId.trim(),
                 sourceType,
                 normalizedOptionalValue(sourceName),
                 normalizedOptionalValue(jobId),
@@ -108,15 +113,13 @@ public class KnowledgeService {
         ));
     }
 
-    private String normalizedWorkspaceId(String workspaceId) {
+    private void validateWorkspaceId(String workspaceId) {
         if (workspaceId == null || workspaceId.isBlank()) {
             throw new IllegalArgumentException("Workspace ID must not be blank");
         }
-
-        return workspaceId.trim();
     }
 
-    private String normalizedQuestion(String question) {
+    private void validateQuestion(String question) {
         if (question == null || question.isBlank()) {
             throw new IllegalArgumentException("Question must not be blank");
         }
@@ -124,8 +127,6 @@ public class KnowledgeService {
         if (question.length() > MAX_QUESTION_LENGTH) {
             throw new IllegalArgumentException("Question must not be longer than 4000 characters");
         }
-
-        return question.trim();
     }
 
     private String contextFrom(String workspaceId, List<KnowledgeItem> items) {

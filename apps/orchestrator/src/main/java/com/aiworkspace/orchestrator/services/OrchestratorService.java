@@ -71,8 +71,9 @@ public class OrchestratorService {
             OrchestrationContent image,
             OrchestrationContent video
     ) {
-        String normalizedWorkspaceId = normalizedWorkspaceId(workspaceId);
-        workspaceService.getWorkspace(normalizedWorkspaceId);
+        validateWorkspaceId(workspaceId);
+        String trimmedWorkspaceId = workspaceId.trim();
+        workspaceService.getWorkspace(trimmedWorkspaceId);
         List<IngestionContentType> submittedTypes = new ArrayList<>();
         List<IngestionContentType> skippedTypes = new ArrayList<>();
 
@@ -81,7 +82,7 @@ public class OrchestratorService {
         collectContentType(IngestionContentType.IMAGES, image, submittedTypes, skippedTypes);
         collectContentType(IngestionContentType.VIDEOS, video, submittedTypes, skippedTypes);
 
-        IngestionJobDetails job = ingestionJobService.createJob(normalizedWorkspaceId, submittedTypes, skippedTypes);
+        IngestionJobDetails job = ingestionJobService.createJob(trimmedWorkspaceId, submittedTypes, skippedTypes);
 
         submitIfPresent(job.jobId(), IngestionContentType.DOCUMENTS, document, () -> processDocument(job, document));
         submitIfPresent(job.jobId(), IngestionContentType.AUDIO, audio, () -> processAudio(job, audio));
@@ -101,12 +102,10 @@ public class OrchestratorService {
         return ingestionJobService.getJob(jobId);
     }
 
-    private String normalizedWorkspaceId(String workspaceId) {
+    private void validateWorkspaceId(String workspaceId) {
         if (workspaceId == null || workspaceId.isBlank()) {
             throw new IllegalArgumentException("Workspace ID must not be blank");
         }
-
-        return workspaceId.trim();
     }
 
     private void collectContentType(

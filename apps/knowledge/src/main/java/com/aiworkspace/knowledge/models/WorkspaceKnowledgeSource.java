@@ -1,5 +1,8 @@
 package com.aiworkspace.knowledge.models;
 
+import lombok.Builder;
+
+@Builder
 public record WorkspaceKnowledgeSource(
         String id,
         String type,

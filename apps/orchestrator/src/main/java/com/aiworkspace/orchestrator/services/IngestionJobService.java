@@ -37,9 +37,7 @@ public class IngestionJobService {
             List<IngestionContentType> submitted,
             List<IngestionContentType> skipped
     ) {
-        if (workspaceId == null || workspaceId.isBlank()) {
-            throw new IllegalArgumentException("Workspace ID must not be blank");
-        }
+        validateWorkspaceId(workspaceId);
 
         Set<IngestionContentType> submittedTypes = Set.copyOf(submitted);
         Set<IngestionContentType> skippedTypes = Set.copyOf(skipped);
@@ -74,7 +72,8 @@ public class IngestionJobService {
 
     @Transactional(readOnly = true)
     public IngestionJobDetails getJob(String jobId) {
-        IngestionJob job = ingestionJobRepository.findJob(normalizedJobId(jobId))
+        validateJobId(jobId);
+        IngestionJob job = ingestionJobRepository.findJob(jobId.trim())
                 .orElseThrow(() -> new NoSuchElementException("Ingestion job was not found"));
         return details(job, ingestionJobRepository.findSteps(job.id()));
     }
@@ -87,7 +86,7 @@ public class IngestionJobService {
 
         Instant now = Instant.now();
         ingestionJobRepository.updateStepStatus(
-                normalizedJobId(jobId),
+                jobId.trim(),
                 contentType,
                 IngestionStepStatus.RUNNING,
                 now,
@@ -105,7 +104,7 @@ public class IngestionJobService {
 
         Instant now = Instant.now();
         ingestionJobRepository.updateStepStatus(
-                normalizedJobId(jobId),
+                jobId.trim(),
                 contentType,
                 IngestionStepStatus.COMPLETED,
                 null,
@@ -123,7 +122,7 @@ public class IngestionJobService {
 
         Instant now = Instant.now();
         ingestionJobRepository.updateStepStatus(
-                normalizedJobId(jobId),
+                jobId.trim(),
                 contentType,
                 IngestionStepStatus.FAILED,
                 null,
@@ -134,7 +133,8 @@ public class IngestionJobService {
     }
 
     private boolean isStepTerminal(String jobId, IngestionContentType contentType) {
-        return ingestionJobRepository.findSteps(normalizedJobId(jobId)).stream()
+        validateJobId(jobId);
+        return ingestionJobRepository.findSteps(jobId.trim()).stream()
                 .filter(step -> step.contentType() == contentType)
                 .map(IngestionJobStep::status)
                 .anyMatch(status -> status == IngestionStepStatus.COMPLETED
@@ -143,7 +143,8 @@ public class IngestionJobService {
     }
 
     private void recalculateJobStatus(String jobId) {
-        List<IngestionJobStep> steps = ingestionJobRepository.findSteps(normalizedJobId(jobId));
+        validateJobId(jobId);
+        List<IngestionJobStep> steps = ingestionJobRepository.findSteps(jobId.trim());
         List<IngestionJobStep> submittedSteps = steps.stream()
                 .filter(step -> step.status() != IngestionStepStatus.SKIPPED)
                 .toList();
@@ -164,7 +165,7 @@ public class IngestionJobService {
 
         Instant now = Instant.now();
         Instant completedAt = isTerminal(status) ? now : null;
-        ingestionJobRepository.updateJobStatus(normalizedJobId(jobId), status, now, completedAt);
+        ingestionJobRepository.updateJobStatus(jobId.trim(), status, now, completedAt);
     }
 
     private IngestionStepStatus stepStatus(
@@ -203,12 +204,16 @@ public class IngestionJobService {
                 || status == IngestionJobStatus.FAILED;
     }
 
-    private String normalizedJobId(String jobId) {
+    private void validateWorkspaceId(String workspaceId) {
+        if (workspaceId == null || workspaceId.isBlank()) {
+            throw new IllegalArgumentException("Workspace ID must not be blank");
+        }
+    }
+
+    private void validateJobId(String jobId) {
         if (jobId == null || jobId.isBlank()) {
             throw new IllegalArgumentException("Ingestion job ID must not be blank");
         }
-
-        return jobId.trim();
     }
 
     private String errorMessage(Exception exception) {

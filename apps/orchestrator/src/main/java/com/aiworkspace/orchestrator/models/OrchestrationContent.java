@@ -1,5 +1,8 @@
 package com.aiworkspace.orchestrator.models;
 
+import lombok.Builder;
+
+@Builder
 public record OrchestrationContent(
         String filename,
         String contentType,
