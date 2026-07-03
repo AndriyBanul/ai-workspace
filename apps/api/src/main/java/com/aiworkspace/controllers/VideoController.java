@@ -1,15 +1,18 @@
 package com.aiworkspace.controllers;
 
+import com.aiworkspace.config.CurrentUserService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.VideoDescriptionResponse;
 import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.services.VideoService;
+import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,17 +26,28 @@ public class VideoController {
 
     private final VideoService videoService;
     private final KnowledgeService knowledgeService;
+    private final WorkspaceService workspaceService;
+    private final CurrentUserService currentUserService;
 
-    public VideoController(VideoService videoService, KnowledgeService knowledgeService) {
+    public VideoController(
+            VideoService videoService,
+            KnowledgeService knowledgeService,
+            WorkspaceService workspaceService,
+            CurrentUserService currentUserService
+    ) {
         this.videoService = videoService;
         this.knowledgeService = knowledgeService;
+        this.workspaceService = workspaceService;
+        this.currentUserService = currentUserService;
     }
 
     @PostMapping(path = "/descriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<VideoDescriptionResponse> describe(
             @RequestParam("workspaceId") String workspaceId,
-            @RequestParam("file") MultipartFile file
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication
     ) throws IOException, InterruptedException {
+        workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
         VideoDescription description = videoService.describe(
                 file.getOriginalFilename(),
                 file.getContentType(),

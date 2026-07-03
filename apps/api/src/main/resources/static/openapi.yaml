@@ -5,7 +5,40 @@ info:
   description: Workspace-scoped multimodal ingestion, knowledge retrieval, and generation API.
 servers:
   - url: /
+security:
+  - BasicAuth: []
 paths:
+  /api/v1/auth/register:
+    post:
+      summary: Register user account
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Registered user account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAccount"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/auth/me:
+    get:
+      summary: Get current user account
+      tags: [Auth]
+      responses:
+        "200":
+          description: Current authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAccount"
   /api/v1/workspaces:
     get:
       summary: List workspaces
@@ -312,6 +345,10 @@ paths:
                 type: string
                 format: binary
 components:
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
   parameters:
     WorkspaceId:
       name: workspaceId
@@ -363,6 +400,8 @@ components:
       type: object
       properties:
         id:
+          type: string
+        ownerId:
           type: string
         name:
           type: string
@@ -468,10 +507,28 @@ components:
           type: string
         answer:
           type: string
+        sourceFiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkspaceKnowledgeSourceFile"
         sources:
           type: array
           items:
             $ref: "#/components/schemas/WorkspaceKnowledgeSource"
+    WorkspaceKnowledgeSourceFile:
+      type: object
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        jobId:
+          type: string
+          nullable: true
+        sourceCount:
+          type: integer
     WorkspaceKnowledgeSource:
       type: object
       properties:
@@ -487,6 +544,34 @@ components:
           nullable: true
         snippet:
           type: string
+        sourceFileKey:
+          type: string
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        displayName:
+          type: string
+          nullable: true
+    UserAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
     TextDocumentUploadResponse:
       type: object
       properties:

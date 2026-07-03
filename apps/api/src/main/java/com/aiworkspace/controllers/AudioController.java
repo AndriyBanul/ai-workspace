@@ -3,13 +3,16 @@ package com.aiworkspace.controllers;
 import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.services.AudioService;
+import com.aiworkspace.config.CurrentUserService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.AudioTranscriptionResponse;
+import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,17 +26,28 @@ public class AudioController {
 
     private final AudioService audioService;
     private final KnowledgeService knowledgeService;
+    private final WorkspaceService workspaceService;
+    private final CurrentUserService currentUserService;
 
-    public AudioController(AudioService audioService, KnowledgeService knowledgeService) {
+    public AudioController(
+            AudioService audioService,
+            KnowledgeService knowledgeService,
+            WorkspaceService workspaceService,
+            CurrentUserService currentUserService
+    ) {
         this.audioService = audioService;
         this.knowledgeService = knowledgeService;
+        this.workspaceService = workspaceService;
+        this.currentUserService = currentUserService;
     }
 
     @PostMapping(path = "/transcriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<AudioTranscriptionResponse> transcribe(
             @RequestParam("workspaceId") String workspaceId,
-            @RequestParam("file") MultipartFile file
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication
     ) throws IOException, InterruptedException {
+        workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
         AudioTranscription transcription = audioService.transcribe(
                 file.getOriginalFilename(),
                 file.getBytes()

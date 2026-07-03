@@ -24,11 +24,13 @@ public class WorkspaceService {
     }
 
     @Transactional
-    public Workspace createWorkspace(String name) {
+    public Workspace createWorkspace(String ownerId, String name) {
+        validateOwnerId(ownerId);
         validateName(name);
         Instant now = Instant.now();
         WorkspaceEntity entity = new WorkspaceEntity(
                 UUID.randomUUID().toString(),
+                ownerId.trim(),
                 name.trim(),
                 now,
                 now
@@ -38,19 +40,27 @@ public class WorkspaceService {
     }
 
     @Transactional(readOnly = true)
-    public List<Workspace> listWorkspaces() {
-        return workspaceRepository.findAll().stream()
+    public List<Workspace> listWorkspaces(String ownerId) {
+        validateOwnerId(ownerId);
+        return workspaceRepository.findAllByOwnerId(ownerId.trim()).stream()
                 .sorted(Comparator.comparing(WorkspaceEntity::getCreatedAt).reversed())
                 .map(workspaceMapper::toModel)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public Workspace getWorkspace(String workspaceId) {
+    public Workspace getWorkspace(String ownerId, String workspaceId) {
+        validateOwnerId(ownerId);
         validateWorkspaceId(workspaceId);
-        return workspaceRepository.findById(workspaceId.trim())
+        return workspaceRepository.findByIdAndOwnerId(workspaceId.trim(), ownerId.trim())
                 .map(workspaceMapper::toModel)
                 .orElseThrow(() -> new NoSuchElementException("Workspace was not found"));
+    }
+
+    private void validateOwnerId(String ownerId) {
+        if (ownerId == null || ownerId.isBlank()) {
+            throw new IllegalArgumentException("Workspace owner ID must not be blank");
+        }
     }
 
     private void validateName(String name) {

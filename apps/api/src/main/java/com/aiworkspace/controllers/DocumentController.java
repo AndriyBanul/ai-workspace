@@ -1,15 +1,18 @@
 package com.aiworkspace.controllers;
 
+import com.aiworkspace.config.CurrentUserService;
 import com.aiworkspace.documents.models.ExtractedWebPage;
 import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.services.DocumentService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.TextDocumentUploadResponse;
+import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,21 +30,32 @@ public class DocumentController {
 
     private final DocumentService documentService;
     private final KnowledgeService knowledgeService;
+    private final WorkspaceService workspaceService;
+    private final CurrentUserService currentUserService;
 
-    public DocumentController(DocumentService documentService, KnowledgeService knowledgeService) {
+    public DocumentController(
+            DocumentService documentService,
+            KnowledgeService knowledgeService,
+            WorkspaceService workspaceService,
+            CurrentUserService currentUserService
+    ) {
         this.documentService = documentService;
         this.knowledgeService = knowledgeService;
+        this.workspaceService = workspaceService;
+        this.currentUserService = currentUserService;
     }
 
     @PostMapping(path = "/text", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<TextDocumentUploadResponse> uploadTextDocument(
             @RequestParam("workspaceId") String workspaceId,
-            @RequestParam("file") MultipartFile file
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication
     ) throws IOException {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("File must not be empty");
         }
 
+        workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
         ParsedTextDocument document = documentService.parseTextDocument(file.getOriginalFilename(), file.getBytes());
         knowledgeService.recordDocumentsInfo(workspaceId, document.filename(), null, document.content());
 
@@ -55,12 +69,16 @@ public class DocumentController {
     }
 
     @PostMapping("/web-page")
-    public ResponseEntity<WebPageExtractResponse> extractWebPage(@RequestBody WebPageExtractRequest request)
+    public ResponseEntity<WebPageExtractResponse> extractWebPage(
+            @RequestBody WebPageExtractRequest request,
+            Authentication authentication
+    )
             throws IOException {
         if (request == null) {
             throw new IllegalArgumentException("Request body must not be empty");
         }
 
+        workspaceService.getWorkspace(currentUserService.currentUserId(authentication), request.workspaceId());
         ExtractedWebPage page = documentService.extractWebPage(request.url());
         String loggedContent = contentForLog(page.content());
         boolean truncated = loggedContent.length() < page.content().length();

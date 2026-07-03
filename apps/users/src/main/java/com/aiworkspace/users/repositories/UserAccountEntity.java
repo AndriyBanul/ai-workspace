@@ -1,4 +1,4 @@
-package com.aiworkspace.workspaces.repositories;
+package com.aiworkspace.users.repositories;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,21 +16,21 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-@Table(name = "workspaces")
-public class WorkspaceEntity {
+@Table(name = "user_accounts")
+public class UserAccountEntity {
 
     @Id
     private String id;
 
-    @Column(name = "owner_id")
-    private String ownerId;
+    @Column(nullable = false, unique = true, length = 320)
+    private String email;
 
-    @Column(nullable = false)
-    private String name;
+    @Column(name = "password_hash", nullable = false)
+    private String passwordHash;
+
+    @Column(name = "display_name", nullable = false)
+    private String displayName;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
 }

@@ -65,15 +65,18 @@ public class OrchestratorService {
     }
 
     public OrchestrationSubmission process(
+            String ownerId,
             String workspaceId,
             OrchestrationContent document,
             OrchestrationContent audio,
             OrchestrationContent image,
             OrchestrationContent video
     ) {
+        validateOwnerId(ownerId);
         validateWorkspaceId(workspaceId);
+        String trimmedOwnerId = ownerId.trim();
         String trimmedWorkspaceId = workspaceId.trim();
-        workspaceService.getWorkspace(trimmedWorkspaceId);
+        workspaceService.getWorkspace(trimmedOwnerId, trimmedWorkspaceId);
         List<IngestionContentType> submittedTypes = new ArrayList<>();
         List<IngestionContentType> skippedTypes = new ArrayList<>();
 
@@ -98,8 +101,17 @@ public class OrchestratorService {
         );
     }
 
-    public IngestionJobDetails findJob(String jobId) {
-        return ingestionJobService.getJob(jobId);
+    public IngestionJobDetails findJob(String ownerId, String jobId) {
+        validateOwnerId(ownerId);
+        IngestionJobDetails job = ingestionJobService.getJob(jobId);
+        workspaceService.getWorkspace(ownerId.trim(), job.workspaceId());
+        return job;
+    }
+
+    private void validateOwnerId(String ownerId) {
+        if (ownerId == null || ownerId.isBlank()) {
+            throw new IllegalArgumentException("Workspace owner ID must not be blank");
+        }
     }
 
     private void validateWorkspaceId(String workspaceId) {

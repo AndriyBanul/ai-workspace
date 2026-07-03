@@ -56,6 +56,7 @@ class OrchestratorServiceTest {
         );
 
         var submission = service.process(
+                "owner-1",
                 "workspace-1",
                 new OrchestrationContent("document.txt", "text/plain", "Document input".getBytes()),
                 null,
@@ -71,7 +72,7 @@ class OrchestratorServiceTest {
         assertEquals("Parsed document text", knowledgeRepository.items.get(0).content());
         assertEquals("Image description", knowledgeRepository.items.get(1).content());
 
-        var job = service.findJob(submission.jobId());
+        var job = service.findJob("owner-1", submission.jobId());
         assertEquals(IngestionJobStatus.COMPLETED, job.status());
         assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.DOCUMENTS, IngestionStepStatus.COMPLETED);
         assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.AUDIO, IngestionStepStatus.SKIPPED);
@@ -96,6 +97,7 @@ class OrchestratorServiceTest {
         );
 
         var submission = service.process(
+                "owner-1",
                 "workspace-1",
                 new OrchestrationContent("document.txt", "text/plain", "Document input".getBytes()),
                 new OrchestrationContent("audio.mp3", "audio/mpeg", new byte[] {1}),
@@ -103,7 +105,7 @@ class OrchestratorServiceTest {
                 null
         );
 
-        var job = service.findJob(submission.jobId());
+        var job = service.findJob("owner-1", submission.jobId());
         assertEquals(IngestionJobStatus.PARTIALLY_FAILED, job.status());
         assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.DOCUMENTS, IngestionStepStatus.COMPLETED);
         assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.AUDIO, IngestionStepStatus.FAILED);
@@ -172,8 +174,8 @@ class OrchestratorServiceTest {
         }
 
         @Override
-        public Workspace getWorkspace(String workspaceId) {
-            return new Workspace(workspaceId, "Test workspace", Instant.now(), Instant.now());
+        public Workspace getWorkspace(String ownerId, String workspaceId) {
+            return new Workspace(workspaceId, ownerId, "Test workspace", Instant.now(), Instant.now());
         }
     }
 
