@@ -103,6 +103,14 @@ If this file conflicts with other project guidance, follow this file first unles
 - Use explicit properties for provider models and base URLs.
 - Do not commit secrets.
 
+## File Storage
+
+- Access raw file bytes through a storage abstraction, not direct filesystem paths in business logic.
+- Use a `FileStorage` interface so local filesystem, S3, R2, B2, or MinIO implementations can be added or swapped without changing callers.
+- For the MVP, prefer local filesystem storage configured through `ai-workspace.storage.local.root`.
+- Store file metadata in PostgreSQL and raw file bytes in storage; do not store large raw files in PostgreSQL `bytea`.
+- Store files under generated storage keys based on internal IDs, not original filenames.
+
 ## Testing
 
 - Run `cd apps && ./gradlew test` after code changes.

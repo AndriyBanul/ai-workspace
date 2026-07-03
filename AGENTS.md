@@ -43,6 +43,7 @@ Current application module:
 - `apps/audio` - audio business logic module using base package `com.aiworkspace.audio`.
 - `apps/knowledge` - knowledge business logic module using base package `com.aiworkspace.knowledge`.
 - `apps/orchestrator` - async multimodal orchestration module using base package `com.aiworkspace.orchestrator`.
+- `apps/storage` - file storage abstraction and storage implementations using base package `com.aiworkspace.storage`.
 - `apps/workspaces` - workspace metadata business logic module using base package `com.aiworkspace.workspaces`.
 
 Initial package areas inside `apps/api`:
