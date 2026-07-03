@@ -9,10 +9,15 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
 @Table(name = "ingestion_job_steps")
 public class IngestionJobStepEntity {
 
@@ -38,27 +43,6 @@ public class IngestionJobStepEntity {
 
     @Column(name = "error_message", length = 1000)
     private String errorMessage;
-
-    protected IngestionJobStepEntity() {
-    }
-
-    public IngestionJobStepEntity(
-            String id,
-            String jobId,
-            IngestionContentType contentType,
-            IngestionStepStatus status,
-            Instant startedAt,
-            Instant completedAt,
-            String errorMessage
-    ) {
-        this.id = id;
-        this.jobId = jobId;
-        this.contentType = contentType;
-        this.status = status;
-        this.startedAt = startedAt;
-        this.completedAt = completedAt;
-        this.errorMessage = errorMessage;
-    }
 
     void updateStatus(
             IngestionStepStatus status,

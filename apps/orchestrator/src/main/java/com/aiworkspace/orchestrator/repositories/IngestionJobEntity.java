@@ -8,10 +8,15 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
 @Table(name = "ingestion_jobs")
 public class IngestionJobEntity {
 
@@ -33,25 +38,6 @@ public class IngestionJobEntity {
 
     @Column(name = "completed_at")
     private Instant completedAt;
-
-    protected IngestionJobEntity() {
-    }
-
-    public IngestionJobEntity(
-            String id,
-            String workspaceId,
-            IngestionJobStatus status,
-            Instant createdAt,
-            Instant updatedAt,
-            Instant completedAt
-    ) {
-        this.id = id;
-        this.workspaceId = workspaceId;
-        this.status = status;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
-        this.completedAt = completedAt;
-    }
 
     void updateStatus(IngestionJobStatus status, Instant updatedAt, Instant completedAt) {
         this.status = status;
