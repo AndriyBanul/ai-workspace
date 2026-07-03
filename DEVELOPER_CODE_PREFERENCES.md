@@ -55,6 +55,32 @@ If this file conflicts with other project guidance, follow this file first unles
 - Services call provider clients, but should not expose provider DTOs.
 - Keep service methods focused and named by product behavior.
 - Prefer constructor injection.
+- Keep validation separate from normalization/trimming for required input values:
+  - use dedicated validation methods such as `validateName(name)`, `validateWorkspaceId(workspaceId)`, and `validateJobId(jobId)`;
+  - call `.trim()` at the point where the value is passed further, such as into an entity, repository query, provider call, or response model.
+- Keep optional normalization separate when it has different semantics, for example blank optional fields becoming `null`.
+
+## Mapping
+
+- Use MapStruct for recurring mapping boundaries, especially:
+  - entity to domain model;
+  - domain model to response/details DTO;
+  - domain model to entity.
+- Keep MapStruct mappers in a dedicated `mappers` package inside each module, for example `com.aiworkspace.workspaces.mappers`.
+- Do not force MapStruct into custom parsing, fallback, provider-response interpretation, or JSON tree extraction when explicit hand-written code is clearer.
+- Mappers should own object conversion; services should own business flow.
+
+## Models And Entities
+
+- Use records for simple immutable DTO/model objects.
+- Add Lombok `@Builder` to model records and entity classes when it improves construction readability in tests and business code.
+- For JPA entities, prefer Lombok boilerplate:
+  - `@Getter`
+  - `@NoArgsConstructor(access = AccessLevel.PROTECTED)`
+  - `@AllArgsConstructor`
+  - `@Builder`
+- Avoid hand-written entity constructors when Lombok annotations express the same intent clearly.
+- Annotate Spring Data `JpaRepository` interfaces with `@Repository` explicitly for consistency and readability.
 
 ## HTTP Clients
 
@@ -83,6 +109,7 @@ If this file conflicts with other project guidance, follow this file first unles
 - Add focused unit tests for service validation and business behavior.
 - Use context tests to catch Spring wiring issues.
 - Test coverage should scale with risk and module impact.
+- Run `cd apps && ./gradlew clean test` after refactors involving annotation processing, MapStruct, Lombok, generated code, or package moves.
 
 ## Git Workflow
 
@@ -105,3 +132,5 @@ If this file conflicts with other project guidance, follow this file first unles
 - Avoid broad utility classes unless they remove real duplication.
 - Avoid logging sensitive content or secrets.
 - Prefer stable, boring production code over clever code.
+- Prefer typed config properties over hardcoded operational values such as timeouts, HTTP settings, provider settings, and user agents.
+- Use global exception handling with a consistent API error response instead of repeated controller-level try/catch blocks.
