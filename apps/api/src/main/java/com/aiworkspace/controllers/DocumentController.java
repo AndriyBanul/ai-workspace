@@ -4,8 +4,13 @@ import com.aiworkspace.config.CurrentUserService;
 import com.aiworkspace.documents.models.ExtractedWebPage;
 import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.services.DocumentService;
+import com.aiworkspace.files.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.files.models.WorkspaceFile;
+import com.aiworkspace.files.models.WorkspaceFileSourceType;
+import com.aiworkspace.files.services.WorkspaceFileService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.TextDocumentUploadResponse;
+import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import org.slf4j.Logger;
@@ -29,17 +34,20 @@ public class DocumentController {
     private static final Logger log = LoggerFactory.getLogger(DocumentController.class);
 
     private final DocumentService documentService;
+    private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
     private final WorkspaceService workspaceService;
     private final CurrentUserService currentUserService;
 
     public DocumentController(
             DocumentService documentService,
+            WorkspaceFileService workspaceFileService,
             KnowledgeService knowledgeService,
             WorkspaceService workspaceService,
             CurrentUserService currentUserService
     ) {
         this.documentService = documentService;
+        this.workspaceFileService = workspaceFileService;
         this.knowledgeService = knowledgeService;
         this.workspaceService = workspaceService;
         this.currentUserService = currentUserService;
@@ -55,9 +63,25 @@ public class DocumentController {
             throw new IllegalArgumentException("File must not be empty");
         }
 
-        workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
-        ParsedTextDocument document = documentService.parseTextDocument(file.getOriginalFilename(), file.getBytes());
-        knowledgeService.recordDocumentsInfo(workspaceId, document.filename(), null, document.content());
+        Workspace workspace = workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
+        WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
+                .workspaceId(workspace.id())
+                .sourceType(WorkspaceFileSourceType.DOCUMENT)
+                .originalFilename(file.getOriginalFilename())
+                .contentType(file.getContentType())
+                .content(file.getInputStream())
+                .build());
+        workspaceFileService.markProcessing(workspace.id(), workspaceFile.id());
+
+        ParsedTextDocument document;
+        try {
+            document = documentService.parseTextDocument(file.getOriginalFilename(), file.getBytes());
+            knowledgeService.recordDocumentsInfo(workspace.id(), document.filename(), null, document.content());
+            workspaceFileService.markProcessed(workspace.id(), workspaceFile.id());
+        } catch (IOException | RuntimeException exception) {
+            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
+            throw exception;
+        }
 
         log.info("Parsed text document '{}':\n{}", document.filename(), document.content());
 

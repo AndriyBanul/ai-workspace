@@ -1,11 +1,16 @@
 package com.aiworkspace.controllers;
 
 import com.aiworkspace.config.CurrentUserService;
+import com.aiworkspace.files.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.files.models.WorkspaceFile;
+import com.aiworkspace.files.models.WorkspaceFileSourceType;
+import com.aiworkspace.files.services.WorkspaceFileService;
 import com.aiworkspace.images.models.GeneratedImage;
 import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.ImageDescriptionResponse;
+import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import org.springframework.http.ContentDisposition;
@@ -25,17 +30,20 @@ import org.springframework.web.multipart.MultipartFile;
 public class ImageController {
 
     private final ImageService imageService;
+    private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
     private final WorkspaceService workspaceService;
     private final CurrentUserService currentUserService;
 
     public ImageController(
             ImageService imageService,
+            WorkspaceFileService workspaceFileService,
             KnowledgeService knowledgeService,
             WorkspaceService workspaceService,
             CurrentUserService currentUserService
     ) {
         this.imageService = imageService;
+        this.workspaceFileService = workspaceFileService;
         this.knowledgeService = knowledgeService;
         this.workspaceService = workspaceService;
         this.currentUserService = currentUserService;
@@ -47,13 +55,33 @@ public class ImageController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication
     ) throws IOException, InterruptedException {
-        workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
-        ImageDescription description = imageService.describe(
-                file.getOriginalFilename(),
-                file.getContentType(),
-                file.getBytes()
-        );
-        knowledgeService.recordImagesInfo(workspaceId, description.filename(), null, description.description());
+        Workspace workspace = workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
+        WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
+                .workspaceId(workspace.id())
+                .sourceType(WorkspaceFileSourceType.IMAGE)
+                .originalFilename(file.getOriginalFilename())
+                .contentType(file.getContentType())
+                .content(file.getInputStream())
+                .build());
+        workspaceFileService.markProcessing(workspace.id(), workspaceFile.id());
+
+        ImageDescription description;
+        try {
+            description = imageService.describe(
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    file.getBytes()
+            );
+            knowledgeService.recordImagesInfo(workspace.id(), description.filename(), null, description.description());
+            workspaceFileService.markProcessed(workspace.id(), workspaceFile.id());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
+            throw exception;
+        } catch (IOException | RuntimeException exception) {
+            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
+            throw exception;
+        }
 
         return ResponseEntity.ok(new ImageDescriptionResponse(
                 description.filename(),

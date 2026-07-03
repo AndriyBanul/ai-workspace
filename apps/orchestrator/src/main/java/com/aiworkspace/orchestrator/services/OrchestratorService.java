@@ -4,6 +4,10 @@ import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.services.AudioService;
 import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.services.DocumentService;
+import com.aiworkspace.files.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.files.models.WorkspaceFile;
+import com.aiworkspace.files.models.WorkspaceFileSourceType;
+import com.aiworkspace.files.services.WorkspaceFileService;
 import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
@@ -15,6 +19,9 @@ import com.aiworkspace.orchestrator.models.OrchestrationSubmission;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.services.VideoService;
 import com.aiworkspace.workspaces.services.WorkspaceService;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -36,6 +43,7 @@ public class OrchestratorService {
     private final AudioService audioService;
     private final ImageService imageService;
     private final VideoService videoService;
+    private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
     private final IngestionJobService ingestionJobService;
     private final WorkspaceService workspaceService;
@@ -47,6 +55,7 @@ public class OrchestratorService {
             AudioService audioService,
             ImageService imageService,
             VideoService videoService,
+            WorkspaceFileService workspaceFileService,
             KnowledgeService knowledgeService,
             IngestionJobService ingestionJobService,
             WorkspaceService workspaceService,
@@ -57,6 +66,7 @@ public class OrchestratorService {
         this.audioService = audioService;
         this.imageService = imageService;
         this.videoService = videoService;
+        this.workspaceFileService = workspaceFileService;
         this.knowledgeService = knowledgeService;
         this.ingestionJobService = ingestionJobService;
         this.workspaceService = workspaceService;
@@ -71,26 +81,30 @@ public class OrchestratorService {
             OrchestrationContent audio,
             OrchestrationContent image,
             OrchestrationContent video
-    ) {
+    ) throws IOException {
         validateOwnerId(ownerId);
         validateWorkspaceId(workspaceId);
         String trimmedOwnerId = ownerId.trim();
         String trimmedWorkspaceId = workspaceId.trim();
         workspaceService.getWorkspace(trimmedOwnerId, trimmedWorkspaceId);
-        List<IngestionContentType> submittedTypes = new ArrayList<>();
+        List<SubmittedContent> submittedContent = new ArrayList<>();
         List<IngestionContentType> skippedTypes = new ArrayList<>();
 
-        collectContentType(IngestionContentType.DOCUMENTS, document, submittedTypes, skippedTypes);
-        collectContentType(IngestionContentType.AUDIO, audio, submittedTypes, skippedTypes);
-        collectContentType(IngestionContentType.IMAGES, image, submittedTypes, skippedTypes);
-        collectContentType(IngestionContentType.VIDEOS, video, submittedTypes, skippedTypes);
+        collectContent(IngestionContentType.DOCUMENTS, WorkspaceFileSourceType.DOCUMENT, document, trimmedWorkspaceId,
+                submittedContent, skippedTypes);
+        collectContent(IngestionContentType.AUDIO, WorkspaceFileSourceType.AUDIO, audio, trimmedWorkspaceId,
+                submittedContent, skippedTypes);
+        collectContent(IngestionContentType.IMAGES, WorkspaceFileSourceType.IMAGE, image, trimmedWorkspaceId,
+                submittedContent, skippedTypes);
+        collectContent(IngestionContentType.VIDEOS, WorkspaceFileSourceType.VIDEO, video, trimmedWorkspaceId,
+                submittedContent, skippedTypes);
 
+        List<IngestionContentType> submittedTypes = submittedContent.stream()
+                .map(SubmittedContent::contentType)
+                .toList();
         IngestionJobDetails job = ingestionJobService.createJob(trimmedWorkspaceId, submittedTypes, skippedTypes);
 
-        submitIfPresent(job.jobId(), IngestionContentType.DOCUMENTS, document, () -> processDocument(job, document));
-        submitIfPresent(job.jobId(), IngestionContentType.AUDIO, audio, () -> processAudio(job, audio));
-        submitIfPresent(job.jobId(), IngestionContentType.IMAGES, image, () -> processImage(job, image));
-        submitIfPresent(job.jobId(), IngestionContentType.VIDEOS, video, () -> processVideo(job, video));
+        submittedContent.forEach(content -> submit(job, content));
 
         return new OrchestrationSubmission(
                 job.jobId(),
@@ -120,48 +134,51 @@ public class OrchestratorService {
         }
     }
 
-    private void collectContentType(
+    private void collectContent(
             IngestionContentType contentType,
+            WorkspaceFileSourceType sourceType,
             OrchestrationContent content,
-            List<IngestionContentType> submitted,
+            String workspaceId,
+            List<SubmittedContent> submitted,
             List<IngestionContentType> skipped
-    ) {
+    ) throws IOException {
         if (content == null || content.isEmpty()) {
             skipped.add(contentType);
             return;
         }
 
-        submitted.add(contentType);
+        WorkspaceFile file = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
+                .workspaceId(workspaceId)
+                .sourceType(sourceType)
+                .originalFilename(content.filename())
+                .contentType(content.contentType())
+                .content(new ByteArrayInputStream(content.content()))
+                .build());
+        submitted.add(new SubmittedContent(contentType, file, content));
     }
 
-    private void submitIfPresent(
-            String jobId,
-            IngestionContentType contentType,
-            OrchestrationContent content,
-            OrchestrationTask task
-    ) {
-        if (content == null || content.isEmpty()) {
-            return;
-        }
-
-        CompletableFuture.runAsync(() -> runTask(jobId, contentType, task), executor)
+    private void submit(IngestionJobDetails job, SubmittedContent content) {
+        CompletableFuture.runAsync(() -> runTask(job, content), executor)
                 .orTimeout(properties.taskTimeout().toSeconds(), TimeUnit.SECONDS)
                 .exceptionally(exception -> {
                     if (isTimeout(exception)) {
                         TimeoutException timeout = new TimeoutException(
-                                contentType.apiName() + " orchestration task timed out after "
+                                content.contentType().apiName() + " orchestration task timed out after "
                                         + properties.taskTimeout().toSeconds() + " seconds"
                         );
-                        ingestionJobService.markStepFailed(jobId, contentType, timeout);
-                        log.warn("Timed out while running {} orchestration task", contentType.apiName(), timeout);
+                        ingestionJobService.markStepFailed(job.jobId(), content.contentType(), timeout);
+                        workspaceFileService.markFailed(job.workspaceId(), content.file().id());
+                        log.warn("Timed out while running {} orchestration task", content.contentType().apiName(), timeout);
                     } else {
                         Throwable cause = rootCause(exception);
                         RuntimeException failure = new RuntimeException(
-                                contentType.apiName() + " orchestration task failed unexpectedly",
+                                content.contentType().apiName() + " orchestration task failed unexpectedly",
                                 cause
                         );
-                        ingestionJobService.markStepFailed(jobId, contentType, failure);
-                        log.warn("Unhandled failure while running {} orchestration task", contentType.apiName(), cause);
+                        ingestionJobService.markStepFailed(job.jobId(), content.contentType(), failure);
+                        workspaceFileService.markFailed(job.workspaceId(), content.file().id());
+                        log.warn("Unhandled failure while running {} orchestration task",
+                                content.contentType().apiName(), cause);
                     }
 
                     return null;
@@ -190,44 +207,91 @@ public class OrchestratorService {
         return current == null ? exception : current;
     }
 
-    private void runTask(String jobId, IngestionContentType contentType, OrchestrationTask task) {
+    private void runTask(IngestionJobDetails job, SubmittedContent content) {
         try {
-            ingestionJobService.markStepRunning(jobId, contentType);
-            task.run();
-            ingestionJobService.markStepCompleted(jobId, contentType);
+            ingestionJobService.markStepRunning(job.jobId(), content.contentType());
+            workspaceFileService.markProcessing(job.workspaceId(), content.file().id());
+            process(job, content);
+            workspaceFileService.markProcessed(job.workspaceId(), content.file().id());
+            ingestionJobService.markStepCompleted(job.jobId(), content.contentType());
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            ingestionJobService.markStepFailed(jobId, contentType, exception);
-            log.warn("Interrupted while running {} orchestration task", contentType.apiName(), exception);
+            workspaceFileService.markFailed(job.workspaceId(), content.file().id());
+            ingestionJobService.markStepFailed(job.jobId(), content.contentType(), exception);
+            log.warn("Interrupted while running {} orchestration task", content.contentType().apiName(), exception);
         } catch (Exception exception) {
-            ingestionJobService.markStepFailed(jobId, contentType, exception);
-            log.warn("Failed to run {} orchestration task", contentType.apiName(), exception);
+            workspaceFileService.markFailed(job.workspaceId(), content.file().id());
+            ingestionJobService.markStepFailed(job.jobId(), content.contentType(), exception);
+            log.warn("Failed to run {} orchestration task", content.contentType().apiName(), exception);
         }
     }
 
-    private void processDocument(IngestionJobDetails job, OrchestrationContent document) throws Exception {
-        ParsedTextDocument parsedDocument = documentService.parseTextDocument(document.filename(), document.content());
-        knowledgeService.recordDocumentsInfo(job.workspaceId(), document.filename(), job.jobId(), parsedDocument.content());
+    private void process(IngestionJobDetails job, SubmittedContent content) throws Exception {
+        switch (content.contentType()) {
+            case DOCUMENTS -> processDocument(job, content);
+            case AUDIO -> processAudio(job, content);
+            case IMAGES -> processImage(job, content);
+            case VIDEOS -> processVideo(job, content);
+        }
     }
 
-    private void processAudio(IngestionJobDetails job, OrchestrationContent audio) throws Exception {
-        AudioTranscription transcription = audioService.transcribe(audio.filename(), audio.content());
-        knowledgeService.recordAudioInfo(job.workspaceId(), audio.filename(), job.jobId(), transcription.text());
+    private void processDocument(IngestionJobDetails job, SubmittedContent content) throws Exception {
+        byte[] bytes = readContent(job.workspaceId(), content.file().id());
+        ParsedTextDocument parsedDocument = documentService.parseTextDocument(content.original().filename(), bytes);
+        knowledgeService.recordDocumentsInfo(
+                job.workspaceId(),
+                content.original().filename(),
+                job.jobId(),
+                parsedDocument.content()
+        );
     }
 
-    private void processImage(IngestionJobDetails job, OrchestrationContent image) throws Exception {
-        ImageDescription description = imageService.describe(image.filename(), image.contentType(), image.content());
-        knowledgeService.recordImagesInfo(job.workspaceId(), image.filename(), job.jobId(), description.description());
+    private void processAudio(IngestionJobDetails job, SubmittedContent content) throws Exception {
+        byte[] bytes = readContent(job.workspaceId(), content.file().id());
+        AudioTranscription transcription = audioService.transcribe(content.original().filename(), bytes);
+        knowledgeService.recordAudioInfo(job.workspaceId(), content.original().filename(), job.jobId(), transcription.text());
     }
 
-    private void processVideo(IngestionJobDetails job, OrchestrationContent video) throws Exception {
-        VideoDescription description = videoService.describe(video.filename(), video.contentType(), video.content());
-        knowledgeService.recordVideoInfo(job.workspaceId(), video.filename(), job.jobId(), description.description());
+    private void processImage(IngestionJobDetails job, SubmittedContent content) throws Exception {
+        byte[] bytes = readContent(job.workspaceId(), content.file().id());
+        ImageDescription description = imageService.describe(
+                content.original().filename(),
+                content.original().contentType(),
+                bytes
+        );
+        knowledgeService.recordImagesInfo(
+                job.workspaceId(),
+                content.original().filename(),
+                job.jobId(),
+                description.description()
+        );
     }
 
-    @FunctionalInterface
-    private interface OrchestrationTask {
+    private void processVideo(IngestionJobDetails job, SubmittedContent content) throws Exception {
+        byte[] bytes = readContent(job.workspaceId(), content.file().id());
+        VideoDescription description = videoService.describe(
+                content.original().filename(),
+                content.original().contentType(),
+                bytes
+        );
+        knowledgeService.recordVideoInfo(
+                job.workspaceId(),
+                content.original().filename(),
+                job.jobId(),
+                description.description()
+        );
+    }
 
-        void run() throws Exception;
+    private byte[] readContent(String workspaceId, String fileId) throws IOException {
+        try (InputStream input = workspaceFileService.readContent(workspaceId, fileId)) {
+            return input.readAllBytes();
+        }
+    }
+
+    private record SubmittedContent(
+            IngestionContentType contentType,
+            WorkspaceFile file,
+            OrchestrationContent original
+    ) {
     }
 }

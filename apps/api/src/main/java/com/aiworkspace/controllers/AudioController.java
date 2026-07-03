@@ -4,8 +4,13 @@ import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.services.AudioService;
 import com.aiworkspace.config.CurrentUserService;
+import com.aiworkspace.files.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.files.models.WorkspaceFile;
+import com.aiworkspace.files.models.WorkspaceFileSourceType;
+import com.aiworkspace.files.services.WorkspaceFileService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.AudioTranscriptionResponse;
+import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import org.springframework.http.ContentDisposition;
@@ -25,17 +30,20 @@ import org.springframework.web.multipart.MultipartFile;
 public class AudioController {
 
     private final AudioService audioService;
+    private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
     private final WorkspaceService workspaceService;
     private final CurrentUserService currentUserService;
 
     public AudioController(
             AudioService audioService,
+            WorkspaceFileService workspaceFileService,
             KnowledgeService knowledgeService,
             WorkspaceService workspaceService,
             CurrentUserService currentUserService
     ) {
         this.audioService = audioService;
+        this.workspaceFileService = workspaceFileService;
         this.knowledgeService = knowledgeService;
         this.workspaceService = workspaceService;
         this.currentUserService = currentUserService;
@@ -47,12 +55,32 @@ public class AudioController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication
     ) throws IOException, InterruptedException {
-        workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
-        AudioTranscription transcription = audioService.transcribe(
-                file.getOriginalFilename(),
-                file.getBytes()
-        );
-        knowledgeService.recordAudioInfo(workspaceId, transcription.filename(), null, transcription.text());
+        Workspace workspace = workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
+        WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
+                .workspaceId(workspace.id())
+                .sourceType(WorkspaceFileSourceType.AUDIO)
+                .originalFilename(file.getOriginalFilename())
+                .contentType(file.getContentType())
+                .content(file.getInputStream())
+                .build());
+        workspaceFileService.markProcessing(workspace.id(), workspaceFile.id());
+
+        AudioTranscription transcription;
+        try {
+            transcription = audioService.transcribe(
+                    file.getOriginalFilename(),
+                    file.getBytes()
+            );
+            knowledgeService.recordAudioInfo(workspace.id(), transcription.filename(), null, transcription.text());
+            workspaceFileService.markProcessed(workspace.id(), workspaceFile.id());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
+            throw exception;
+        } catch (IOException | RuntimeException exception) {
+            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
+            throw exception;
+        }
 
         return ResponseEntity.ok(new AudioTranscriptionResponse(
                 transcription.filename(),

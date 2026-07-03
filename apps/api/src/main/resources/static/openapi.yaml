@@ -85,6 +85,50 @@ paths:
                 $ref: "#/components/schemas/Workspace"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/workspaces/{workspaceId}/files:
+    get:
+      summary: List workspace files
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "200":
+          description: Workspace files ordered by creation time.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkspaceFile"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/workspaces/{workspaceId}/files/{fileId}:
+    get:
+      summary: Get workspace file
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: Workspace file metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceFile"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete workspace file
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "204":
+          description: Workspace file deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/orchestrator/ingestions:
     post:
       summary: Submit multimodal ingestion job
@@ -362,6 +406,12 @@ components:
       required: true
       schema:
         type: string
+    FileId:
+      name: fileId
+      in: path
+      required: true
+      schema:
+        type: string
   responses:
     BadRequest:
       description: Invalid request.
@@ -411,6 +461,41 @@ components:
         updatedAt:
           type: string
           format: date-time
+    WorkspaceFile:
+      type: object
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        originalFilename:
+          type: string
+        contentType:
+          type: string
+          nullable: true
+        sizeBytes:
+          type: integer
+          format: int64
+        storageKey:
+          type: string
+        checksumSha256:
+          type: string
+        sourceType:
+          type: string
+          enum: [DOCUMENT, AUDIO, IMAGE, VIDEO]
+        status:
+          type: string
+          enum: [UPLOADED, PROCESSING, PROCESSED, FAILED, DELETED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
     CreateWorkspaceRequest:
       type: object
       required: [name]

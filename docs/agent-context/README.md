@@ -40,6 +40,7 @@ apps
   knowledge
   orchestrator
   storage
+  files
   users
   workspaces
 ```
@@ -63,6 +64,7 @@ Business logic modules:
 - `apps/knowledge` - knowledge organization, retrieval, and future knowledge-base workflows.
 - `apps/orchestrator` - async coordination across multimodal business modules.
 - `apps/storage` - file storage abstraction and storage implementations.
+- `apps/files` - workspace file metadata, file lifecycle/status, and storage-backed file access.
 - `apps/users` - user accounts, authentication support, and ownership identity.
 - `apps/workspaces` - workspace metadata and workspace lifecycle.
 

@@ -1,11 +1,16 @@
 package com.aiworkspace.controllers;
 
 import com.aiworkspace.config.CurrentUserService;
+import com.aiworkspace.files.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.files.models.WorkspaceFile;
+import com.aiworkspace.files.models.WorkspaceFileSourceType;
+import com.aiworkspace.files.services.WorkspaceFileService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.VideoDescriptionResponse;
 import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.services.VideoService;
+import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import org.springframework.http.ContentDisposition;
@@ -25,17 +30,20 @@ import org.springframework.web.multipart.MultipartFile;
 public class VideoController {
 
     private final VideoService videoService;
+    private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
     private final WorkspaceService workspaceService;
     private final CurrentUserService currentUserService;
 
     public VideoController(
             VideoService videoService,
+            WorkspaceFileService workspaceFileService,
             KnowledgeService knowledgeService,
             WorkspaceService workspaceService,
             CurrentUserService currentUserService
     ) {
         this.videoService = videoService;
+        this.workspaceFileService = workspaceFileService;
         this.knowledgeService = knowledgeService;
         this.workspaceService = workspaceService;
         this.currentUserService = currentUserService;
@@ -47,13 +55,33 @@ public class VideoController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication
     ) throws IOException, InterruptedException {
-        workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
-        VideoDescription description = videoService.describe(
-                file.getOriginalFilename(),
-                file.getContentType(),
-                file.getBytes()
-        );
-        knowledgeService.recordVideoInfo(workspaceId, description.filename(), null, description.description());
+        Workspace workspace = workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
+        WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
+                .workspaceId(workspace.id())
+                .sourceType(WorkspaceFileSourceType.VIDEO)
+                .originalFilename(file.getOriginalFilename())
+                .contentType(file.getContentType())
+                .content(file.getInputStream())
+                .build());
+        workspaceFileService.markProcessing(workspace.id(), workspaceFile.id());
+
+        VideoDescription description;
+        try {
+            description = videoService.describe(
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    file.getBytes()
+            );
+            knowledgeService.recordVideoInfo(workspace.id(), description.filename(), null, description.description());
+            workspaceFileService.markProcessed(workspace.id(), workspaceFile.id());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
+            throw exception;
+        } catch (IOException | RuntimeException exception) {
+            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
+            throw exception;
+        }
 
         return ResponseEntity.ok(new VideoDescriptionResponse(
                 description.filename(),

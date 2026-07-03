@@ -4,11 +4,15 @@ import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.services.AudioService;
 import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.services.DocumentService;
+import com.aiworkspace.files.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.files.models.WorkspaceFile;
+import com.aiworkspace.files.models.WorkspaceFileStatus;
+import com.aiworkspace.files.services.WorkspaceFileService;
 import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.services.ImageService;
+import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
-import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.orchestrator.config.OrchestratorProperties;
@@ -24,9 +28,11 @@ import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.services.VideoService;
 import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.services.WorkspaceService;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.time.Instant;
+import java.io.InputStream;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -40,14 +46,16 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class OrchestratorServiceTest {
 
     @Test
-    void processesProvidedContentAndSkipsMissingContent() {
+    void processesProvidedContentAndSkipsMissingContent() throws IOException {
         CapturingKnowledgeRepository knowledgeRepository = new CapturingKnowledgeRepository();
         CapturingIngestionJobRepository jobRepository = new CapturingIngestionJobRepository();
+        TestWorkspaceFileService workspaceFileService = new TestWorkspaceFileService();
         OrchestratorService service = new OrchestratorService(
                 new TestDocumentService(),
                 new TestAudioService(),
                 new TestImageService(),
                 new TestVideoService(),
+                workspaceFileService,
                 new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
                 new IngestionJobService(jobRepository, new IngestionJobDetailsMapperImpl()),
                 new TestWorkspaceService(),
@@ -78,17 +86,21 @@ class OrchestratorServiceTest {
         assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.AUDIO, IngestionStepStatus.SKIPPED);
         assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.IMAGES, IngestionStepStatus.COMPLETED);
         assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.VIDEOS, IngestionStepStatus.SKIPPED);
+        assertEquals(List.of(WorkspaceFileStatus.PROCESSED, WorkspaceFileStatus.PROCESSED),
+                workspaceFileService.files.values().stream().map(WorkspaceFile::status).toList());
     }
 
     @Test
-    void marksFailedStepAndPartiallyFailedJobWhenTaskFails() {
+    void marksFailedStepAndPartiallyFailedJobWhenTaskFails() throws IOException {
         CapturingKnowledgeRepository knowledgeRepository = new CapturingKnowledgeRepository();
         CapturingIngestionJobRepository jobRepository = new CapturingIngestionJobRepository();
+        TestWorkspaceFileService workspaceFileService = new TestWorkspaceFileService();
         OrchestratorService service = new OrchestratorService(
                 new TestDocumentService(),
                 new FailingAudioService(),
                 new TestImageService(),
                 new TestVideoService(),
+                workspaceFileService,
                 new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
                 new IngestionJobService(jobRepository, new IngestionJobDetailsMapperImpl()),
                 new TestWorkspaceService(),
@@ -109,6 +121,8 @@ class OrchestratorServiceTest {
         assertEquals(IngestionJobStatus.PARTIALLY_FAILED, job.status());
         assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.DOCUMENTS, IngestionStepStatus.COMPLETED);
         assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.AUDIO, IngestionStepStatus.FAILED);
+        assertEquals(List.of(WorkspaceFileStatus.PROCESSED, WorkspaceFileStatus.FAILED),
+                workspaceFileService.files.values().stream().map(WorkspaceFile::status).toList());
     }
 
     private static class TestDocumentService extends DocumentService {
@@ -176,6 +190,78 @@ class OrchestratorServiceTest {
         @Override
         public Workspace getWorkspace(String ownerId, String workspaceId) {
             return new Workspace(workspaceId, ownerId, "Test workspace", Instant.now(), Instant.now());
+        }
+    }
+
+    private static class TestWorkspaceFileService extends WorkspaceFileService {
+
+        private final Map<String, WorkspaceFile> files = new java.util.LinkedHashMap<>();
+        private final Map<String, byte[]> contents = new HashMap<>();
+
+        TestWorkspaceFileService() {
+            super(null, null, null);
+        }
+
+        @Override
+        public WorkspaceFile createFile(CreateWorkspaceFileRequest request) throws IOException {
+            String fileId = "file-" + (files.size() + 1);
+            byte[] content = request.content().readAllBytes();
+            WorkspaceFile file = WorkspaceFile.builder()
+                    .id(fileId)
+                    .workspaceId(request.workspaceId())
+                    .originalFilename(request.originalFilename())
+                    .contentType(request.contentType())
+                    .sizeBytes(content.length)
+                    .storageKey(request.workspaceId() + "/" + fileId)
+                    .checksumSha256("checksum-" + fileId)
+                    .sourceType(request.sourceType())
+                    .status(WorkspaceFileStatus.UPLOADED)
+                    .createdAt(Instant.now())
+                    .updatedAt(Instant.now())
+                    .build();
+            files.put(fileId, file);
+            contents.put(fileId, content);
+            return file;
+        }
+
+        @Override
+        public InputStream readContent(String workspaceId, String fileId) {
+            return new ByteArrayInputStream(contents.get(fileId));
+        }
+
+        @Override
+        public WorkspaceFile markProcessing(String workspaceId, String fileId) {
+            return updateStatus(fileId, WorkspaceFileStatus.PROCESSING);
+        }
+
+        @Override
+        public WorkspaceFile markProcessed(String workspaceId, String fileId) {
+            return updateStatus(fileId, WorkspaceFileStatus.PROCESSED);
+        }
+
+        @Override
+        public WorkspaceFile markFailed(String workspaceId, String fileId) {
+            return updateStatus(fileId, WorkspaceFileStatus.FAILED);
+        }
+
+        private WorkspaceFile updateStatus(String fileId, WorkspaceFileStatus status) {
+            WorkspaceFile existingFile = files.get(fileId);
+            WorkspaceFile updatedFile = WorkspaceFile.builder()
+                    .id(existingFile.id())
+                    .workspaceId(existingFile.workspaceId())
+                    .originalFilename(existingFile.originalFilename())
+                    .contentType(existingFile.contentType())
+                    .sizeBytes(existingFile.sizeBytes())
+                    .storageKey(existingFile.storageKey())
+                    .checksumSha256(existingFile.checksumSha256())
+                    .sourceType(existingFile.sourceType())
+                    .status(status)
+                    .createdAt(existingFile.createdAt())
+                    .updatedAt(Instant.now())
+                    .deletedAt(existingFile.deletedAt())
+                    .build();
+            files.put(fileId, updatedFile);
+            return updatedFile;
         }
     }
 
