@@ -1,5 +1,6 @@
 package com.aiworkspace.orchestrator.services;
 
+import com.aiworkspace.orchestrator.mappers.IngestionJobDetailsMapper;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJob;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;

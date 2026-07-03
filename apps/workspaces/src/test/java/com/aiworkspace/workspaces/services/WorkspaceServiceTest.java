@@ -1,5 +1,6 @@
 package com.aiworkspace.workspaces.services;
 
+import com.aiworkspace.workspaces.mappers.WorkspaceMapperImpl;
 import com.aiworkspace.workspaces.repositories.WorkspaceEntity;
 import com.aiworkspace.workspaces.repositories.WorkspaceRepository;
 import java.time.Instant;

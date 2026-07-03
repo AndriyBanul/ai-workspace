@@ -13,7 +13,7 @@ import lombok.Getter;
 @Entity
 @Getter
 @Table(name = "ingestion_jobs")
-class IngestionJobEntity {
+public class IngestionJobEntity {
 
     @Id
     private String id;
@@ -37,7 +37,7 @@ class IngestionJobEntity {
     protected IngestionJobEntity() {
     }
 
-    IngestionJobEntity(
+    public IngestionJobEntity(
             String id,
             String workspaceId,
             IngestionJobStatus status,

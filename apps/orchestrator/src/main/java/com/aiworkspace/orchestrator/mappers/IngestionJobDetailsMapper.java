@@ -1,4 +1,4 @@
-package com.aiworkspace.orchestrator.services;
+package com.aiworkspace.orchestrator.mappers;
 
 import com.aiworkspace.orchestrator.models.IngestionJob;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
@@ -9,7 +9,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
-interface IngestionJobDetailsMapper {
+public interface IngestionJobDetailsMapper {
 
     @Mapping(target = "jobId", source = "job.id")
     IngestionJobDetails toDetails(IngestionJob job, List<IngestionJobStepDetails> steps);

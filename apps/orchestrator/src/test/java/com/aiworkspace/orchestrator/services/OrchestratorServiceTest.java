@@ -12,6 +12,7 @@ import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.orchestrator.config.OrchestratorProperties;
+import com.aiworkspace.orchestrator.mappers.IngestionJobDetailsMapperImpl;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJob;
 import com.aiworkspace.orchestrator.models.IngestionJobStatus;

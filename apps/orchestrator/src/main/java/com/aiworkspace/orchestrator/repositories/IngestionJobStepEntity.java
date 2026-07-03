@@ -14,7 +14,7 @@ import lombok.Getter;
 @Entity
 @Getter
 @Table(name = "ingestion_job_steps")
-class IngestionJobStepEntity {
+public class IngestionJobStepEntity {
 
     @Id
     private String id;
@@ -42,7 +42,7 @@ class IngestionJobStepEntity {
     protected IngestionJobStepEntity() {
     }
 
-    IngestionJobStepEntity(
+    public IngestionJobStepEntity(
             String id,
             String jobId,
             IngestionContentType contentType,
