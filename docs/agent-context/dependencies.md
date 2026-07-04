@@ -8,4 +8,4 @@
 
 New dependencies should reduce meaningful complexity, not hide unclear design.
 
-- `apps/documents` uses Apache Tika standard parsers for document text extraction. This keeps TXT/PDF support in-process for the MVP and leaves a path to Office formats without changing the document service contract.
+- `apps/documents` uses Apache Tika standard parsers for document text extraction. This keeps TXT, PDF, DOCX, XLSX, and PPTX support in-process for the MVP without changing the document service contract.

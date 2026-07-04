@@ -3,6 +3,7 @@ package com.aiworkspace.documents.services;
 import com.aiworkspace.documents.client.GenericRestClient;
 import com.aiworkspace.documents.client.RestResponseMapper;
 import com.aiworkspace.documents.models.FetchedWebPage;
+import java.awt.Rectangle;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -10,6 +11,10 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.poi.xslf.usermodel.XMLSlideShow;
+import org.apache.poi.xslf.usermodel.XSLFTextBox;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
@@ -46,6 +51,48 @@ class DocumentServiceTest {
 
         assertEquals("deck.pdf", document.filename());
         assertTrue(document.content().contains("PDF workspace text"));
+    }
+
+    @Test
+    void extractsDocxTextWithTika() throws IOException {
+        DocumentService service = new DocumentService(new TestRestClient());
+
+        var document = service.extractDocumentText(
+                "memo.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                docxWithText("DOCX workspace text")
+        );
+
+        assertEquals("memo.docx", document.filename());
+        assertTrue(document.content().contains("DOCX workspace text"));
+    }
+
+    @Test
+    void extractsXlsxTextWithTika() throws IOException {
+        DocumentService service = new DocumentService(new TestRestClient());
+
+        var document = service.extractDocumentText(
+                "metrics.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                xlsxWithText("XLSX workspace text")
+        );
+
+        assertEquals("metrics.xlsx", document.filename());
+        assertTrue(document.content().contains("XLSX workspace text"));
+    }
+
+    @Test
+    void extractsPptxTextWithTika() throws IOException {
+        DocumentService service = new DocumentService(new TestRestClient());
+
+        var document = service.extractDocumentText(
+                "deck.pptx",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                pptxWithText("PPTX workspace text")
+        );
+
+        assertEquals("deck.pptx", document.filename());
+        assertTrue(document.content().contains("PPTX workspace text"));
     }
 
     @Test
@@ -90,6 +137,33 @@ class DocumentServiceTest {
                 content.endText();
             }
             document.save(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] docxWithText(String text) throws IOException {
+        try (XWPFDocument document = new XWPFDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            document.createParagraph().createRun().setText(text);
+            document.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] xlsxWithText(String text) throws IOException {
+        try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            workbook.createSheet("Data").createRow(0).createCell(0).setCellValue(text);
+            workbook.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private byte[] pptxWithText(String text) throws IOException {
+        try (XMLSlideShow presentation = new XMLSlideShow();
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            XSLFTextBox textBox = presentation.createSlide().createTextBox();
+            textBox.setAnchor(new Rectangle(50, 50, 400, 100));
+            textBox.setText(text);
+            presentation.write(output);
             return output.toByteArray();
         }
     }

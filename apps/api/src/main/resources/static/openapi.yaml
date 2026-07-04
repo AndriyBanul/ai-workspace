@@ -238,6 +238,7 @@ paths:
                 file:
                   type: string
                   format: binary
+                  description: Plain text, PDF, DOCX, XLSX, or PPTX document.
       responses:
         "200":
           description: Extracted document text summary.
