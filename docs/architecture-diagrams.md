@@ -183,7 +183,7 @@ sequenceDiagram
     API-->>User: 202 Accepted with submitted/skipped modules
 
     par Document present
-        Executor->>Documents: parseTextDocument(file)
+        Executor->>Documents: extractDocumentText(file)
         Documents-->>Executor: extracted text
         Executor->>Knowledge: recordDocumentsInfo(text)
         Knowledge->>OS: add document knowledge item for workspaceId
@@ -260,7 +260,7 @@ flowchart TD
     submitImage["Submit async image task"]
     submitVideo["Submit async video task"]
 
-    documentFlow["Parse text document\nand add document knowledge item"]
+    documentFlow["Extract document text\nand add document knowledge item"]
     audioFlow["Transcribe audio\nand add audio knowledge item"]
     imageFlow["Describe image\nand add image knowledge item"]
     videoFlow["Describe video\nand add video knowledge item"]

@@ -132,7 +132,7 @@ class OrchestratorServiceTest {
         }
 
         @Override
-        public ParsedTextDocument parseTextDocument(String filename, byte[] bytes) {
+        public ParsedTextDocument extractDocumentText(String filename, String contentType, byte[] bytes) {
             return new ParsedTextDocument(filename, "Parsed document text");
         }
     }

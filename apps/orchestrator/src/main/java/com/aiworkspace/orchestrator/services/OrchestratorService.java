@@ -237,7 +237,11 @@ public class OrchestratorService {
 
     private void processDocument(IngestionJobDetails job, SubmittedContent content) throws Exception {
         byte[] bytes = readContent(job.workspaceId(), content.file().id());
-        ParsedTextDocument parsedDocument = documentService.parseTextDocument(content.original().filename(), bytes);
+        ParsedTextDocument parsedDocument = documentService.extractDocumentText(
+                content.original().filename(),
+                content.original().contentType(),
+                bytes
+        );
         knowledgeService.recordDocumentsInfo(
                 job.workspaceId(),
                 content.original().filename(),

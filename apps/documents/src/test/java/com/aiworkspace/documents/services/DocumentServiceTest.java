@@ -3,11 +3,18 @@ package com.aiworkspace.documents.services;
 import com.aiworkspace.documents.client.GenericRestClient;
 import com.aiworkspace.documents.client.RestResponseMapper;
 import com.aiworkspace.documents.models.FetchedWebPage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DocumentServiceTest {
 
@@ -19,6 +26,26 @@ class DocumentServiceTest {
 
         assertEquals("notes.txt", document.filename());
         assertEquals("Hello workspace", document.content());
+    }
+
+    @Test
+    void extractsUtf8TextDocumentWithTika() throws IOException {
+        DocumentService service = new DocumentService(new TestRestClient());
+
+        var document = service.extractDocumentText("notes.txt", "text/plain", "\uFEFFHello workspace".getBytes());
+
+        assertEquals("notes.txt", document.filename());
+        assertEquals("Hello workspace", document.content().trim());
+    }
+
+    @Test
+    void extractsPdfTextWithTika() throws IOException {
+        DocumentService service = new DocumentService(new TestRestClient());
+
+        var document = service.extractDocumentText("deck.pdf", "application/pdf", pdfWithText("PDF workspace text"));
+
+        assertEquals("deck.pdf", document.filename());
+        assertTrue(document.content().contains("PDF workspace text"));
     }
 
     @Test
@@ -48,6 +75,22 @@ class DocumentServiceTest {
                     </html>
                     """;
             return responseMapper.map(rawUrl.trim(), html);
+        }
+    }
+
+    private byte[] pdfWithText(String text) throws IOException {
+        try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            PDPage page = new PDPage();
+            document.addPage(page);
+            try (PDPageContentStream content = new PDPageContentStream(document, page)) {
+                content.beginText();
+                content.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
+                content.newLineAtOffset(72, 720);
+                content.showText(text);
+                content.endText();
+            }
+            document.save(output);
+            return output.toByteArray();
         }
     }
 }

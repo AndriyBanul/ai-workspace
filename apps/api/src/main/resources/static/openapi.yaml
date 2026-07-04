@@ -223,7 +223,7 @@ paths:
           $ref: "#/components/responses/BadGateway"
   /api/v1/documents/text:
     post:
-      summary: Upload text document directly
+      summary: Upload and extract a document directly
       tags: [Documents]
       requestBody:
         required: true
@@ -240,7 +240,7 @@ paths:
                   format: binary
       responses:
         "200":
-          description: Parsed text document summary.
+          description: Extracted document text summary.
           content:
             application/json:
               schema:

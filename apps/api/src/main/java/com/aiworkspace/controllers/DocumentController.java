@@ -75,7 +75,11 @@ public class DocumentController {
 
         ParsedTextDocument document;
         try {
-            document = documentService.parseTextDocument(file.getOriginalFilename(), file.getBytes());
+            document = documentService.extractDocumentText(
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    file.getBytes()
+            );
             knowledgeService.recordDocumentsInfo(workspace.id(), document.filename(), null, document.content());
             workspaceFileService.markProcessed(workspace.id(), workspaceFile.id());
         } catch (IOException | RuntimeException exception) {
@@ -83,7 +87,7 @@ public class DocumentController {
             throw exception;
         }
 
-        log.info("Parsed text document '{}':\n{}", document.filename(), document.content());
+        log.info("Extracted document text from '{}':\n{}", document.filename(), document.content());
 
         return ResponseEntity.ok(new TextDocumentUploadResponse(
                 document.filename(),
