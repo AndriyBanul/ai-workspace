@@ -2,12 +2,23 @@ package com.aiworkspace.videos.services;
 
 import com.aiworkspace.videos.client.GeminiVideoClient;
 import com.aiworkspace.videos.client.VeoVideoClient;
+import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.models.VideoDescription;
+import com.aiworkspace.videos.models.VideoDescriptionResponse;
+import com.aiworkspace.videos.models.VideoGenerationRequest;
+import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.workspaces.models.Workspace;
+import com.aiworkspace.workspaces.models.WorkspaceFile;
+import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
+import com.aiworkspace.workspaces.services.WorkspaceFileService;
+import com.aiworkspace.workspaces.services.WorkspaceService;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +39,9 @@ public class VideoService {
 
     private final GeminiVideoClient geminiVideoClient;
     private final VeoVideoClient veoVideoClient;
+    private final WorkspaceFileService workspaceFileService;
+    private final KnowledgeService knowledgeService;
+    private final WorkspaceService workspaceService;
     private final String descriptionPrompt;
 
     public VideoService(
@@ -35,8 +49,23 @@ public class VideoService {
             VeoVideoClient veoVideoClient,
             @Value("${ai-workspace.gemini.video-description-prompt:Describe what is happening in this video clearly and concisely.}") String descriptionPrompt
     ) {
+        this(geminiVideoClient, veoVideoClient, null, null, null, descriptionPrompt);
+    }
+
+    @Autowired
+    public VideoService(
+            GeminiVideoClient geminiVideoClient,
+            VeoVideoClient veoVideoClient,
+            WorkspaceFileService workspaceFileService,
+            KnowledgeService knowledgeService,
+            WorkspaceService workspaceService,
+            @Value("${ai-workspace.gemini.video-description-prompt:Describe what is happening in this video clearly and concisely.}") String descriptionPrompt
+    ) {
         this.geminiVideoClient = geminiVideoClient;
         this.veoVideoClient = veoVideoClient;
+        this.workspaceFileService = workspaceFileService;
+        this.knowledgeService = knowledgeService;
+        this.workspaceService = workspaceService;
         this.descriptionPrompt = descriptionPrompt;
     }
 
@@ -54,6 +83,53 @@ public class VideoService {
         validateGenerationDescription(description);
 
         return veoVideoClient.generate(description.trim());
+    }
+
+    public VideoDescriptionResponse describeWorkspaceVideo(
+            String ownerId,
+            String workspaceId,
+            String filename,
+            String contentType,
+            byte[] content
+    ) throws IOException, InterruptedException {
+        Workspace workspace = workspaceService.getWorkspace(ownerId, workspaceId);
+        WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
+                .workspaceId(workspace.id())
+                .sourceType(WorkspaceFileSourceType.VIDEO)
+                .originalFilename(filename)
+                .contentType(contentType)
+                .content(new ByteArrayInputStream(content))
+                .build());
+        workspaceFileService.markProcessing(workspace.id(), workspaceFile.id());
+
+        VideoDescription description;
+        try {
+            description = describe(filename, contentType, content);
+            knowledgeService.recordVideoInfo(workspace.id(), description.filename(), null, description.description());
+            workspaceFileService.markProcessed(workspace.id(), workspaceFile.id());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
+            throw exception;
+        } catch (IOException | RuntimeException exception) {
+            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
+            throw exception;
+        }
+
+        return new VideoDescriptionResponse(
+                description.filename(),
+                content.length,
+                description.mimeType(),
+                description.description()
+        );
+    }
+
+    public GeneratedVideo generate(VideoGenerationRequest request) throws IOException, InterruptedException {
+        if (request == null) {
+            throw new IllegalArgumentException("Request body must not be empty");
+        }
+
+        return generate(request.description());
     }
 
     private void validateVideo(String filename, byte[] videoContent) {

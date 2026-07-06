@@ -1,4 +1,4 @@
-package com.aiworkspace.models;
+package com.aiworkspace.documents.models;
 
 import lombok.Builder;
 

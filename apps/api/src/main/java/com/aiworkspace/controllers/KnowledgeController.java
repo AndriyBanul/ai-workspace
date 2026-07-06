@@ -2,11 +2,10 @@ package com.aiworkspace.controllers;
 
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeAnswer;
+import com.aiworkspace.knowledge.models.WorkspaceQuestionRequest;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.users.services.UserAccountService;
-import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
-import java.util.NoSuchElementException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,16 +20,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class KnowledgeController {
 
     private final KnowledgeService knowledgeService;
-    private final WorkspaceService workspaceService;
     private final UserAccountService userAccountService;
 
-    public KnowledgeController(
-            KnowledgeService knowledgeService,
-            WorkspaceService workspaceService,
-            UserAccountService userAccountService
-    ) {
+    public KnowledgeController(KnowledgeService knowledgeService, UserAccountService userAccountService) {
         this.knowledgeService = knowledgeService;
-        this.workspaceService = workspaceService;
         this.userAccountService = userAccountService;
     }
 
@@ -40,10 +33,10 @@ public class KnowledgeController {
             Authentication authentication
     )
             throws IOException {
-        workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId);
-        return knowledgeService.findWorkspaceKnowledge(workspaceId)
-                .map(ResponseEntity::ok)
-                .orElseThrow(() -> new NoSuchElementException("Workspace knowledge was not found"));
+        return ResponseEntity.ok(knowledgeService.getWorkspaceKnowledge(
+                userAccountService.currentUserId(authentication),
+                workspaceId
+        ));
     }
 
     @PostMapping("/workspaces/{workspaceId}/answers")
@@ -52,14 +45,10 @@ public class KnowledgeController {
             @RequestBody WorkspaceQuestionRequest request,
             Authentication authentication
     ) throws IOException {
-        if (request == null) {
-            throw new IllegalArgumentException("Request body must not be empty");
-        }
-
-        workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId);
-        return ResponseEntity.ok(knowledgeService.answerWorkspaceQuestion(workspaceId, request.question()));
-    }
-
-    public record WorkspaceQuestionRequest(String question) {
+        return ResponseEntity.ok(knowledgeService.answerWorkspaceQuestion(
+                userAccountService.currentUserId(authentication),
+                workspaceId,
+                request
+        ));
     }
 }

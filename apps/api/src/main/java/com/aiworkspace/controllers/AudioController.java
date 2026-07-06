@@ -1,17 +1,10 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
+import com.aiworkspace.audio.models.AudioTranscriptionResponse;
+import com.aiworkspace.audio.models.TextToSpeechRequest;
 import com.aiworkspace.audio.services.AudioService;
-import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
-import com.aiworkspace.workspaces.models.WorkspaceFile;
-import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
-import com.aiworkspace.workspaces.services.WorkspaceFileService;
-import com.aiworkspace.knowledge.services.KnowledgeService;
-import com.aiworkspace.models.AudioTranscriptionResponse;
 import com.aiworkspace.users.services.UserAccountService;
-import com.aiworkspace.workspaces.models.Workspace;
-import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -30,22 +23,10 @@ import org.springframework.web.multipart.MultipartFile;
 public class AudioController {
 
     private final AudioService audioService;
-    private final WorkspaceFileService workspaceFileService;
-    private final KnowledgeService knowledgeService;
-    private final WorkspaceService workspaceService;
     private final UserAccountService userAccountService;
 
-    public AudioController(
-            AudioService audioService,
-            WorkspaceFileService workspaceFileService,
-            KnowledgeService knowledgeService,
-            WorkspaceService workspaceService,
-            UserAccountService userAccountService
-    ) {
+    public AudioController(AudioService audioService, UserAccountService userAccountService) {
         this.audioService = audioService;
-        this.workspaceFileService = workspaceFileService;
-        this.knowledgeService = knowledgeService;
-        this.workspaceService = workspaceService;
         this.userAccountService = userAccountService;
     }
 
@@ -55,48 +36,18 @@ public class AudioController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication
     ) throws IOException, InterruptedException {
-        Workspace workspace = workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId);
-        WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
-                .workspaceId(workspace.id())
-                .sourceType(WorkspaceFileSourceType.AUDIO)
-                .originalFilename(file.getOriginalFilename())
-                .contentType(file.getContentType())
-                .content(file.getInputStream())
-                .build());
-        workspaceFileService.markProcessing(workspace.id(), workspaceFile.id());
-
-        AudioTranscription transcription;
-        try {
-            transcription = audioService.transcribe(
-                    file.getOriginalFilename(),
-                    file.getBytes()
-            );
-            knowledgeService.recordAudioInfo(workspace.id(), transcription.filename(), null, transcription.text());
-            workspaceFileService.markProcessed(workspace.id(), workspaceFile.id());
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
-            throw exception;
-        } catch (IOException | RuntimeException exception) {
-            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
-            throw exception;
-        }
-
-        return ResponseEntity.ok(new AudioTranscriptionResponse(
-                transcription.filename(),
-                file.getSize(),
-                transcription.language(),
-                transcription.text()
+        return ResponseEntity.ok(audioService.transcribeWorkspaceAudio(
+                userAccountService.currentUserId(authentication),
+                workspaceId,
+                file.getOriginalFilename(),
+                file.getContentType(),
+                file.getBytes()
         ));
     }
 
     @PostMapping(path = "/speech", produces = "audio/wav")
     public ResponseEntity<byte[]> synthesize(@RequestBody TextToSpeechRequest request) throws IOException {
-        if (request == null) {
-            throw new IllegalArgumentException("Request body must not be empty");
-        }
-
-        SynthesizedSpeech speech = audioService.synthesize(request.text());
+        SynthesizedSpeech speech = audioService.synthesize(request);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("audio/wav"))
@@ -108,8 +59,5 @@ public class AudioController {
                                 .toString()
                 )
                 .body(speech.wavContent());
-    }
-
-    public record TextToSpeechRequest(String text) {
     }
 }

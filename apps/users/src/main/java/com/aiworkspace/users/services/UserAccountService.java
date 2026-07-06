@@ -1,6 +1,7 @@
 package com.aiworkspace.users.services;
 
 import com.aiworkspace.users.mappers.UserAccountMapper;
+import com.aiworkspace.users.models.RegisterRequest;
 import com.aiworkspace.users.models.UserAccount;
 import com.aiworkspace.users.repositories.UserAccountEntity;
 import com.aiworkspace.users.repositories.UserAccountRepository;
@@ -31,6 +32,15 @@ public class UserAccountService implements UserDetailsService {
         this.userAccountRepository = userAccountRepository;
         this.userAccountMapper = userAccountMapper;
         this.passwordEncoder = passwordEncoder;
+    }
+
+    @Transactional
+    public UserAccount register(RegisterRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Request body must not be empty");
+        }
+
+        return register(request.email(), request.password(), request.displayName());
     }
 
     @Transactional

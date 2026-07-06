@@ -1,7 +1,6 @@
 package com.aiworkspace.controllers;
 
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
-import com.aiworkspace.orchestrator.models.OrchestrationContent;
 import com.aiworkspace.orchestrator.models.OrchestrationSubmission;
 import com.aiworkspace.orchestrator.services.OrchestratorService;
 import com.aiworkspace.users.services.UserAccountService;
@@ -40,13 +39,13 @@ public class OrchestratorController {
             @RequestParam(value = "video", required = false) MultipartFile video,
             Authentication authentication
     ) throws IOException {
-        OrchestrationSubmission submission = orchestratorService.process(
+        OrchestrationSubmission submission = orchestratorService.processUploads(
                 userAccountService.currentUserId(authentication),
                 workspaceId,
-                contentFrom(document),
-                contentFrom(audio),
-                contentFrom(image),
-                contentFrom(video)
+                document,
+                audio,
+                image,
+                video
         );
 
         return ResponseEntity.status(ACCEPTED).body(submission);
@@ -55,13 +54,5 @@ public class OrchestratorController {
     @GetMapping("/jobs/{jobId}")
     public ResponseEntity<IngestionJobDetails> getJob(@PathVariable String jobId, Authentication authentication) {
         return ResponseEntity.ok(orchestratorService.findJob(userAccountService.currentUserId(authentication), jobId));
-    }
-
-    private OrchestrationContent contentFrom(MultipartFile file) throws IOException {
-        if (file == null || file.isEmpty()) {
-            return null;
-        }
-
-        return new OrchestrationContent(file.getOriginalFilename(), file.getContentType(), file.getBytes());
     }
 }

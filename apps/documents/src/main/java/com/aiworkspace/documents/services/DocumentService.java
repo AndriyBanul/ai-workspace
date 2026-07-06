@@ -4,9 +4,21 @@ import com.aiworkspace.documents.client.GenericRestClient;
 import com.aiworkspace.documents.models.ExtractedWebPage;
 import com.aiworkspace.documents.models.FetchedWebPage;
 import com.aiworkspace.documents.models.ParsedTextDocument;
+import com.aiworkspace.documents.models.TextDocumentUploadResponse;
+import com.aiworkspace.documents.models.WebPageExtractRequest;
+import com.aiworkspace.documents.models.WebPageExtractResponse;
+import com.aiworkspace.knowledge.services.KnowledgeService;
+import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.workspaces.models.Workspace;
+import com.aiworkspace.workspaces.models.WorkspaceFile;
+import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
+import com.aiworkspace.workspaces.services.WorkspaceFileService;
+import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
@@ -16,17 +28,37 @@ import org.apache.tika.parser.ParseContext;
 import org.apache.tika.sax.BodyContentHandler;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
 
 @Service
 public class DocumentService {
 
+    private static final int MAX_LOGGED_CHARACTERS = 20_000;
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
+
     private final GenericRestClient restClient;
+    private final WorkspaceFileService workspaceFileService;
+    private final KnowledgeService knowledgeService;
+    private final WorkspaceService workspaceService;
     private final AutoDetectParser parser = new AutoDetectParser();
 
     public DocumentService(GenericRestClient restClient) {
+        this(restClient, null, null, null);
+    }
+
+    @Autowired
+    public DocumentService(
+            GenericRestClient restClient,
+            WorkspaceFileService workspaceFileService,
+            KnowledgeService knowledgeService,
+            WorkspaceService workspaceService
+    ) {
         this.restClient = restClient;
+        this.workspaceFileService = workspaceFileService;
+        this.knowledgeService = knowledgeService;
+        this.workspaceService = workspaceService;
     }
 
     public ParsedTextDocument parseTextDocument(String filename, byte[] bytes) {
@@ -68,11 +100,76 @@ public class DocumentService {
         return new ExtractedWebPage(fetchedWebPage.url(), document.title(), content);
     }
 
+    public TextDocumentUploadResponse uploadTextDocument(
+            String ownerId,
+            String workspaceId,
+            String filename,
+            String contentType,
+            byte[] content
+    ) throws IOException {
+        if (content == null || content.length == 0) {
+            throw new IllegalArgumentException("File must not be empty");
+        }
+
+        Workspace workspace = workspaceService.getWorkspace(ownerId, workspaceId);
+        WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
+                .workspaceId(workspace.id())
+                .sourceType(WorkspaceFileSourceType.DOCUMENT)
+                .originalFilename(filename)
+                .contentType(contentType)
+                .content(new ByteArrayInputStream(content))
+                .build());
+        workspaceFileService.markProcessing(workspace.id(), workspaceFile.id());
+
+        ParsedTextDocument document;
+        try {
+            document = extractDocumentText(filename, contentType, content);
+            knowledgeService.recordDocumentsInfo(workspace.id(), document.filename(), null, document.content());
+            workspaceFileService.markProcessed(workspace.id(), workspaceFile.id());
+        } catch (IOException | RuntimeException exception) {
+            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
+            throw exception;
+        }
+
+        log.info("Extracted document text from '{}':\n{}", document.filename(), document.content());
+        return new TextDocumentUploadResponse(document.filename(), content.length, document.content().length());
+    }
+
+    public WebPageExtractResponse extractWebPage(String ownerId, WebPageExtractRequest request) throws IOException {
+        if (request == null) {
+            throw new IllegalArgumentException("Request body must not be empty");
+        }
+
+        workspaceService.getWorkspace(ownerId, request.workspaceId());
+        ExtractedWebPage page = extractWebPage(request.url());
+        String loggedContent = contentForLog(page.content());
+        boolean truncated = loggedContent.length() < page.content().length();
+
+        log.info("Extracted web page '{}' from '{}':\n{}", page.title(), page.url(), loggedContent);
+        knowledgeService.recordDocumentsInfo(request.workspaceId(), page.title(), null, page.content());
+
+        return new WebPageExtractResponse(
+                page.url(),
+                page.title(),
+                page.content().length(),
+                loggedContent.length(),
+                truncated
+        );
+    }
+
     private String removeBom(String content) {
         if (content.startsWith("\uFEFF")) {
             return content.substring(1);
         }
 
         return content;
+    }
+
+    private String contentForLog(String content) {
+        if (content.length() <= MAX_LOGGED_CHARACTERS) {
+            return content;
+        }
+
+        return content.substring(0, MAX_LOGGED_CHARACTERS);
     }
 }

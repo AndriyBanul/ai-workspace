@@ -1,10 +1,9 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.workspaces.models.WorkspaceFile;
-import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import com.aiworkspace.users.services.UserAccountService;
 import com.aiworkspace.workspaces.models.CreateWorkspaceRequest;
 import com.aiworkspace.workspaces.models.Workspace;
+import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import java.util.List;
@@ -25,28 +24,18 @@ import static org.springframework.http.HttpStatus.CREATED;
 public class WorkspaceController {
 
     private final WorkspaceService workspaceService;
-    private final WorkspaceFileService workspaceFileService;
     private final UserAccountService userAccountService;
 
-    public WorkspaceController(
-            WorkspaceService workspaceService,
-            WorkspaceFileService workspaceFileService,
-            UserAccountService userAccountService
-    ) {
+    public WorkspaceController(WorkspaceService workspaceService, UserAccountService userAccountService) {
         this.workspaceService = workspaceService;
-        this.workspaceFileService = workspaceFileService;
         this.userAccountService = userAccountService;
     }
 
     @PostMapping
     public ResponseEntity<Workspace> createWorkspace(@RequestBody CreateWorkspaceRequest request, Authentication authentication) {
-        if (request == null) {
-            throw new IllegalArgumentException("Request body must not be empty");
-        }
-
         return ResponseEntity.status(CREATED).body(workspaceService.createWorkspace(
                 userAccountService.currentUserId(authentication),
-                request.name()
+                request
         ));
     }
 
@@ -57,10 +46,7 @@ public class WorkspaceController {
 
     @GetMapping("/{workspaceId}")
     public ResponseEntity<Workspace> getWorkspace(@PathVariable String workspaceId, Authentication authentication) {
-        return ResponseEntity.ok(workspaceService.getWorkspace(
-                userAccountService.currentUserId(authentication),
-                workspaceId
-        ));
+        return ResponseEntity.ok(workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId));
     }
 
     @GetMapping("/{workspaceId}/files")
@@ -68,8 +54,7 @@ public class WorkspaceController {
             @PathVariable String workspaceId,
             Authentication authentication
     ) {
-        Workspace workspace = workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId);
-        return ResponseEntity.ok(workspaceFileService.listFiles(workspace.id()));
+        return ResponseEntity.ok(workspaceService.listFiles(userAccountService.currentUserId(authentication), workspaceId));
     }
 
     @GetMapping("/{workspaceId}/files/{fileId}")
@@ -78,8 +63,7 @@ public class WorkspaceController {
             @PathVariable String fileId,
             Authentication authentication
     ) {
-        Workspace workspace = workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId);
-        return ResponseEntity.ok(workspaceFileService.getFile(workspace.id(), fileId));
+        return ResponseEntity.ok(workspaceService.getFile(userAccountService.currentUserId(authentication), workspaceId, fileId));
     }
 
     @DeleteMapping("/{workspaceId}/files/{fileId}")
@@ -88,8 +72,7 @@ public class WorkspaceController {
             @PathVariable String fileId,
             Authentication authentication
     ) throws IOException {
-        Workspace workspace = workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId);
-        workspaceFileService.deleteFile(workspace.id(), fileId);
+        workspaceService.deleteFile(userAccountService.currentUserId(authentication), workspaceId, fileId);
         return ResponseEntity.noContent().build();
     }
 }

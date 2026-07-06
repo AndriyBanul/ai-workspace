@@ -1,4 +1,4 @@
-package com.aiworkspace.models;
+package com.aiworkspace.audio.models;
 
 import lombok.Builder;
 

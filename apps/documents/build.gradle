@@ -14,14 +14,18 @@ dependencyManagement {
 
 dependencies {
 	implementation project(':shared')
+	implementation project(':knowledge')
+	implementation project(':workspaces')
 	compileOnly 'org.springframework:spring-context'
 	compileOnly 'org.springframework:spring-web'
+	compileOnly 'org.slf4j:slf4j-api'
 	implementation 'org.jsoup:jsoup:1.18.3'
 	implementation 'org.apache.tika:tika-core:3.2.3'
 	implementation 'org.apache.tika:tika-parsers-standard-package:3.2.3'
 	testImplementation 'org.junit.jupiter:junit-jupiter'
 	testImplementation 'org.springframework:spring-context'
 	testImplementation 'org.springframework:spring-web'
+	testImplementation 'org.slf4j:slf4j-api'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

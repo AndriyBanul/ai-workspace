@@ -27,6 +27,7 @@ dependencies {
 	compileOnly 'org.springframework:spring-beans'
 	compileOnly 'org.springframework:spring-context'
 	compileOnly 'org.springframework:spring-tx'
+	compileOnly 'org.springframework:spring-web'
 	annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
 	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 	testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -34,6 +35,7 @@ dependencies {
 	testImplementation 'org.springframework.data:spring-data-jpa'
 	testImplementation 'org.slf4j:slf4j-api'
 	testImplementation 'org.springframework:spring-tx'
+	testImplementation 'org.springframework:spring-web'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

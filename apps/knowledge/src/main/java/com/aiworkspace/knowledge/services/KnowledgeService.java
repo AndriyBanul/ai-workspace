@@ -5,10 +5,12 @@ import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeAnswer;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
+import com.aiworkspace.knowledge.models.WorkspaceQuestionRequest;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeSource;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeSourceFile;
 import com.aiworkspace.knowledge.providers.KnowledgeAnswerProvider;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
+import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -17,6 +19,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -28,15 +31,32 @@ public class KnowledgeService {
 
     private final KnowledgeRepository knowledgeRepository;
     private final KnowledgeAnswerProvider knowledgeAnswerProvider;
+    private final WorkspaceService workspaceService;
 
     public KnowledgeService(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider) {
+        this(knowledgeRepository, knowledgeAnswerProvider, null);
+    }
+
+    @Autowired
+    public KnowledgeService(
+            KnowledgeRepository knowledgeRepository,
+            KnowledgeAnswerProvider knowledgeAnswerProvider,
+            WorkspaceService workspaceService
+    ) {
         this.knowledgeRepository = knowledgeRepository;
         this.knowledgeAnswerProvider = knowledgeAnswerProvider;
+        this.workspaceService = workspaceService;
     }
 
     public Optional<WorkspaceKnowledge> findWorkspaceKnowledge(String workspaceId) throws IOException {
         validateWorkspaceId(workspaceId);
         return knowledgeRepository.findByWorkspaceId(workspaceId.trim());
+    }
+
+    public WorkspaceKnowledge getWorkspaceKnowledge(String ownerId, String workspaceId) throws IOException {
+        workspaceService.getWorkspace(ownerId, workspaceId);
+        return findWorkspaceKnowledge(workspaceId)
+                .orElseThrow(() -> new NoSuchElementException("Workspace knowledge was not found"));
     }
 
     public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value)
@@ -92,6 +112,19 @@ public class KnowledgeService {
                 sourceFilesFrom(items),
                 items.stream().map(this::sourceFrom).toList()
         );
+    }
+
+    public WorkspaceKnowledgeAnswer answerWorkspaceQuestion(
+            String ownerId,
+            String workspaceId,
+            WorkspaceQuestionRequest request
+    ) throws IOException {
+        if (request == null) {
+            throw new IllegalArgumentException("Request body must not be empty");
+        }
+
+        workspaceService.getWorkspace(ownerId, workspaceId);
+        return answerWorkspaceQuestion(workspaceId, request.question());
     }
 
     private void recordKnowledgeItem(

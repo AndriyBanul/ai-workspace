@@ -1,4 +1,4 @@
-package com.aiworkspace.models;
+package com.aiworkspace.images.models;
 
 import lombok.Builder;
 

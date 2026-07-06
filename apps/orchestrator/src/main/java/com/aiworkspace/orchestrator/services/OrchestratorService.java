@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class OrchestratorService {
@@ -115,6 +116,24 @@ public class OrchestratorService {
         );
     }
 
+    public OrchestrationSubmission processUploads(
+            String ownerId,
+            String workspaceId,
+            MultipartFile document,
+            MultipartFile audio,
+            MultipartFile image,
+            MultipartFile video
+    ) throws IOException {
+        return process(
+                ownerId,
+                workspaceId,
+                contentFrom(document),
+                contentFrom(audio),
+                contentFrom(image),
+                contentFrom(video)
+        );
+    }
+
     public IngestionJobDetails findJob(String ownerId, String jobId) {
         validateOwnerId(ownerId);
         IngestionJobDetails job = ingestionJobService.getJob(jobId);
@@ -126,6 +145,14 @@ public class OrchestratorService {
         if (ownerId == null || ownerId.isBlank()) {
             throw new IllegalArgumentException("Workspace owner ID must not be blank");
         }
+    }
+
+    private OrchestrationContent contentFrom(MultipartFile file) throws IOException {
+        if (file == null || file.isEmpty()) {
+            return null;
+        }
+
+        return new OrchestrationContent(file.getOriginalFilename(), file.getContentType(), file.getBytes());
     }
 
     private void validateWorkspaceId(String workspaceId) {

@@ -1,5 +1,6 @@
 package com.aiworkspace.controllers;
 
+import com.aiworkspace.users.models.RegisterRequest;
 import com.aiworkspace.users.models.UserAccount;
 import com.aiworkspace.users.services.UserAccountService;
 import org.springframework.http.ResponseEntity;
@@ -24,22 +25,11 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<UserAccount> register(@RequestBody RegisterRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("Request body must not be empty");
-        }
-
-        return ResponseEntity.status(CREATED).body(userAccountService.register(
-                request.email(),
-                request.password(),
-                request.displayName()
-        ));
+        return ResponseEntity.status(CREATED).body(userAccountService.register(request));
     }
 
     @GetMapping("/me")
     public ResponseEntity<UserAccount> me(Authentication authentication) {
         return ResponseEntity.ok(userAccountService.currentUser(authentication));
-    }
-
-    public record RegisterRequest(String email, String password, String displayName) {
     }
 }
