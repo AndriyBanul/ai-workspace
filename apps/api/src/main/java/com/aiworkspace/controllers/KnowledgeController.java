@@ -45,7 +45,8 @@ public class KnowledgeController {
             @RequestBody WorkspaceQuestionRequest request,
             Authentication authentication
     ) throws IOException {
-        return ResponseEntity.ok(knowledgeService.answerWorkspaceQuestion(
+        return ResponseEntity.ok(
+                knowledgeService.answerWorkspaceQuestion(
                 userAccountService.currentUserId(authentication),
                 workspaceId,
                 request

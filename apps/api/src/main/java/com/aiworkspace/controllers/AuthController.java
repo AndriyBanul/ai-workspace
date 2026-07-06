@@ -25,11 +25,17 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<UserAccount> register(@RequestBody RegisterRequest request) {
-        return ResponseEntity.status(CREATED).body(userAccountService.register(request));
+        return ResponseEntity
+                .status(CREATED)
+                .body(userAccountService
+                        .register(request)
+                );
     }
 
     @GetMapping("/me")
     public ResponseEntity<UserAccount> me(Authentication authentication) {
-        return ResponseEntity.ok(userAccountService.currentUser(authentication));
+        return ResponseEntity.ok(userAccountService.
+                        currentUser(authentication)
+                );
     }
 }

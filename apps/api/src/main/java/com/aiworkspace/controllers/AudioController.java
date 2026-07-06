@@ -36,12 +36,13 @@ public class AudioController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication
     ) throws IOException, InterruptedException {
-        return ResponseEntity.ok(audioService.transcribeWorkspaceAudio(
-                userAccountService.currentUserId(authentication),
-                workspaceId,
-                file.getOriginalFilename(),
-                file.getContentType(),
-                file.getBytes()
+        return ResponseEntity.ok(
+                audioService.transcribeWorkspaceAudio(
+                    userAccountService.currentUserId(authentication),
+                    workspaceId,
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    file.getBytes()
         ));
     }
 

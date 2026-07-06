@@ -35,11 +35,11 @@ public class DocumentController {
             Authentication authentication
     ) throws IOException {
         return ResponseEntity.ok(documentService.uploadTextDocument(
-                userAccountService.currentUserId(authentication),
-                workspaceId,
-                file.getOriginalFilename(),
-                file.getContentType(),
-                file.getBytes()
+                    userAccountService.currentUserId(authentication),
+                    workspaceId,
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    file.getBytes()
         ));
     }
 
@@ -49,6 +49,7 @@ public class DocumentController {
             Authentication authentication
     )
             throws IOException {
-        return ResponseEntity.ok(documentService.extractWebPage(userAccountService.currentUserId(authentication), request));
+        return ResponseEntity
+                .ok(documentService.extractWebPage(userAccountService.currentUserId(authentication), request));
     }
 }

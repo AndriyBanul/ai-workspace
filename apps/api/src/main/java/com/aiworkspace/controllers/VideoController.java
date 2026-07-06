@@ -36,7 +36,8 @@ public class VideoController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication
     ) throws IOException, InterruptedException {
-        return ResponseEntity.ok(videoService.describeWorkspaceVideo(
+        return ResponseEntity.ok(
+                videoService.describeWorkspaceVideo(
                 userAccountService.currentUserId(authentication),
                 workspaceId,
                 file.getOriginalFilename(),
