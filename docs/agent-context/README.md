@@ -63,9 +63,8 @@ Business logic modules:
 - `apps/audio` - audio ingestion, speech-to-text, text-to-speech, diarization, and audio metadata.
 - `apps/knowledge` - knowledge organization, retrieval, and future knowledge-base workflows.
 - `apps/orchestrator` - async coordination across multimodal business modules.
-- `apps/storage` - file storage abstraction and storage implementations.
 - `apps/users` - user accounts, authentication support, and ownership identity.
-- `apps/workspaces` - workspace metadata, workspace lifecycle, workspace file metadata/status, and storage-backed workspace file access.
+- `apps/workspaces` - workspace metadata, workspace lifecycle, workspace file metadata/status, and workspace-owned file storage.
 
 The initial Java package is `com.aiworkspace`.
 

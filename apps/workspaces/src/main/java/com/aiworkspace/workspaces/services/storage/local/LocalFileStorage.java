@@ -1,9 +1,9 @@
-package com.aiworkspace.storage.local;
+package com.aiworkspace.workspaces.services.storage.local;
 
-import com.aiworkspace.storage.FileStorage;
-import com.aiworkspace.storage.config.LocalStorageProperties;
-import com.aiworkspace.storage.models.FileStorageRequest;
-import com.aiworkspace.storage.models.StoredFile;
+import com.aiworkspace.workspaces.config.LocalStorageProperties;
+import com.aiworkspace.workspaces.services.storage.FileStorage;
+import com.aiworkspace.workspaces.services.storage.FileStorageRequest;
+import com.aiworkspace.workspaces.services.storage.StoredFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;

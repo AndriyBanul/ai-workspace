@@ -1,4 +1,4 @@
-package com.aiworkspace.storage.models;
+package com.aiworkspace.workspaces.services.storage;
 
 import java.io.InputStream;
 import lombok.Builder;

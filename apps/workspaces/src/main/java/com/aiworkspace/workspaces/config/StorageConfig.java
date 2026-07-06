@@ -1,4 +1,4 @@
-package com.aiworkspace.storage.config;
+package com.aiworkspace.workspaces.config;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;

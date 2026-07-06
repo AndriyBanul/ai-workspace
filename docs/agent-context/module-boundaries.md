@@ -11,7 +11,7 @@
 - Keep `shared` small and intentional; it must not become a dumping ground.
 - Keep HTTP controllers in `apps/api`; keep business logic in the relevant business module.
 - Each module should own its domain model and persistence rules.
-- Workspace file metadata and file lifecycle belong in `apps/workspaces`; raw bytes must go through `apps/storage`.
+- Workspace file metadata, file lifecycle, and raw byte storage belong in `apps/workspaces`.
 - Cross-module communication should happen through interfaces or application services.
 - Avoid direct access to another module's repositories or internal entities.
 - Keep module APIs small, intentional, and stable.

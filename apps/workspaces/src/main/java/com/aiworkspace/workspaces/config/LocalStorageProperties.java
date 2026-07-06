@@ -1,4 +1,4 @@
-package com.aiworkspace.storage.config;
+package com.aiworkspace.workspaces.config;
 
 import java.nio.file.Path;
 import org.springframework.boot.context.properties.ConfigurationProperties;

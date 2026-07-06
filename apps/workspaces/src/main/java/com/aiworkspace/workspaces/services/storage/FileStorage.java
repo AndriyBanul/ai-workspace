@@ -1,7 +1,5 @@
-package com.aiworkspace.storage;
+package com.aiworkspace.workspaces.services.storage;
 
-import com.aiworkspace.storage.models.FileStorageRequest;
-import com.aiworkspace.storage.models.StoredFile;
 import java.io.IOException;
 import java.io.InputStream;
 
