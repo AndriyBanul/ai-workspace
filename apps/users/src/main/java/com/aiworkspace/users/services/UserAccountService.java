@@ -7,6 +7,7 @@ import com.aiworkspace.users.repositories.UserAccountRepository;
 import java.time.Instant;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -59,6 +60,20 @@ public class UserAccountService implements UserDetailsService {
         return userAccountRepository.findByEmail(email.trim().toLowerCase())
                 .map(userAccountMapper::toModel)
                 .orElseThrow(() -> new NoSuchElementException("User account was not found"));
+    }
+
+    @Transactional(readOnly = true)
+    public UserAccount currentUser(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null || authentication.getName().isBlank()) {
+            throw new IllegalArgumentException("Authenticated user is required");
+        }
+
+        return findByEmail(authentication.getName());
+    }
+
+    @Transactional(readOnly = true)
+    public String currentUserId(Authentication authentication) {
+        return currentUser(authentication).id();
     }
 
     @Override

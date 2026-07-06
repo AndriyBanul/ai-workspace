@@ -3,13 +3,13 @@ package com.aiworkspace.controllers;
 import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.services.AudioService;
-import com.aiworkspace.config.CurrentUserService;
 import com.aiworkspace.files.models.CreateWorkspaceFileRequest;
 import com.aiworkspace.files.models.WorkspaceFile;
 import com.aiworkspace.files.models.WorkspaceFileSourceType;
 import com.aiworkspace.files.services.WorkspaceFileService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.AudioTranscriptionResponse;
+import com.aiworkspace.users.services.UserAccountService;
 import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
@@ -33,20 +33,20 @@ public class AudioController {
     private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
     private final WorkspaceService workspaceService;
-    private final CurrentUserService currentUserService;
+    private final UserAccountService userAccountService;
 
     public AudioController(
             AudioService audioService,
             WorkspaceFileService workspaceFileService,
             KnowledgeService knowledgeService,
             WorkspaceService workspaceService,
-            CurrentUserService currentUserService
+            UserAccountService userAccountService
     ) {
         this.audioService = audioService;
         this.workspaceFileService = workspaceFileService;
         this.knowledgeService = knowledgeService;
         this.workspaceService = workspaceService;
-        this.currentUserService = currentUserService;
+        this.userAccountService = userAccountService;
     }
 
     @PostMapping(path = "/transcriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -55,7 +55,7 @@ public class AudioController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication
     ) throws IOException, InterruptedException {
-        Workspace workspace = workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
+        Workspace workspace = workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId);
         WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
                 .workspaceId(workspace.id())
                 .sourceType(WorkspaceFileSourceType.AUDIO)

@@ -1,10 +1,10 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.config.CurrentUserService;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
 import com.aiworkspace.orchestrator.models.OrchestrationContent;
 import com.aiworkspace.orchestrator.models.OrchestrationSubmission;
 import com.aiworkspace.orchestrator.services.OrchestratorService;
+import com.aiworkspace.users.services.UserAccountService;
 import java.io.IOException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -24,11 +24,11 @@ import static org.springframework.http.HttpStatus.ACCEPTED;
 public class OrchestratorController {
 
     private final OrchestratorService orchestratorService;
-    private final CurrentUserService currentUserService;
+    private final UserAccountService userAccountService;
 
-    public OrchestratorController(OrchestratorService orchestratorService, CurrentUserService currentUserService) {
+    public OrchestratorController(OrchestratorService orchestratorService, UserAccountService userAccountService) {
         this.orchestratorService = orchestratorService;
-        this.currentUserService = currentUserService;
+        this.userAccountService = userAccountService;
     }
 
     @PostMapping(path = "/ingestions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -41,7 +41,7 @@ public class OrchestratorController {
             Authentication authentication
     ) throws IOException {
         OrchestrationSubmission submission = orchestratorService.process(
-                currentUserService.currentUserId(authentication),
+                userAccountService.currentUserId(authentication),
                 workspaceId,
                 contentFrom(document),
                 contentFrom(audio),
@@ -54,7 +54,7 @@ public class OrchestratorController {
 
     @GetMapping("/jobs/{jobId}")
     public ResponseEntity<IngestionJobDetails> getJob(@PathVariable String jobId, Authentication authentication) {
-        return ResponseEntity.ok(orchestratorService.findJob(currentUserService.currentUserId(authentication), jobId));
+        return ResponseEntity.ok(orchestratorService.findJob(userAccountService.currentUserId(authentication), jobId));
     }
 
     private OrchestrationContent contentFrom(MultipartFile file) throws IOException {

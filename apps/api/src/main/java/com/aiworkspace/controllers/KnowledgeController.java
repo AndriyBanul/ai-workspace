@@ -1,9 +1,9 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.config.CurrentUserService;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeAnswer;
 import com.aiworkspace.knowledge.services.KnowledgeService;
+import com.aiworkspace.users.services.UserAccountService;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import java.util.NoSuchElementException;
@@ -22,16 +22,16 @@ public class KnowledgeController {
 
     private final KnowledgeService knowledgeService;
     private final WorkspaceService workspaceService;
-    private final CurrentUserService currentUserService;
+    private final UserAccountService userAccountService;
 
     public KnowledgeController(
             KnowledgeService knowledgeService,
             WorkspaceService workspaceService,
-            CurrentUserService currentUserService
+            UserAccountService userAccountService
     ) {
         this.knowledgeService = knowledgeService;
         this.workspaceService = workspaceService;
-        this.currentUserService = currentUserService;
+        this.userAccountService = userAccountService;
     }
 
     @GetMapping("/workspaces/{workspaceId}")
@@ -40,7 +40,7 @@ public class KnowledgeController {
             Authentication authentication
     )
             throws IOException {
-        workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
+        workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId);
         return knowledgeService.findWorkspaceKnowledge(workspaceId)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new NoSuchElementException("Workspace knowledge was not found"));
@@ -56,7 +56,7 @@ public class KnowledgeController {
             throw new IllegalArgumentException("Request body must not be empty");
         }
 
-        workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
+        workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId);
         return ResponseEntity.ok(knowledgeService.answerWorkspaceQuestion(workspaceId, request.question()));
     }
 

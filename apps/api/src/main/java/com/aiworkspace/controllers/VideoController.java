@@ -1,12 +1,12 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.config.CurrentUserService;
 import com.aiworkspace.files.models.CreateWorkspaceFileRequest;
 import com.aiworkspace.files.models.WorkspaceFile;
 import com.aiworkspace.files.models.WorkspaceFileSourceType;
 import com.aiworkspace.files.services.WorkspaceFileService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.VideoDescriptionResponse;
+import com.aiworkspace.users.services.UserAccountService;
 import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.services.VideoService;
@@ -33,20 +33,20 @@ public class VideoController {
     private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
     private final WorkspaceService workspaceService;
-    private final CurrentUserService currentUserService;
+    private final UserAccountService userAccountService;
 
     public VideoController(
             VideoService videoService,
             WorkspaceFileService workspaceFileService,
             KnowledgeService knowledgeService,
             WorkspaceService workspaceService,
-            CurrentUserService currentUserService
+            UserAccountService userAccountService
     ) {
         this.videoService = videoService;
         this.workspaceFileService = workspaceFileService;
         this.knowledgeService = knowledgeService;
         this.workspaceService = workspaceService;
-        this.currentUserService = currentUserService;
+        this.userAccountService = userAccountService;
     }
 
     @PostMapping(path = "/descriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -55,7 +55,7 @@ public class VideoController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication
     ) throws IOException, InterruptedException {
-        Workspace workspace = workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
+        Workspace workspace = workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId);
         WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
                 .workspaceId(workspace.id())
                 .sourceType(WorkspaceFileSourceType.VIDEO)

@@ -5,6 +5,7 @@ import com.aiworkspace.users.repositories.UserAccountEntity;
 import com.aiworkspace.users.repositories.UserAccountRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
@@ -80,6 +81,35 @@ class UserAccountServiceTest {
         UserAccountService service = newService(mock(UserAccountRepository.class));
 
         assertThrows(UsernameNotFoundException.class, () -> service.loadUserByUsername("missing@example.com"));
+    }
+
+    @Test
+    void resolvesCurrentUserFromAuthenticationName() {
+        UserAccountRepository repository = mock(UserAccountRepository.class);
+        when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(UserAccountEntity.builder()
+                .id("user-1")
+                .email("user@example.com")
+                .passwordHash("hash")
+                .displayName("User")
+                .createdAt(java.time.Instant.parse("2026-07-03T00:00:00Z"))
+                .build()));
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getName()).thenReturn(" User@Example.COM ");
+        UserAccountService service = newService(repository);
+
+        assertEquals("user-1", service.currentUserId(authentication));
+    }
+
+    @Test
+    void rejectsMissingAuthenticatedUser() {
+        UserAccountService service = newService(mock(UserAccountRepository.class));
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.currentUser(null)
+        );
+
+        assertEquals("Authenticated user is required", exception.getMessage());
     }
 
     private static UserAccountService newService(UserAccountRepository repository) {

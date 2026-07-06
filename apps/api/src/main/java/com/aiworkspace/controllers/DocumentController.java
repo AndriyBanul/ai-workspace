@@ -1,6 +1,5 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.config.CurrentUserService;
 import com.aiworkspace.documents.models.ExtractedWebPage;
 import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.services.DocumentService;
@@ -10,6 +9,7 @@ import com.aiworkspace.files.models.WorkspaceFileSourceType;
 import com.aiworkspace.files.services.WorkspaceFileService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.TextDocumentUploadResponse;
+import com.aiworkspace.users.services.UserAccountService;
 import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
@@ -37,20 +37,20 @@ public class DocumentController {
     private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
     private final WorkspaceService workspaceService;
-    private final CurrentUserService currentUserService;
+    private final UserAccountService userAccountService;
 
     public DocumentController(
             DocumentService documentService,
             WorkspaceFileService workspaceFileService,
             KnowledgeService knowledgeService,
             WorkspaceService workspaceService,
-            CurrentUserService currentUserService
+            UserAccountService userAccountService
     ) {
         this.documentService = documentService;
         this.workspaceFileService = workspaceFileService;
         this.knowledgeService = knowledgeService;
         this.workspaceService = workspaceService;
-        this.currentUserService = currentUserService;
+        this.userAccountService = userAccountService;
     }
 
     @PostMapping(path = "/text", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -63,7 +63,7 @@ public class DocumentController {
             throw new IllegalArgumentException("File must not be empty");
         }
 
-        Workspace workspace = workspaceService.getWorkspace(currentUserService.currentUserId(authentication), workspaceId);
+        Workspace workspace = workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId);
         WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
                 .workspaceId(workspace.id())
                 .sourceType(WorkspaceFileSourceType.DOCUMENT)
@@ -106,7 +106,7 @@ public class DocumentController {
             throw new IllegalArgumentException("Request body must not be empty");
         }
 
-        workspaceService.getWorkspace(currentUserService.currentUserId(authentication), request.workspaceId());
+        workspaceService.getWorkspace(userAccountService.currentUserId(authentication), request.workspaceId());
         ExtractedWebPage page = documentService.extractWebPage(request.url());
         String loggedContent = contentForLog(page.content());
         boolean truncated = loggedContent.length() < page.content().length();

@@ -1,6 +1,5 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.config.CurrentUserService;
 import com.aiworkspace.users.models.UserAccount;
 import com.aiworkspace.users.services.UserAccountService;
 import org.springframework.http.ResponseEntity;
@@ -18,11 +17,9 @@ import static org.springframework.http.HttpStatus.CREATED;
 public class AuthController {
 
     private final UserAccountService userAccountService;
-    private final CurrentUserService currentUserService;
 
-    public AuthController(UserAccountService userAccountService, CurrentUserService currentUserService) {
+    public AuthController(UserAccountService userAccountService) {
         this.userAccountService = userAccountService;
-        this.currentUserService = currentUserService;
     }
 
     @PostMapping("/register")
@@ -40,7 +37,7 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<UserAccount> me(Authentication authentication) {
-        return ResponseEntity.ok(currentUserService.currentUser(authentication));
+        return ResponseEntity.ok(userAccountService.currentUser(authentication));
     }
 
     public record RegisterRequest(String email, String password, String displayName) {
