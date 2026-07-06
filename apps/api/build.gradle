@@ -26,7 +26,6 @@ dependencies {
 	implementation project(':knowledge')
 	implementation project(':orchestrator')
 	implementation project(':storage')
-	implementation project(':files')
 	implementation project(':users')
 	implementation project(':workspaces')
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'

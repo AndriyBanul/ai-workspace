@@ -1,7 +1,7 @@
-package com.aiworkspace.files.repositories;
+package com.aiworkspace.workspaces.repositories;
 
-import com.aiworkspace.files.models.WorkspaceFileSourceType;
-import com.aiworkspace.files.models.WorkspaceFileStatus;
+import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
+import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

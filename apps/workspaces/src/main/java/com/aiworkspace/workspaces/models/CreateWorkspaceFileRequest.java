@@ -1,4 +1,4 @@
-package com.aiworkspace.files.models;
+package com.aiworkspace.workspaces.models;
 
 import java.io.InputStream;
 import lombok.Builder;

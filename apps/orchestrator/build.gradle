@@ -15,7 +15,6 @@ dependencyManagement {
 dependencies {
 	implementation project(':audio')
 	implementation project(':documents')
-	implementation project(':files')
 	implementation project(':images')
 	implementation project(':knowledge')
 	implementation project(':videos')

@@ -1,4 +1,4 @@
-package com.aiworkspace.files.repositories;
+package com.aiworkspace.workspaces.repositories;
 
 import java.util.List;
 import java.util.Optional;

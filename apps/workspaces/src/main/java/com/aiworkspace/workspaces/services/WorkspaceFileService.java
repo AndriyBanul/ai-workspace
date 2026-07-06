@@ -1,12 +1,12 @@
-package com.aiworkspace.files.services;
+package com.aiworkspace.workspaces.services;
 
-import com.aiworkspace.files.mappers.WorkspaceFileMapper;
-import com.aiworkspace.files.models.CreateWorkspaceFileRequest;
-import com.aiworkspace.files.models.WorkspaceFile;
-import com.aiworkspace.files.models.WorkspaceFileSourceType;
-import com.aiworkspace.files.models.WorkspaceFileStatus;
-import com.aiworkspace.files.repositories.WorkspaceFileEntity;
-import com.aiworkspace.files.repositories.WorkspaceFileRepository;
+import com.aiworkspace.workspaces.mappers.WorkspaceFileMapper;
+import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.workspaces.models.WorkspaceFile;
+import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
+import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
+import com.aiworkspace.workspaces.repositories.WorkspaceFileEntity;
+import com.aiworkspace.workspaces.repositories.WorkspaceFileRepository;
 import com.aiworkspace.storage.FileStorage;
 import com.aiworkspace.storage.models.FileStorageRequest;
 import com.aiworkspace.storage.models.StoredFile;

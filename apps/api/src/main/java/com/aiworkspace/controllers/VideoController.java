@@ -1,9 +1,9 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.files.models.CreateWorkspaceFileRequest;
-import com.aiworkspace.files.models.WorkspaceFile;
-import com.aiworkspace.files.models.WorkspaceFileSourceType;
-import com.aiworkspace.files.services.WorkspaceFileService;
+import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.workspaces.models.WorkspaceFile;
+import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
+import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.models.VideoDescriptionResponse;
 import com.aiworkspace.users.services.UserAccountService;

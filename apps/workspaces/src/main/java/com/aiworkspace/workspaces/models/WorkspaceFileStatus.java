@@ -1,4 +1,4 @@
-package com.aiworkspace.files.models;
+package com.aiworkspace.workspaces.models;
 
 public enum WorkspaceFileStatus {
 

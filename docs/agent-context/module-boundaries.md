@@ -3,7 +3,7 @@
 - `apps` is the Gradle root for application modules.
 - `apps/api` is the only executable Spring Boot application at the current stage.
 - `apps/shared` is a Java library module for genuinely shared data models.
-- `apps/documents`, `apps/images`, `apps/videos`, `apps/audio`, `apps/knowledge`, `apps/orchestrator`, `apps/files`, and `apps/workspaces` are business logic modules.
+- `apps/documents`, `apps/images`, `apps/videos`, `apps/audio`, `apps/knowledge`, `apps/orchestrator`, and `apps/workspaces` are business logic modules.
 - Do not add nested `settings.gradle` files or Gradle wrappers inside subprojects.
 - The initial API package is `com.aiworkspace`.
 - Start with package-level areas inside `apps/api`: `config` and `controllers`.
@@ -11,7 +11,7 @@
 - Keep `shared` small and intentional; it must not become a dumping ground.
 - Keep HTTP controllers in `apps/api`; keep business logic in the relevant business module.
 - Each module should own its domain model and persistence rules.
-- File metadata and file lifecycle belong in `apps/files`; raw bytes must go through `apps/storage`.
+- Workspace file metadata and file lifecycle belong in `apps/workspaces`; raw bytes must go through `apps/storage`.
 - Cross-module communication should happen through interfaces or application services.
 - Avoid direct access to another module's repositories or internal entities.
 - Keep module APIs small, intentional, and stable.

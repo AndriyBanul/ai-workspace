@@ -1,4 +1,4 @@
-package com.aiworkspace.files.models;
+package com.aiworkspace.workspaces.models;
 
 import java.time.Instant;
 import lombok.Builder;

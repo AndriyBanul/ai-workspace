@@ -1,7 +1,7 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.files.models.WorkspaceFile;
-import com.aiworkspace.files.services.WorkspaceFileService;
+import com.aiworkspace.workspaces.models.WorkspaceFile;
+import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import com.aiworkspace.users.services.UserAccountService;
 import com.aiworkspace.workspaces.models.CreateWorkspaceRequest;
 import com.aiworkspace.workspaces.models.Workspace;
