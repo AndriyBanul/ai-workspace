@@ -2,14 +2,13 @@ package com.aiworkspace.workspaces.services;
 
 import com.aiworkspace.workspaces.mappers.WorkspaceFileMapper;
 import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.workspaces.models.FileStorageRequest;
+import com.aiworkspace.workspaces.models.StoredFile;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
 import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
 import com.aiworkspace.workspaces.repositories.WorkspaceFileEntity;
 import com.aiworkspace.workspaces.repositories.WorkspaceFileRepository;
-import com.aiworkspace.workspaces.services.storage.FileStorage;
-import com.aiworkspace.workspaces.services.storage.FileStorageRequest;
-import com.aiworkspace.workspaces.services.storage.StoredFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
