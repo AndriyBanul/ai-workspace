@@ -14,20 +14,28 @@ import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
 public class LocalFileStorage implements FileStorage {
 
     private final Path root;
+    private final FileStorageValidator fileStorageValidator;
 
     public LocalFileStorage(LocalStorageProperties properties) {
+        this(properties, new FileStorageValidator());
+    }
+
+    @Autowired
+    public LocalFileStorage(LocalStorageProperties properties, FileStorageValidator fileStorageValidator) {
         this.root = properties.root().toAbsolutePath().normalize();
+        this.fileStorageValidator = fileStorageValidator;
     }
 
     @Override
     public StoredFile store(FileStorageRequest request) throws IOException {
-        validateRequest(request);
+        fileStorageValidator.validateRequest(request);
         String storageKey = request.workspaceId().trim() + "/" + request.fileId().trim();
         Path target = resolve(storageKey);
         Files.createDirectories(target.getParent());
@@ -63,38 +71,8 @@ public class LocalFileStorage implements FileStorage {
         Files.deleteIfExists(resolve(storageKey));
     }
 
-    private void validateRequest(FileStorageRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("File storage request must not be null");
-        }
-
-        validateIdentifier(request.workspaceId(), "Workspace ID");
-        validateIdentifier(request.fileId(), "File ID");
-
-        if (request.originalFilename() == null || request.originalFilename().isBlank()) {
-            throw new IllegalArgumentException("Original filename must not be blank");
-        }
-
-        if (request.content() == null) {
-            throw new IllegalArgumentException("File content must not be null");
-        }
-    }
-
-    private void validateIdentifier(String value, String fieldName) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(fieldName + " must not be blank");
-        }
-
-        String trimmed = value.trim();
-        if (trimmed.contains("/") || trimmed.contains("\\") || ".".equals(trimmed) || "..".equals(trimmed)) {
-            throw new IllegalArgumentException(fieldName + " must be a storage-safe identifier");
-        }
-    }
-
     private Path resolve(String storageKey) {
-        if (storageKey == null || storageKey.isBlank()) {
-            throw new IllegalArgumentException("Storage key must not be blank");
-        }
+        fileStorageValidator.validateStorageKey(storageKey);
 
         Path path = root.resolve(storageKey.trim()).normalize();
         if (!path.startsWith(root)) {

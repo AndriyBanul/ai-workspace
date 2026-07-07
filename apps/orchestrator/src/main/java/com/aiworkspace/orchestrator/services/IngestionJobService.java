@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,10 +26,21 @@ public class IngestionJobService {
 
     private final IngestionJobRepository ingestionJobRepository;
     private final IngestionJobDetailsMapper detailsMapper;
+    private final IngestionJobValidator ingestionJobValidator;
 
     public IngestionJobService(IngestionJobRepository ingestionJobRepository, IngestionJobDetailsMapper detailsMapper) {
+        this(ingestionJobRepository, detailsMapper, new IngestionJobValidator());
+    }
+
+    @Autowired
+    public IngestionJobService(
+            IngestionJobRepository ingestionJobRepository,
+            IngestionJobDetailsMapper detailsMapper,
+            IngestionJobValidator ingestionJobValidator
+    ) {
         this.ingestionJobRepository = ingestionJobRepository;
         this.detailsMapper = detailsMapper;
+        this.ingestionJobValidator = ingestionJobValidator;
     }
 
     @Transactional
@@ -37,7 +49,7 @@ public class IngestionJobService {
             List<IngestionContentType> submitted,
             List<IngestionContentType> skipped
     ) {
-        validateWorkspaceId(workspaceId);
+        ingestionJobValidator.validateWorkspaceId(workspaceId);
 
         Set<IngestionContentType> submittedTypes = Set.copyOf(submitted);
         Set<IngestionContentType> skippedTypes = Set.copyOf(skipped);
@@ -72,7 +84,7 @@ public class IngestionJobService {
 
     @Transactional(readOnly = true)
     public IngestionJobDetails getJob(String jobId) {
-        validateJobId(jobId);
+        ingestionJobValidator.validateJobId(jobId);
         IngestionJob job = ingestionJobRepository.findJob(jobId.trim())
                 .orElseThrow(() -> new NoSuchElementException("Ingestion job was not found"));
         return details(job, ingestionJobRepository.findSteps(job.id()));
@@ -133,7 +145,7 @@ public class IngestionJobService {
     }
 
     private boolean isStepTerminal(String jobId, IngestionContentType contentType) {
-        validateJobId(jobId);
+        ingestionJobValidator.validateJobId(jobId);
         return ingestionJobRepository.findSteps(jobId.trim()).stream()
                 .filter(step -> step.contentType() == contentType)
                 .map(IngestionJobStep::status)
@@ -143,7 +155,7 @@ public class IngestionJobService {
     }
 
     private void recalculateJobStatus(String jobId) {
-        validateJobId(jobId);
+        ingestionJobValidator.validateJobId(jobId);
         List<IngestionJobStep> steps = ingestionJobRepository.findSteps(jobId.trim());
         List<IngestionJobStep> submittedSteps = steps.stream()
                 .filter(step -> step.status() != IngestionStepStatus.SKIPPED)
@@ -202,18 +214,6 @@ public class IngestionJobService {
         return status == IngestionJobStatus.COMPLETED
                 || status == IngestionJobStatus.PARTIALLY_FAILED
                 || status == IngestionJobStatus.FAILED;
-    }
-
-    private void validateWorkspaceId(String workspaceId) {
-        if (workspaceId == null || workspaceId.isBlank()) {
-            throw new IllegalArgumentException("Workspace ID must not be blank");
-        }
-    }
-
-    private void validateJobId(String jobId) {
-        if (jobId == null || jobId.isBlank()) {
-            throw new IllegalArgumentException("Ingestion job ID must not be blank");
-        }
     }
 
     private String errorMessage(Exception exception) {

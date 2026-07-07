@@ -1,6 +1,7 @@
 package com.aiworkspace.videos.client;
 
 import com.aiworkspace.videos.models.GeneratedVideo;
+import com.aiworkspace.videos.providers.VideoGenerationProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -20,7 +21,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
-public class VeoVideoClient {
+public class VeoVideoClient implements VideoGenerationProvider {
 
     private static final int MAX_POLL_ATTEMPTS = 60;
     private static final long POLL_INTERVAL_MILLIS = 5_000L;
@@ -66,6 +67,7 @@ public class VeoVideoClient {
         this.objectMapper = objectMapper;
     }
 
+    @Override
     public GeneratedVideo generate(String description) throws IOException, InterruptedException {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IOException("Veo API key is not configured");

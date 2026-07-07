@@ -92,6 +92,8 @@ If this file conflicts with other project guidance, follow this file first unles
 ## AI Providers
 
 - Keep provider-specific logic isolated in clients.
+- Domain services should depend on capability-oriented provider interfaces, not concrete Gemini, Veo, FLUX, Whisper, or Piper client classes.
+- Prefer focused ports for each capability instead of one broad `AiProvider` abstraction.
 - Do not leak Gemini, Veo, FLUX, Whisper, or other provider DTOs into controllers.
 - Keep provider configuration in `application.properties` and environment variables.
 - API keys must come from environment variables, never from committed code.

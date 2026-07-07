@@ -12,6 +12,8 @@
 - Keep HTTP controllers in `apps/api`; keep business logic in the relevant business module.
 - Each module should own its domain model and persistence rules.
 - Workspace file metadata, file lifecycle, and raw byte storage belong in `apps/workspaces`.
+- AI provider integrations should be exposed to services through capability-oriented provider interfaces inside the owning module.
+- Avoid broad generic AI provider abstractions; prefer focused ports such as speech-to-text, text-to-speech, image understanding, image generation, video understanding, and video generation.
 - Cross-module communication should happen through interfaces or application services.
 - Avoid direct access to another module's repositories or internal entities.
 - Keep module APIs small, intentional, and stable.

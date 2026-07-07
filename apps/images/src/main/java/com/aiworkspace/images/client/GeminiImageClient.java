@@ -1,5 +1,6 @@
 package com.aiworkspace.images.client;
 
+import com.aiworkspace.images.providers.ImageUnderstandingProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -19,7 +20,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
-public class GeminiImageClient {
+public class GeminiImageClient implements ImageUnderstandingProvider {
 
     private final URI baseUri;
     private final String apiKey;
@@ -57,6 +58,7 @@ public class GeminiImageClient {
         this.objectMapper = objectMapper;
     }
 
+    @Override
     public String describe(byte[] imageContent, String mimeType, String prompt) throws IOException, InterruptedException {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IOException("Gemini API key is not configured");

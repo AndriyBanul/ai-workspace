@@ -25,31 +25,33 @@ import org.springframework.stereotype.Service;
 @Service
 public class KnowledgeService {
 
-    private static final int MAX_QUESTION_LENGTH = 4_000;
     private static final int RETRIEVAL_LIMIT = 8;
     private static final int SOURCE_SNIPPET_LENGTH = 500;
 
     private final KnowledgeRepository knowledgeRepository;
     private final KnowledgeAnswerProvider knowledgeAnswerProvider;
     private final WorkspaceService workspaceService;
+    private final KnowledgeValidator knowledgeValidator;
 
     public KnowledgeService(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider) {
-        this(knowledgeRepository, knowledgeAnswerProvider, null);
+        this(knowledgeRepository, knowledgeAnswerProvider, null, new KnowledgeValidator());
     }
 
     @Autowired
     public KnowledgeService(
             KnowledgeRepository knowledgeRepository,
             KnowledgeAnswerProvider knowledgeAnswerProvider,
-            WorkspaceService workspaceService
+            WorkspaceService workspaceService,
+            KnowledgeValidator knowledgeValidator
     ) {
         this.knowledgeRepository = knowledgeRepository;
         this.knowledgeAnswerProvider = knowledgeAnswerProvider;
         this.workspaceService = workspaceService;
+        this.knowledgeValidator = knowledgeValidator;
     }
 
     public Optional<WorkspaceKnowledge> findWorkspaceKnowledge(String workspaceId) throws IOException {
-        validateWorkspaceId(workspaceId);
+        knowledgeValidator.validateWorkspaceId(workspaceId);
         return knowledgeRepository.findByWorkspaceId(workspaceId.trim());
     }
 
@@ -61,15 +63,9 @@ public class KnowledgeService {
 
     public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value)
             throws IOException {
-        if (field == null) {
-            throw new IllegalArgumentException("Knowledge field must not be null");
-        }
-
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Knowledge field value must not be blank");
-        }
-
-        validateWorkspaceId(workspaceId);
+        knowledgeValidator.validateKnowledgeField(field);
+        knowledgeValidator.validateKnowledgeFieldValue(value);
+        knowledgeValidator.validateWorkspaceId(workspaceId);
         knowledgeRepository.updateWorkspaceKnowledgeField(workspaceId.trim(), field, value.trim());
     }
 
@@ -90,8 +86,8 @@ public class KnowledgeService {
     }
 
     public WorkspaceKnowledgeAnswer answerWorkspaceQuestion(String workspaceId, String question) throws IOException {
-        validateWorkspaceId(workspaceId);
-        validateQuestion(question);
+        knowledgeValidator.validateWorkspaceId(workspaceId);
+        knowledgeValidator.validateQuestion(question);
         String trimmedWorkspaceId = workspaceId.trim();
         String trimmedQuestion = question.trim();
         List<KnowledgeItem> items = knowledgeRepository.searchKnowledgeItems(
@@ -119,9 +115,7 @@ public class KnowledgeService {
             String workspaceId,
             WorkspaceQuestionRequest request
     ) throws IOException {
-        if (request == null) {
-            throw new IllegalArgumentException("Request body must not be empty");
-        }
+        knowledgeValidator.validateQuestionRequest(request);
 
         workspaceService.getWorkspace(ownerId, workspaceId);
         return answerWorkspaceQuestion(workspaceId, request.question());
@@ -134,11 +128,8 @@ public class KnowledgeService {
             String jobId,
             String value
     ) throws IOException {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Knowledge item content must not be blank");
-        }
-
-        validateWorkspaceId(workspaceId);
+        knowledgeValidator.validateKnowledgeItemContent(value);
+        knowledgeValidator.validateWorkspaceId(workspaceId);
         knowledgeRepository.addKnowledgeItem(new KnowledgeItem(
                 UUID.randomUUID().toString(),
                 workspaceId.trim(),
@@ -148,22 +139,6 @@ public class KnowledgeService {
                 value.trim(),
                 Instant.now()
         ));
-    }
-
-    private void validateWorkspaceId(String workspaceId) {
-        if (workspaceId == null || workspaceId.isBlank()) {
-            throw new IllegalArgumentException("Workspace ID must not be blank");
-        }
-    }
-
-    private void validateQuestion(String question) {
-        if (question == null || question.isBlank()) {
-            throw new IllegalArgumentException("Question must not be blank");
-        }
-
-        if (question.length() > MAX_QUESTION_LENGTH) {
-            throw new IllegalArgumentException("Question must not be longer than 4000 characters");
-        }
     }
 
     private String contextFrom(String workspaceId, List<KnowledgeItem> items) {

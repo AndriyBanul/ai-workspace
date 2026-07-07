@@ -4,10 +4,6 @@ import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.services.AudioService;
 import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.services.DocumentService;
-import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
-import com.aiworkspace.workspaces.models.WorkspaceFile;
-import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
-import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
@@ -18,6 +14,10 @@ import com.aiworkspace.orchestrator.models.OrchestrationContent;
 import com.aiworkspace.orchestrator.models.OrchestrationSubmission;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.services.VideoService;
+import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.workspaces.models.WorkspaceFile;
+import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
+import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -50,6 +51,7 @@ public class OrchestratorService {
     private final WorkspaceService workspaceService;
     private final OrchestratorProperties properties;
     private final Executor executor;
+    private final OrchestratorValidator orchestratorValidator;
 
     public OrchestratorService(
             DocumentService documentService,
@@ -63,6 +65,35 @@ public class OrchestratorService {
             OrchestratorProperties properties,
             @Qualifier("orchestratorTaskExecutor") Executor executor
     ) {
+        this(
+                documentService,
+                audioService,
+                imageService,
+                videoService,
+                workspaceFileService,
+                knowledgeService,
+                ingestionJobService,
+                workspaceService,
+                properties,
+                executor,
+                new OrchestratorValidator()
+        );
+    }
+
+    @Autowired
+    public OrchestratorService(
+            DocumentService documentService,
+            AudioService audioService,
+            ImageService imageService,
+            VideoService videoService,
+            WorkspaceFileService workspaceFileService,
+            KnowledgeService knowledgeService,
+            IngestionJobService ingestionJobService,
+            WorkspaceService workspaceService,
+            OrchestratorProperties properties,
+            @Qualifier("orchestratorTaskExecutor") Executor executor,
+            OrchestratorValidator orchestratorValidator
+    ) {
         this.documentService = documentService;
         this.audioService = audioService;
         this.imageService = imageService;
@@ -73,6 +104,7 @@ public class OrchestratorService {
         this.workspaceService = workspaceService;
         this.properties = properties;
         this.executor = executor;
+        this.orchestratorValidator = orchestratorValidator;
     }
 
     public OrchestrationSubmission process(
@@ -83,8 +115,8 @@ public class OrchestratorService {
             OrchestrationContent image,
             OrchestrationContent video
     ) throws IOException {
-        validateOwnerId(ownerId);
-        validateWorkspaceId(workspaceId);
+        orchestratorValidator.validateOwnerId(ownerId);
+        orchestratorValidator.validateWorkspaceId(workspaceId);
         String trimmedOwnerId = ownerId.trim();
         String trimmedWorkspaceId = workspaceId.trim();
         workspaceService.getWorkspace(trimmedOwnerId, trimmedWorkspaceId);
@@ -135,16 +167,10 @@ public class OrchestratorService {
     }
 
     public IngestionJobDetails findJob(String ownerId, String jobId) {
-        validateOwnerId(ownerId);
+        orchestratorValidator.validateOwnerId(ownerId);
         IngestionJobDetails job = ingestionJobService.getJob(jobId);
         workspaceService.getWorkspace(ownerId.trim(), job.workspaceId());
         return job;
-    }
-
-    private void validateOwnerId(String ownerId) {
-        if (ownerId == null || ownerId.isBlank()) {
-            throw new IllegalArgumentException("Workspace owner ID must not be blank");
-        }
     }
 
     private OrchestrationContent contentFrom(MultipartFile file) throws IOException {
@@ -153,12 +179,6 @@ public class OrchestratorService {
         }
 
         return new OrchestrationContent(file.getOriginalFilename(), file.getContentType(), file.getBytes());
-    }
-
-    private void validateWorkspaceId(String workspaceId) {
-        if (workspaceId == null || workspaceId.isBlank()) {
-            throw new IllegalArgumentException("Workspace ID must not be blank");
-        }
     }
 
     private void collectContent(

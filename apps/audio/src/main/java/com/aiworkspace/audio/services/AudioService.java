@@ -1,12 +1,12 @@
 package com.aiworkspace.audio.services;
 
-import com.aiworkspace.audio.client.PiperClient;
-import com.aiworkspace.audio.client.WhisperClient;
 import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.models.AudioTranscriptionResponse;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.models.TextToSpeechRequest;
 import com.aiworkspace.audio.models.WhisperTranscriptionResponse;
+import com.aiworkspace.audio.providers.SpeechToTextProvider;
+import com.aiworkspace.audio.providers.TextToSpeechProvider;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
 import com.aiworkspace.workspaces.models.Workspace;
@@ -16,46 +16,44 @@ import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.Locale;
-import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AudioService {
 
-    private static final long MAX_FILE_SIZE_BYTES = 25L * 1024L * 1024L;
-    private static final Set<String> SUPPORTED_TRANSCRIPTION_EXTENSIONS = Set.of("wav", "mp3", "mp4", "avi");
-
-    private final WhisperClient whisperClient;
-    private final PiperClient piperClient;
+    private final SpeechToTextProvider speechToTextProvider;
+    private final TextToSpeechProvider textToSpeechProvider;
     private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
     private final WorkspaceService workspaceService;
+    private final AudioValidator audioValidator;
 
-    public AudioService(WhisperClient whisperClient, PiperClient piperClient) {
-        this(whisperClient, piperClient, null, null, null);
+    public AudioService(SpeechToTextProvider speechToTextProvider, TextToSpeechProvider textToSpeechProvider) {
+        this(speechToTextProvider, textToSpeechProvider, null, null, null, new AudioValidator());
     }
 
     @Autowired
     public AudioService(
-            WhisperClient whisperClient,
-            PiperClient piperClient,
+            SpeechToTextProvider speechToTextProvider,
+            TextToSpeechProvider textToSpeechProvider,
             WorkspaceFileService workspaceFileService,
             KnowledgeService knowledgeService,
-            WorkspaceService workspaceService
+            WorkspaceService workspaceService,
+            AudioValidator audioValidator
     ) {
-        this.whisperClient = whisperClient;
-        this.piperClient = piperClient;
+        this.speechToTextProvider = speechToTextProvider;
+        this.textToSpeechProvider = textToSpeechProvider;
         this.workspaceFileService = workspaceFileService;
         this.knowledgeService = knowledgeService;
         this.workspaceService = workspaceService;
+        this.audioValidator = audioValidator;
     }
 
     public AudioTranscription transcribe(String filename, byte[] fileContent) throws IOException, InterruptedException {
-        validateTranscriptionFile(filename, fileContent);
+        audioValidator.validateTranscriptionFile(filename, fileContent);
 
-        WhisperTranscriptionResponse transcription = whisperClient.transcribe(filename, fileContent);
+        WhisperTranscriptionResponse transcription = speechToTextProvider.transcribe(filename, fileContent);
 
         return new AudioTranscription(
                 filename,
@@ -65,11 +63,8 @@ public class AudioService {
     }
 
     public SynthesizedSpeech synthesize(String text) throws IOException {
-        if (text == null || text.isBlank()) {
-            throw new IllegalArgumentException("Text must not be blank");
-        }
-
-        return piperClient.synthesize(text);
+        audioValidator.validateText(text);
+        return textToSpeechProvider.synthesize(text);
     }
 
     public AudioTranscriptionResponse transcribeWorkspaceAudio(
@@ -112,38 +107,8 @@ public class AudioService {
     }
 
     public SynthesizedSpeech synthesize(TextToSpeechRequest request) throws IOException {
-        if (request == null) {
-            throw new IllegalArgumentException("Request body must not be empty");
-        }
+        audioValidator.validateTextToSpeechRequest(request);
 
         return synthesize(request.text());
-    }
-
-    private void validateTranscriptionFile(String filename, byte[] fileContent) {
-        if (fileContent == null || fileContent.length == 0) {
-            throw new IllegalArgumentException("File must not be empty");
-        }
-
-        if (fileContent.length > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException("File must not be larger than 25MB");
-        }
-
-        String extension = extension(filename);
-        if (!SUPPORTED_TRANSCRIPTION_EXTENSIONS.contains(extension)) {
-            throw new IllegalArgumentException("Only WAV, MP3, MP4, and AVI files are supported");
-        }
-    }
-
-    private String extension(String filename) {
-        if (filename == null || filename.isBlank()) {
-            return "";
-        }
-
-        int lastDotIndex = filename.lastIndexOf('.');
-        if (lastDotIndex < 0 || lastDotIndex == filename.length() - 1) {
-            return "";
-        }
-
-        return filename.substring(lastDotIndex + 1).toLowerCase(Locale.ROOT);
     }
 }

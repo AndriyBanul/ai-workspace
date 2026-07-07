@@ -8,6 +8,7 @@ import com.aiworkspace.users.repositories.UserAccountRepository;
 import java.time.Instant;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -23,30 +24,40 @@ public class UserAccountService implements UserDetailsService {
     private final UserAccountRepository userAccountRepository;
     private final UserAccountMapper userAccountMapper;
     private final PasswordEncoder passwordEncoder;
+    private final UserAccountValidator userAccountValidator;
 
+    @Autowired
     public UserAccountService(
             UserAccountRepository userAccountRepository,
             UserAccountMapper userAccountMapper,
             PasswordEncoder passwordEncoder
     ) {
+        this(userAccountRepository, userAccountMapper, passwordEncoder, new UserAccountValidator());
+    }
+
+    public UserAccountService(
+            UserAccountRepository userAccountRepository,
+            UserAccountMapper userAccountMapper,
+            PasswordEncoder passwordEncoder,
+            UserAccountValidator userAccountValidator
+    ) {
         this.userAccountRepository = userAccountRepository;
         this.userAccountMapper = userAccountMapper;
         this.passwordEncoder = passwordEncoder;
+        this.userAccountValidator = userAccountValidator;
     }
 
     @Transactional
     public UserAccount register(RegisterRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("Request body must not be empty");
-        }
+        userAccountValidator.validateRegisterRequest(request);
 
         return register(request.email(), request.password(), request.displayName());
     }
 
     @Transactional
     public UserAccount register(String email, String password, String displayName) {
-        validateEmail(email);
-        validatePassword(password);
+        userAccountValidator.validateEmail(email);
+        userAccountValidator.validatePassword(password);
         String normalizedEmail = email.trim().toLowerCase();
         if (userAccountRepository.existsByEmail(normalizedEmail)) {
             throw new IllegalArgumentException("User email is already registered");
@@ -66,7 +77,7 @@ public class UserAccountService implements UserDetailsService {
 
     @Transactional(readOnly = true)
     public UserAccount findByEmail(String email) {
-        validateEmail(email);
+        userAccountValidator.validateEmail(email);
         return userAccountRepository.findByEmail(email.trim().toLowerCase())
                 .map(userAccountMapper::toModel)
                 .orElseThrow(() -> new NoSuchElementException("User account was not found"));
@@ -74,10 +85,7 @@ public class UserAccountService implements UserDetailsService {
 
     @Transactional(readOnly = true)
     public UserAccount currentUser(Authentication authentication) {
-        if (authentication == null || authentication.getName() == null || authentication.getName().isBlank()) {
-            throw new IllegalArgumentException("Authenticated user is required");
-        }
-
+        userAccountValidator.validateAuthentication(authentication);
         return findByEmail(authentication.getName());
     }
 
@@ -89,9 +97,7 @@ public class UserAccountService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) {
-        if (username == null || username.isBlank()) {
-            throw new UsernameNotFoundException("User account was not found");
-        }
+        userAccountValidator.validateUsername(username);
 
         UserAccountEntity entity = userAccountRepository.findByEmail(username.trim().toLowerCase())
                 .orElseThrow(() -> new UsernameNotFoundException("User account was not found"));
@@ -100,22 +106,6 @@ public class UserAccountService implements UserDetailsService {
                 .password(entity.getPasswordHash())
                 .roles("USER")
                 .build();
-    }
-
-    private void validateEmail(String email) {
-        if (email == null || email.isBlank()) {
-            throw new IllegalArgumentException("Email must not be blank");
-        }
-    }
-
-    private void validatePassword(String password) {
-        if (password == null || password.isBlank()) {
-            throw new IllegalArgumentException("Password must not be blank");
-        }
-
-        if (password.length() < 8) {
-            throw new IllegalArgumentException("Password must be at least 8 characters");
-        }
     }
 
     private String displayName(String displayName, String email) {

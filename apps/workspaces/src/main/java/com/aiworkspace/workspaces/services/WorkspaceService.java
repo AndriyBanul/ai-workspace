@@ -22,35 +22,36 @@ public class WorkspaceService {
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMapper workspaceMapper;
     private final WorkspaceFileService workspaceFileService;
+    private final WorkspaceValidator workspaceValidator;
 
     public WorkspaceService(WorkspaceRepository workspaceRepository, WorkspaceMapper workspaceMapper) {
-        this(workspaceRepository, workspaceMapper, null);
+        this(workspaceRepository, workspaceMapper, null, new WorkspaceValidator());
     }
 
     @Autowired
     public WorkspaceService(
             WorkspaceRepository workspaceRepository,
             WorkspaceMapper workspaceMapper,
-            WorkspaceFileService workspaceFileService
+            WorkspaceFileService workspaceFileService,
+            WorkspaceValidator workspaceValidator
     ) {
         this.workspaceRepository = workspaceRepository;
         this.workspaceMapper = workspaceMapper;
         this.workspaceFileService = workspaceFileService;
+        this.workspaceValidator = workspaceValidator;
     }
 
     @Transactional
     public Workspace createWorkspace(String ownerId, CreateWorkspaceRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("Request body must not be empty");
-        }
+        workspaceValidator.validateCreateRequest(request);
 
         return createWorkspace(ownerId, request.name());
     }
 
     @Transactional
     public Workspace createWorkspace(String ownerId, String name) {
-        validateOwnerId(ownerId);
-        validateName(name);
+        workspaceValidator.validateOwnerId(ownerId);
+        workspaceValidator.validateName(name);
         Instant now = Instant.now();
         WorkspaceEntity entity = new WorkspaceEntity(
                 UUID.randomUUID().toString(),
@@ -65,7 +66,7 @@ public class WorkspaceService {
 
     @Transactional(readOnly = true)
     public List<Workspace> listWorkspaces(String ownerId) {
-        validateOwnerId(ownerId);
+        workspaceValidator.validateOwnerId(ownerId);
         return workspaceRepository.findAllByOwnerId(ownerId.trim()).stream()
                 .sorted(Comparator.comparing(WorkspaceEntity::getCreatedAt).reversed())
                 .map(workspaceMapper::toModel)
@@ -74,8 +75,8 @@ public class WorkspaceService {
 
     @Transactional(readOnly = true)
     public Workspace getWorkspace(String ownerId, String workspaceId) {
-        validateOwnerId(ownerId);
-        validateWorkspaceId(workspaceId);
+        workspaceValidator.validateOwnerId(ownerId);
+        workspaceValidator.validateWorkspaceId(workspaceId);
         return workspaceRepository.findByIdAndOwnerId(workspaceId.trim(), ownerId.trim())
                 .map(workspaceMapper::toModel)
                 .orElseThrow(() -> new NoSuchElementException("Workspace was not found"));
@@ -94,24 +95,6 @@ public class WorkspaceService {
     @Transactional
     public void deleteFile(String ownerId, String workspaceId, String fileId) throws IOException {
         workspaceFileService.deleteFile(getWorkspace(ownerId, workspaceId).id(), fileId);
-    }
-
-    private void validateOwnerId(String ownerId) {
-        if (ownerId == null || ownerId.isBlank()) {
-            throw new IllegalArgumentException("Workspace owner ID must not be blank");
-        }
-    }
-
-    private void validateName(String name) {
-        if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Workspace name must not be blank");
-        }
-    }
-
-    private void validateWorkspaceId(String workspaceId) {
-        if (workspaceId == null || workspaceId.isBlank()) {
-            throw new IllegalArgumentException("Workspace ID must not be blank");
-        }
     }
 
 }

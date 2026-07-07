@@ -1,6 +1,7 @@
 package com.aiworkspace.audio.client;
 
 import com.aiworkspace.audio.models.WhisperTranscriptionResponse;
+import com.aiworkspace.audio.providers.SpeechToTextProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
@@ -18,7 +19,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 @Component
-public class WhisperClient {
+public class WhisperClient implements SpeechToTextProvider {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
@@ -47,6 +48,7 @@ public class WhisperClient {
         this.objectMapper = objectMapper;
     }
 
+    @Override
     public WhisperTranscriptionResponse transcribe(String filename, byte[] fileContent)
             throws IOException, InterruptedException {
         String boundary = "ai-workspace-" + UUID.randomUUID();

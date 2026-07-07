@@ -42,10 +42,11 @@ public class DocumentService {
     private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
     private final WorkspaceService workspaceService;
+    private final DocumentValidator documentValidator;
     private final AutoDetectParser parser = new AutoDetectParser();
 
     public DocumentService(GenericRestClient restClient) {
-        this(restClient, null, null, null);
+        this(restClient, null, null, null, new DocumentValidator());
     }
 
     @Autowired
@@ -53,12 +54,14 @@ public class DocumentService {
             GenericRestClient restClient,
             WorkspaceFileService workspaceFileService,
             KnowledgeService knowledgeService,
-            WorkspaceService workspaceService
+            WorkspaceService workspaceService,
+            DocumentValidator documentValidator
     ) {
         this.restClient = restClient;
         this.workspaceFileService = workspaceFileService;
         this.knowledgeService = knowledgeService;
         this.workspaceService = workspaceService;
+        this.documentValidator = documentValidator;
     }
 
     public ParsedTextDocument parseTextDocument(String filename, byte[] bytes) {
@@ -107,9 +110,7 @@ public class DocumentService {
             String contentType,
             byte[] content
     ) throws IOException {
-        if (content == null || content.length == 0) {
-            throw new IllegalArgumentException("File must not be empty");
-        }
+        documentValidator.validateUploadContent(content);
 
         Workspace workspace = workspaceService.getWorkspace(ownerId, workspaceId);
         WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
@@ -136,9 +137,7 @@ public class DocumentService {
     }
 
     public WebPageExtractResponse extractWebPage(String ownerId, WebPageExtractRequest request) throws IOException {
-        if (request == null) {
-            throw new IllegalArgumentException("Request body must not be empty");
-        }
+        documentValidator.validateWebPageExtractRequest(request);
 
         workspaceService.getWorkspace(ownerId, request.workspaceId());
         ExtractedWebPage page = extractWebPage(request.url());

@@ -1,6 +1,7 @@
 package com.aiworkspace.images.client;
 
 import com.aiworkspace.images.models.GeneratedImage;
+import com.aiworkspace.images.providers.ImageGenerationProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -17,7 +18,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
-public class FluxImageClient {
+public class FluxImageClient implements ImageGenerationProvider {
 
     private final URI baseUri;
     private final String apiToken;
@@ -55,6 +56,7 @@ public class FluxImageClient {
         this.objectMapper = objectMapper;
     }
 
+    @Override
     public GeneratedImage generate(String description) throws IOException, InterruptedException {
         if (apiToken == null || apiToken.isBlank()) {
             throw new IOException("FLUX API token is not configured");

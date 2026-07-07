@@ -1,5 +1,6 @@
 package com.aiworkspace.videos.client;
 
+import com.aiworkspace.videos.providers.VideoUnderstandingProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -19,7 +20,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
-public class GeminiVideoClient {
+public class GeminiVideoClient implements VideoUnderstandingProvider {
 
     private final URI baseUri;
     private final String apiKey;
@@ -57,6 +58,7 @@ public class GeminiVideoClient {
         this.objectMapper = objectMapper;
     }
 
+    @Override
     public String describe(byte[] videoContent, String mimeType, String prompt) throws IOException, InterruptedException {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IOException("Gemini API key is not configured");

@@ -1,6 +1,7 @@
 package com.aiworkspace.audio.client;
 
 import com.aiworkspace.audio.models.SynthesizedSpeech;
+import com.aiworkspace.audio.providers.TextToSpeechProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
@@ -17,7 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
-public class PiperClient {
+public class PiperClient implements TextToSpeechProvider {
 
     private static final String WYOMING_VERSION = "1.8.0";
     private static final int SOCKET_TIMEOUT_MILLIS = 30_000;
@@ -40,6 +41,7 @@ public class PiperClient {
         this.objectMapper = objectMapper;
     }
 
+    @Override
     public SynthesizedSpeech synthesize(String text) throws IOException {
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(host, port), SOCKET_TIMEOUT_MILLIS);

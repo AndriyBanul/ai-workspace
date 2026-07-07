@@ -5,7 +5,6 @@ import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
 import com.aiworkspace.workspaces.models.FileStorageRequest;
 import com.aiworkspace.workspaces.models.StoredFile;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
-import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
 import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
 import com.aiworkspace.workspaces.repositories.WorkspaceFileEntity;
 import com.aiworkspace.workspaces.repositories.WorkspaceFileRepository;
@@ -15,6 +14,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,20 +24,32 @@ public class WorkspaceFileService {
     private final WorkspaceFileRepository workspaceFileRepository;
     private final WorkspaceFileMapper workspaceFileMapper;
     private final FileStorage fileStorage;
+    private final WorkspaceFileValidator workspaceFileValidator;
 
+    @Autowired
     public WorkspaceFileService(
             WorkspaceFileRepository workspaceFileRepository,
             WorkspaceFileMapper workspaceFileMapper,
             FileStorage fileStorage
     ) {
+        this(workspaceFileRepository, workspaceFileMapper, fileStorage, new WorkspaceFileValidator());
+    }
+
+    public WorkspaceFileService(
+            WorkspaceFileRepository workspaceFileRepository,
+            WorkspaceFileMapper workspaceFileMapper,
+            FileStorage fileStorage,
+            WorkspaceFileValidator workspaceFileValidator
+    ) {
         this.workspaceFileRepository = workspaceFileRepository;
         this.workspaceFileMapper = workspaceFileMapper;
         this.fileStorage = fileStorage;
+        this.workspaceFileValidator = workspaceFileValidator;
     }
 
     @Transactional
     public WorkspaceFile createFile(CreateWorkspaceFileRequest request) throws IOException {
-        validateCreateRequest(request);
+        workspaceFileValidator.validateCreateRequest(request);
         String fileId = UUID.randomUUID().toString();
         String workspaceId = request.workspaceId().trim();
         String originalFilename = request.originalFilename().trim();
@@ -69,7 +81,7 @@ public class WorkspaceFileService {
 
     @Transactional(readOnly = true)
     public List<WorkspaceFile> listFiles(String workspaceId) {
-        validateWorkspaceId(workspaceId);
+        workspaceFileValidator.validateWorkspaceId(workspaceId);
         return workspaceFileRepository.findAllByWorkspaceIdAndDeletedAtIsNullOrderByCreatedAtDesc(workspaceId.trim())
                 .stream()
                 .map(workspaceFileMapper::toModel)
@@ -117,48 +129,10 @@ public class WorkspaceFileService {
     }
 
     private WorkspaceFileEntity findActiveEntity(String workspaceId, String fileId) {
-        validateWorkspaceId(workspaceId);
-        validateFileId(fileId);
+        workspaceFileValidator.validateWorkspaceId(workspaceId);
+        workspaceFileValidator.validateFileId(fileId);
         return workspaceFileRepository.findByIdAndWorkspaceIdAndDeletedAtIsNull(fileId.trim(), workspaceId.trim())
                 .orElseThrow(() -> new NoSuchElementException("Workspace file was not found"));
-    }
-
-    private void validateCreateRequest(CreateWorkspaceFileRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("Workspace file request must not be null");
-        }
-
-        validateWorkspaceId(request.workspaceId());
-        validateSourceType(request.sourceType());
-        validateOriginalFilename(request.originalFilename());
-
-        if (request.content() == null) {
-            throw new IllegalArgumentException("File content must not be null");
-        }
-    }
-
-    private void validateWorkspaceId(String workspaceId) {
-        if (workspaceId == null || workspaceId.isBlank()) {
-            throw new IllegalArgumentException("Workspace ID must not be blank");
-        }
-    }
-
-    private void validateFileId(String fileId) {
-        if (fileId == null || fileId.isBlank()) {
-            throw new IllegalArgumentException("Workspace file ID must not be blank");
-        }
-    }
-
-    private void validateSourceType(WorkspaceFileSourceType sourceType) {
-        if (sourceType == null) {
-            throw new IllegalArgumentException("Workspace file source type must not be null");
-        }
-    }
-
-    private void validateOriginalFilename(String originalFilename) {
-        if (originalFilename == null || originalFilename.isBlank()) {
-            throw new IllegalArgumentException("Original filename must not be blank");
-        }
     }
 
     private String normalizedOptionalValue(String value) {
