@@ -31,14 +31,15 @@ public class FluxImageClient implements ImageGenerationProvider {
             @Value("${ai-workspace.flux.base-url:https://api-inference.huggingface.co/models}") String baseUrl,
             @Value("${ai-workspace.flux.api-token:}") String apiToken,
             @Value("${ai-workspace.flux.model:black-forest-labs/FLUX.1-dev}") String model,
-            RestClient restClient
+            RestClient restClient,
+            ObjectMapper objectMapper
     ) {
         this(
                 URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
                 apiToken,
                 model,
                 restClient,
-                new ObjectMapper()
+                objectMapper
         );
     }
 

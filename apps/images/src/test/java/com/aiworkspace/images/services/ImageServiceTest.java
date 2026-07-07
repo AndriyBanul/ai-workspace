@@ -3,6 +3,7 @@ package com.aiworkspace.images.services;
 import com.aiworkspace.images.client.FluxImageClient;
 import com.aiworkspace.images.client.GeminiImageClient;
 import com.aiworkspace.images.models.GeneratedImage;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
@@ -13,14 +14,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ImageServiceTest {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final ImageService service = new ImageService(
-            new GeminiImageClient("http://localhost", "test-key", "test-model", RestClient.builder().build()) {
+            new GeminiImageClient("http://localhost", "test-key", "test-model", RestClient.builder().build(), OBJECT_MAPPER) {
                 @Override
                 public String describe(byte[] imageContent, String mimeType, String prompt) {
                     return "A concise image description.";
                 }
             },
-            new FluxImageClient("http://localhost", "test-token", "test-model", RestClient.builder().build()) {
+            new FluxImageClient("http://localhost", "test-token", "test-model", RestClient.builder().build(), OBJECT_MAPPER) {
                 @Override
                 public GeneratedImage generate(String description) {
                     return new GeneratedImage("generated-image.png", "image/png", new byte[] {1, 2, 3});

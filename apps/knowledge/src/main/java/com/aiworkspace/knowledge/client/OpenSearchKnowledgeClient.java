@@ -38,12 +38,13 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
     @Autowired
     public OpenSearchKnowledgeClient(
             @Value("${ai-workspace.opensearch.base-url:http://localhost:9200}") String baseUrl,
-            RestClient restClient
+            RestClient restClient,
+            ObjectMapper objectMapper
     ) {
         this(
                 URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
                 restClient,
-                new ObjectMapper()
+                objectMapper
         );
     }
 

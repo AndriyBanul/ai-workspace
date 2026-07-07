@@ -1,6 +1,6 @@
 package com.aiworkspace.audio.client;
 
-import com.aiworkspace.audio.models.WhisperTranscriptionResponse;
+import com.aiworkspace.audio.models.TranscriptionResponse;
 import com.aiworkspace.audio.providers.SpeechToTextProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,12 +30,13 @@ public class WhisperClient implements SpeechToTextProvider {
     @Autowired
     public WhisperClient(
             @Value("${ai-workspace.whisper.base-url:http://localhost:9000}") String baseUrl,
-            RestClient restClient
+            RestClient restClient,
+            ObjectMapper objectMapper
     ) {
         this(
                 URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
                 restClient,
-                new ObjectMapper()
+                objectMapper
         );
     }
 
@@ -49,7 +50,7 @@ public class WhisperClient implements SpeechToTextProvider {
     }
 
     @Override
-    public WhisperTranscriptionResponse transcribe(String filename, byte[] fileContent)
+    public TranscriptionResponse transcribe(String filename, byte[] fileContent)
             throws IOException, InterruptedException {
         String boundary = "ai-workspace-" + UUID.randomUUID();
         HttpRequest request = HttpRequest.newBuilder(transcriptionUri())
@@ -67,7 +68,7 @@ public class WhisperClient implements SpeechToTextProvider {
         }
 
         JsonNode responseJson = objectMapper.readTree(response.body() == null ? "" : response.body());
-        return new WhisperTranscriptionResponse(
+        return new TranscriptionResponse(
                 textValue(responseJson, "text"),
                 textValue(responseJson, "language")
         );

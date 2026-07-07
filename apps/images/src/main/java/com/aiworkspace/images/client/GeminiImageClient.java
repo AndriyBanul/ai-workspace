@@ -33,14 +33,15 @@ public class GeminiImageClient implements ImageUnderstandingProvider {
             @Value("${ai-workspace.gemini.base-url:https://generativelanguage.googleapis.com/v1beta}") String baseUrl,
             @Value("${ai-workspace.gemini.api-key:}") String apiKey,
             @Value("${ai-workspace.gemini.image-model:gemini-2.5-flash}") String model,
-            RestClient restClient
+            RestClient restClient,
+            ObjectMapper objectMapper
     ) {
         this(
                 URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
                 apiKey,
                 model,
                 restClient,
-                new ObjectMapper()
+                objectMapper
         );
     }
 

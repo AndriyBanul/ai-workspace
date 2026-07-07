@@ -4,7 +4,7 @@ import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.models.AudioTranscriptionResponse;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.models.TextToSpeechRequest;
-import com.aiworkspace.audio.models.WhisperTranscriptionResponse;
+import com.aiworkspace.audio.models.TranscriptionResponse;
 import com.aiworkspace.audio.providers.SpeechToTextProvider;
 import com.aiworkspace.audio.providers.TextToSpeechProvider;
 import com.aiworkspace.knowledge.services.KnowledgeService;
@@ -53,7 +53,7 @@ public class AudioService {
     public AudioTranscription transcribe(String filename, byte[] fileContent) throws IOException, InterruptedException {
         audioValidator.validateTranscriptionFile(filename, fileContent);
 
-        WhisperTranscriptionResponse transcription = speechToTextProvider.transcribe(filename, fileContent);
+        TranscriptionResponse transcription = speechToTextProvider.transcribe(filename, fileContent);
 
         return new AudioTranscription(
                 filename,

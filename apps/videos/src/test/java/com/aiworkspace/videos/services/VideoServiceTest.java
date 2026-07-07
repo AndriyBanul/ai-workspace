@@ -3,6 +3,7 @@ package com.aiworkspace.videos.services;
 import com.aiworkspace.videos.client.GeminiVideoClient;
 import com.aiworkspace.videos.client.VeoVideoClient;
 import com.aiworkspace.videos.models.GeneratedVideo;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
@@ -13,14 +14,23 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class VideoServiceTest {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final VideoService service = new VideoService(
-            new GeminiVideoClient("http://localhost", "test-key", "test-model", RestClient.builder().build()) {
+            new GeminiVideoClient("http://localhost", "test-key", "test-model", RestClient.builder().build(), OBJECT_MAPPER) {
                 @Override
                 public String describe(byte[] videoContent, String mimeType, String prompt) {
                     return "A concise video description.";
                 }
             },
-            new VeoVideoClient("http://localhost", "test-key", "test-model", "16:9", RestClient.builder().build()) {
+            new VeoVideoClient(
+                    "http://localhost",
+                    "test-key",
+                    "test-model",
+                    "16:9",
+                    RestClient.builder().build(),
+                    OBJECT_MAPPER
+            ) {
                 @Override
                 public GeneratedVideo generate(String description) {
                     return new GeneratedVideo("generated-video.mp4", "video/mp4", new byte[] {1, 2, 3});

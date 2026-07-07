@@ -3,7 +3,8 @@ package com.aiworkspace.audio.services;
 import com.aiworkspace.audio.client.PiperClient;
 import com.aiworkspace.audio.client.WhisperClient;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
-import com.aiworkspace.audio.models.WhisperTranscriptionResponse;
+import com.aiworkspace.audio.models.TranscriptionResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
@@ -14,14 +15,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class AudioServiceTest {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final AudioService service = new AudioService(
-            new WhisperClient("http://localhost", RestClient.builder().build()) {
+            new WhisperClient("http://localhost", RestClient.builder().build(), OBJECT_MAPPER) {
                 @Override
-                public WhisperTranscriptionResponse transcribe(String filename, byte[] fileContent) {
-                    return new WhisperTranscriptionResponse("Transcript text", "en");
+                public TranscriptionResponse transcribe(String filename, byte[] fileContent) {
+                    return new TranscriptionResponse("Transcript text", "en");
                 }
             },
-            new PiperClient("localhost", 10200) {
+            new PiperClient("localhost", 10200, OBJECT_MAPPER) {
                 @Override
                 public SynthesizedSpeech synthesize(String text) {
                     return new SynthesizedSpeech("speech.wav", new byte[] {1, 2, 3});

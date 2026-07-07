@@ -39,7 +39,8 @@ public class VeoVideoClient implements VideoGenerationProvider {
             @Value("${ai-workspace.veo.api-key:${GEMINI_API_KEY:}}") String apiKey,
             @Value("${ai-workspace.veo.model:veo-3.0-generate-preview}") String model,
             @Value("${ai-workspace.veo.aspect-ratio:16:9}") String aspectRatio,
-            RestClient restClient
+            RestClient restClient,
+            ObjectMapper objectMapper
     ) {
         this(
                 URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
@@ -47,7 +48,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
                 model,
                 aspectRatio,
                 restClient,
-                new ObjectMapper()
+                objectMapper
         );
     }
 

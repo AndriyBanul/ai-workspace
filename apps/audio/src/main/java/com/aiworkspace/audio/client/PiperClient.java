@@ -30,12 +30,9 @@ public class PiperClient implements TextToSpeechProvider {
     @Autowired
     public PiperClient(
             @Value("${ai-workspace.piper.host:localhost}") String host,
-            @Value("${ai-workspace.piper.port:10200}") int port
+            @Value("${ai-workspace.piper.port:10200}") int port,
+            ObjectMapper objectMapper
     ) {
-        this(host, port, new ObjectMapper());
-    }
-
-    PiperClient(String host, int port, ObjectMapper objectMapper) {
         this.host = host;
         this.port = port;
         this.objectMapper = objectMapper;
