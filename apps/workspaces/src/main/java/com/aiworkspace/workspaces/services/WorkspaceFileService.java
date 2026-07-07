@@ -1,5 +1,6 @@
 package com.aiworkspace.workspaces.services;
 
+import com.aiworkspace.workspaces.interfaces.FileStorage;
 import com.aiworkspace.workspaces.mappers.WorkspaceFileMapper;
 import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
 import com.aiworkspace.workspaces.models.FileStorageRequest;

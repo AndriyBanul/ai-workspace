@@ -1,6 +1,7 @@
 package com.aiworkspace.workspaces.services;
 
 import com.aiworkspace.workspaces.config.LocalStorageProperties;
+import com.aiworkspace.workspaces.interfaces.FileStorage;
 import com.aiworkspace.workspaces.models.FileStorageRequest;
 import com.aiworkspace.workspaces.models.StoredFile;
 import java.io.IOException;

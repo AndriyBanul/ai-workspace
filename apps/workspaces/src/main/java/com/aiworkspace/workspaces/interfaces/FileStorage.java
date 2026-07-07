@@ -1,4 +1,4 @@
-package com.aiworkspace.workspaces.services;
+package com.aiworkspace.workspaces.interfaces;
 
 import com.aiworkspace.workspaces.models.FileStorageRequest;
 import com.aiworkspace.workspaces.models.StoredFile;

@@ -305,38 +305,109 @@ flowchart TD
 ## 6. Data Flow
 
 This diagram shows how messy multimodal input becomes workspace memory and then
-LLM-ready context.
+LLM-ready context. Domain services validate input through module-local validator
+beans, then call provider interfaces instead of concrete AI clients directly.
 
 ```mermaid
 flowchart LR
-    document["Document\ntext file / future PDF"]
-    audio["Audio\nmeeting, note, call"]
-    image["Image\nphoto, screenshot, scan"]
-    video["Video\nrecording, walkthrough"]
+    user["User / API client"]
+    controllers["HTTP controllers\nthin request adapters"]
+    ownership["Auth + workspace ownership\nSpring Security + services"]
 
-    documentProcessor["Document extraction\nDocumentService"]
-    audioProcessor["Speech transcription\nAudioService"]
-    imageProcessor["Image understanding\nImageService"]
-    videoProcessor["Video understanding\nVideoService"]
+    subgraph ingestion["Ingestion and processing"]
+        orchestrator["OrchestratorService\nasync fan-out"]
+        validators["Module validator beans\nrequest + file checks"]
+        documentService["DocumentService\nextract text"]
+        audioService["AudioService\ntranscribe / synthesize"]
+        imageService["ImageService\ndescribe / generate"]
+        videoService["VideoService\ndescribe / generate"]
+    end
 
-    normalized["Normalized text knowledge\nproject facts, notes, descriptions"]
-    workspaceDoc[("OpenSearch knowledge-items\nappend-only workspace memory")]
-    context["Workspace context builder\nKnowledgeService"]
+    subgraph providerPorts["Capability provider ports"]
+        stt["SpeechToTextProvider"]
+        tts["TextToSpeechProvider"]
+        imageUnderstanding["ImageUnderstandingProvider"]
+        imageGeneration["ImageGenerationProvider"]
+        videoUnderstanding["VideoUnderstandingProvider"]
+        videoGeneration["VideoGenerationProvider"]
+        answerProvider["KnowledgeAnswerProvider"]
+    end
+
+    subgraph providerClients["Provider clients"]
+        whisper["WhisperClient"]
+        piper["PiperClient"]
+        geminiImage["GeminiImageClient"]
+        flux["FluxImageClient"]
+        geminiVideo["GeminiVideoClient"]
+        veo["VeoVideoClient"]
+        geminiAnswer["GeminiKnowledgeAnswerClient"]
+    end
+
+    config["Shared Spring config beans\nRestClient + ObjectMapper"]
+    localAI["Local AI services\nWhisper / Piper"]
+    externalAI["External AI APIs\nGemini / FLUX / Veo"]
+
+    normalized["Normalized text knowledge\nfacts, notes, descriptions"]
+    knowledgeService["KnowledgeService\ncontext + answer flow"]
+    opensearch[("OpenSearch knowledge-items\nappend-only workspace memory")]
+    postgres[("PostgreSQL\nworkspaces + ingestion jobs")]
     prompt["LLM prompt\nquestion + context"]
     answer["Workspace answer\nreturned to API client"]
 
-    document --> documentProcessor
-    audio --> audioProcessor
-    image --> imageProcessor
-    video --> videoProcessor
+    user -->|"uploads / questions"| controllers
+    controllers --> ownership
+    ownership --> orchestrator
+    ownership --> knowledgeService
 
-    documentProcessor --> normalized
-    audioProcessor --> normalized
-    imageProcessor --> normalized
-    videoProcessor --> normalized
+    orchestrator --> postgres
+    orchestrator --> validators
+    validators --> documentService
+    validators --> audioService
+    validators --> imageService
+    validators --> videoService
 
-    normalized --> workspaceDoc
-    workspaceDoc --> context
-    context --> prompt
-    prompt --> answer
+    documentService --> normalized
+    audioService --> stt
+    audioService --> tts
+    imageService --> imageUnderstanding
+    imageService --> imageGeneration
+    videoService --> videoUnderstanding
+    videoService --> videoGeneration
+
+    stt --> whisper
+    tts --> piper
+    imageUnderstanding --> geminiImage
+    imageGeneration --> flux
+    videoUnderstanding --> geminiVideo
+    videoGeneration --> veo
+
+    whisper --> localAI
+    piper --> localAI
+    geminiImage --> externalAI
+    flux --> externalAI
+    geminiVideo --> externalAI
+    veo --> externalAI
+
+    audioService --> normalized
+    imageService --> normalized
+    videoService --> normalized
+
+    normalized --> knowledgeService
+    knowledgeService --> opensearch
+    opensearch --> knowledgeService
+    knowledgeService --> prompt
+    prompt --> answerProvider
+    answerProvider --> geminiAnswer
+    geminiAnswer --> externalAI
+    answerProvider --> knowledgeService
+    knowledgeService --> answer
+    answer --> controllers
+
+    config -.-> whisper
+    config -.-> piper
+    config -.-> geminiImage
+    config -.-> flux
+    config -.-> geminiVideo
+    config -.-> veo
+    config -.-> geminiAnswer
 ```
