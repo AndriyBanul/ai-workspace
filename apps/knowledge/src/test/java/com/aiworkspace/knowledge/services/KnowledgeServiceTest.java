@@ -4,7 +4,7 @@ import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
-import com.aiworkspace.knowledge.providers.KnowledgeAnswerProvider;
+import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import java.io.IOException;
 import java.time.Instant;

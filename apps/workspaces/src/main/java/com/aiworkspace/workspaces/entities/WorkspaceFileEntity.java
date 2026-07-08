@@ -1,4 +1,4 @@
-package com.aiworkspace.workspaces.repositories;
+package com.aiworkspace.workspaces.entities;
 
 import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
 import com.aiworkspace.workspaces.models.WorkspaceFileStatus;

@@ -1,5 +1,6 @@
 package com.aiworkspace.orchestrator.repositories;
 
+import com.aiworkspace.orchestrator.entities.IngestionJobStepEntity;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import java.util.List;
 import java.util.Optional;

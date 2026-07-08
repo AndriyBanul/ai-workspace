@@ -1,5 +1,6 @@
 package com.aiworkspace.users.repositories;
 
+import com.aiworkspace.users.entities.UserAccountEntity;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;

@@ -1,4 +1,4 @@
-package com.aiworkspace.audio.providers;
+package com.aiworkspace.audio.interfaces;
 
 import com.aiworkspace.audio.models.SynthesizedSpeech;
 import java.io.IOException;

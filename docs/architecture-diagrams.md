@@ -306,7 +306,7 @@ flowchart TD
 
 This diagram shows how messy multimodal input becomes workspace memory and then
 LLM-ready context. Domain services validate input through module-local validator
-beans, then call provider interfaces instead of concrete AI clients directly.
+beans, then call capability interfaces instead of concrete AI clients directly.
 
 ```mermaid
 flowchart LR
@@ -323,7 +323,7 @@ flowchart LR
         videoService["VideoService\ndescribe / generate"]
     end
 
-    subgraph providerPorts["Capability provider ports"]
+    subgraph providerPorts["Capability interfaces"]
         stt["SpeechToTextProvider"]
         tts["TextToSpeechProvider"]
         imageUnderstanding["ImageUnderstandingProvider"]

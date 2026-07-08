@@ -1,6 +1,6 @@
 package com.aiworkspace.knowledge.client;
 
-import com.aiworkspace.knowledge.providers.KnowledgeAnswerProvider;
+import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;

@@ -27,6 +27,21 @@ If this file conflicts with other project guidance, follow this file first unles
 - Keep shared models in `apps/shared` only when they are genuinely shared.
 - Avoid circular dependencies between business modules.
 - Provider-specific code should stay behind module clients/services.
+- Code should make module ownership obvious from package names and constructor dependencies.
+
+## Package Conventions
+
+- `controllers` — HTTP endpoints and request/response boundary.
+- `services` — business flow and orchestration.
+- `validators` — reusable service-level validation.
+- `interfaces` — service, boundary, and capability interfaces, including AI provider ports.
+- `repositories` — Spring Data repositories, repository ports, and repository adapters.
+- `entities` — JPA entities only.
+- `mappers` — MapStruct mappers and recurring mapping concerns.
+- `client` — concrete external provider/client integrations.
+- `config` — Spring configuration and typed configuration properties.
+- Do not place JPA entities in `repositories`.
+- Do not place concrete provider/client implementations in `interfaces`.
 
 ## Naming
 
@@ -86,23 +101,30 @@ If this file conflicts with other project guidance, follow this file first unles
 
 - Use a shared Spring `RestClient` bean for HTTP provider calls.
 - Inject `RestClient` into provider clients instead of creating new HTTP clients inside each class.
+- Use a shared Spring `ObjectMapper` bean for JSON parsing/serialization.
+- Inject `ObjectMapper` into clients/services instead of calling `new ObjectMapper()` in runtime code.
 - Keep raw socket clients only when protocol requires it, for example Piper Wyoming protocol.
 - Provider clients should wrap provider-specific REST details.
 
 ## AI Providers
 
 - Keep provider-specific logic isolated in clients.
-- Domain services should depend on capability-oriented provider interfaces, not concrete Gemini, Veo, FLUX, Whisper, or Piper client classes.
+- Domain services should depend on capability-oriented provider interfaces in module `interfaces` packages, not concrete Gemini, Veo, FLUX, Whisper, or Piper client classes.
 - Prefer focused ports for each capability instead of one broad `AiProvider` abstraction.
 - Do not leak Gemini, Veo, FLUX, Whisper, or other provider DTOs into controllers.
+- Avoid provider-specific names for provider-neutral models or interfaces.
+- Use provider-specific names only for concrete implementations.
 - Keep provider configuration in `application.properties` and environment variables.
 - API keys must come from environment variables, never from committed code.
+- Provider-not-configured and provider-failed cases should produce clear errors, not generic runtime failures.
 
 ## Configuration
 
 - Prefer environment variables for secrets.
 - Document config in `.env.example` without real values.
 - Use explicit properties for provider models and base URLs.
+- Prefer typed config properties over hardcoded operational values such as timeouts, HTTP settings, provider settings, and user agents.
+- Centralize shared infrastructure beans such as `RestClient`, `ObjectMapper`, storage implementations, and provider clients.
 - Do not commit secrets.
 
 ## File Storage
@@ -117,9 +139,12 @@ If this file conflicts with other project guidance, follow this file first unles
 
 - Run `cd apps && ./gradlew test` after code changes.
 - Add focused unit tests for service validation and business behavior.
+- Add ownership/security tests for workspace-scoped endpoints.
 - Use context tests to catch Spring wiring issues.
 - Test coverage should scale with risk and module impact.
 - Run `cd apps && ./gradlew clean test` after refactors involving annotation processing, MapStruct, Lombok, generated code, or package moves.
+- Run `cd apps && ./gradlew :api:bootJar` after runtime wiring, configuration, dependency, or package changes.
+- Keep `git diff --check` clean before committing.
 
 ## Git Workflow
 
@@ -144,3 +169,12 @@ If this file conflicts with other project guidance, follow this file first unles
 - Prefer stable, boring production code over clever code.
 - Prefer typed config properties over hardcoded operational values such as timeouts, HTTP settings, provider settings, and user agents.
 - Use global exception handling with a consistent API error response instead of repeated controller-level try/catch blocks.
+- Keep changes scoped to the module and behavior being touched.
+- Do not mix unrelated refactors into feature commits unless needed for the change.
+
+## Errors And Observability
+
+- Use global API exception handling for consistent error responses.
+- Log important workflow identifiers such as `workspaceId`, `fileId`, `jobId`, and provider name.
+- Ingestion jobs should expose status, step errors, timestamps, and retryable failures.
+- Avoid logging raw file contents, prompts, secrets, API keys, or sensitive user data.

@@ -1,7 +1,7 @@
 package com.aiworkspace.videos.client;
 
 import com.aiworkspace.videos.models.GeneratedVideo;
-import com.aiworkspace.videos.providers.VideoGenerationProvider;
+import com.aiworkspace.videos.interfaces.VideoGenerationProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;

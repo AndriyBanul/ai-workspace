@@ -1,4 +1,4 @@
-package com.aiworkspace.knowledge.providers;
+package com.aiworkspace.knowledge.interfaces;
 
 import java.io.IOException;
 

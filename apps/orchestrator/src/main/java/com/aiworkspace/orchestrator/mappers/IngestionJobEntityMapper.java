@@ -1,9 +1,9 @@
 package com.aiworkspace.orchestrator.mappers;
 
+import com.aiworkspace.orchestrator.entities.IngestionJobEntity;
+import com.aiworkspace.orchestrator.entities.IngestionJobStepEntity;
 import com.aiworkspace.orchestrator.models.IngestionJob;
 import com.aiworkspace.orchestrator.models.IngestionJobStep;
-import com.aiworkspace.orchestrator.repositories.IngestionJobEntity;
-import com.aiworkspace.orchestrator.repositories.IngestionJobStepEntity;
 import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")

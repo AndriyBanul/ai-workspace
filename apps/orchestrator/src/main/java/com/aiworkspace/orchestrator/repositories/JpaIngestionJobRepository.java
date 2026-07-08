@@ -1,5 +1,7 @@
 package com.aiworkspace.orchestrator.repositories;
 
+import com.aiworkspace.orchestrator.entities.IngestionJobEntity;
+import com.aiworkspace.orchestrator.entities.IngestionJobStepEntity;
 import com.aiworkspace.orchestrator.mappers.IngestionJobEntityMapper;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJob;

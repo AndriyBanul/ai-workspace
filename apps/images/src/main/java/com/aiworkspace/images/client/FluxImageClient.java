@@ -1,7 +1,7 @@
 package com.aiworkspace.images.client;
 
 import com.aiworkspace.images.models.GeneratedImage;
-import com.aiworkspace.images.providers.ImageGenerationProvider;
+import com.aiworkspace.images.interfaces.ImageGenerationProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;

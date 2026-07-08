@@ -1,6 +1,6 @@
 package com.aiworkspace.images.client;
 
-import com.aiworkspace.images.providers.ImageUnderstandingProvider;
+import com.aiworkspace.images.interfaces.ImageUnderstandingProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;

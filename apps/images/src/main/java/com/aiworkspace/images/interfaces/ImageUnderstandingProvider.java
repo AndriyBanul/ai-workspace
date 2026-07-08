@@ -1,4 +1,4 @@
-package com.aiworkspace.images.providers;
+package com.aiworkspace.images.interfaces;
 
 import java.io.IOException;
 

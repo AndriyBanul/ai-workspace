@@ -1,6 +1,6 @@
 package com.aiworkspace.videos.client;
 
-import com.aiworkspace.videos.providers.VideoUnderstandingProvider;
+import com.aiworkspace.videos.interfaces.VideoUnderstandingProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;

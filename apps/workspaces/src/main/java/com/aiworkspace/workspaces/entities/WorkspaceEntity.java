@@ -1,4 +1,4 @@
-package com.aiworkspace.workspaces.repositories;
+package com.aiworkspace.workspaces.entities;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

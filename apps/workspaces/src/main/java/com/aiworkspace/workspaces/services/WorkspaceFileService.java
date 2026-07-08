@@ -1,5 +1,6 @@
 package com.aiworkspace.workspaces.services;
 
+import com.aiworkspace.workspaces.entities.WorkspaceFileEntity;
 import com.aiworkspace.workspaces.interfaces.FileStorage;
 import com.aiworkspace.workspaces.mappers.WorkspaceFileMapper;
 import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
@@ -7,7 +8,6 @@ import com.aiworkspace.workspaces.models.FileStorageRequest;
 import com.aiworkspace.workspaces.models.StoredFile;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
-import com.aiworkspace.workspaces.repositories.WorkspaceFileEntity;
 import com.aiworkspace.workspaces.repositories.WorkspaceFileRepository;
 import java.io.IOException;
 import java.io.InputStream;

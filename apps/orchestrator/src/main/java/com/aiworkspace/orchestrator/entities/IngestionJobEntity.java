@@ -1,4 +1,4 @@
-package com.aiworkspace.orchestrator.repositories;
+package com.aiworkspace.orchestrator.entities;
 
 import com.aiworkspace.orchestrator.models.IngestionJobStatus;
 import jakarta.persistence.Column;
@@ -41,7 +41,7 @@ public class IngestionJobEntity {
     @Column(name = "completed_at")
     private Instant completedAt;
 
-    void updateStatus(IngestionJobStatus status, Instant updatedAt, Instant completedAt) {
+    public void updateStatus(IngestionJobStatus status, Instant updatedAt, Instant completedAt) {
         this.status = status;
         this.updatedAt = updatedAt;
         this.completedAt = completedAt;

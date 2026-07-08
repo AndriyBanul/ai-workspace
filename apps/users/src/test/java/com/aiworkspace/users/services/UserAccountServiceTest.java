@@ -1,7 +1,7 @@
 package com.aiworkspace.users.services;
 
+import com.aiworkspace.users.entities.UserAccountEntity;
 import com.aiworkspace.users.mappers.UserAccountMapperImpl;
-import com.aiworkspace.users.repositories.UserAccountEntity;
 import com.aiworkspace.users.repositories.UserAccountRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

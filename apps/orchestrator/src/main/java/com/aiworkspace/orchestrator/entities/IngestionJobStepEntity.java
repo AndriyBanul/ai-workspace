@@ -1,4 +1,4 @@
-package com.aiworkspace.orchestrator.repositories;
+package com.aiworkspace.orchestrator.entities;
 
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionStepStatus;
@@ -46,7 +46,7 @@ public class IngestionJobStepEntity {
     @Column(name = "error_message", length = 1000)
     private String errorMessage;
 
-    void updateStatus(
+    public void updateStatus(
             IngestionStepStatus status,
             Instant startedAt,
             Instant completedAt,

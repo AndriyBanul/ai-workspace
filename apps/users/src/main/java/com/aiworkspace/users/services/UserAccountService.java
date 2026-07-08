@@ -1,9 +1,9 @@
 package com.aiworkspace.users.services;
 
+import com.aiworkspace.users.entities.UserAccountEntity;
 import com.aiworkspace.users.mappers.UserAccountMapper;
 import com.aiworkspace.users.models.RegisterRequest;
 import com.aiworkspace.users.models.UserAccount;
-import com.aiworkspace.users.repositories.UserAccountEntity;
 import com.aiworkspace.users.repositories.UserAccountRepository;
 import java.time.Instant;
 import java.util.NoSuchElementException;

@@ -8,7 +8,7 @@ import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.models.WorkspaceQuestionRequest;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeSource;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeSourceFile;
-import com.aiworkspace.knowledge.providers.KnowledgeAnswerProvider;
+import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;

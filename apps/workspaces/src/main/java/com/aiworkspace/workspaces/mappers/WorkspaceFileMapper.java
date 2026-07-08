@@ -1,7 +1,7 @@
 package com.aiworkspace.workspaces.mappers;
 
+import com.aiworkspace.workspaces.entities.WorkspaceFileEntity;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
-import com.aiworkspace.workspaces.repositories.WorkspaceFileEntity;
 import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")

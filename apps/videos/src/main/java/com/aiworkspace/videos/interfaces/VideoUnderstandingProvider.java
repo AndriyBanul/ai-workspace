@@ -1,4 +1,4 @@
-package com.aiworkspace.videos.providers;
+package com.aiworkspace.videos.interfaces;
 
 import java.io.IOException;
 

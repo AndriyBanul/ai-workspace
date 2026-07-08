@@ -1,5 +1,6 @@
 package com.aiworkspace.workspaces.repositories;
 
+import com.aiworkspace.workspaces.entities.WorkspaceEntity;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -1,7 +1,7 @@
 package com.aiworkspace.audio.client;
 
 import com.aiworkspace.audio.models.SynthesizedSpeech;
-import com.aiworkspace.audio.providers.TextToSpeechProvider;
+import com.aiworkspace.audio.interfaces.TextToSpeechProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
