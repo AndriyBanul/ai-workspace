@@ -11,7 +11,8 @@ Before making changes, read:
 1. `AGENTS.md`
 2. `DEVELOPER_CODE_PREFERENCES.md`
 3. `docs/agent-context/README.md`
-4. The specific files in this directory that are relevant to the task.
+4. `docs/agent-context/handoff.md`
+5. The specific files in this directory that are relevant to the task.
 
 `DEVELOPER_CODE_PREFERENCES.md` has higher priority than the general files in this directory. If it conflicts with this directory, follow `DEVELOPER_CODE_PREFERENCES.md` unless Andrii explicitly says otherwise.
 
@@ -80,6 +81,7 @@ Keep `apps/api` as the HTTP entrypoint and put business logic in the relevant bu
 
 ## Reading Order
 
+- `handoff.md` - active session handoff, current work state, and continuity notes.
 - `vision.md` - product vision and long-term platform direction.
 - `development-philosophy.md` - engineering mindset and current MVP stage.
 - `architecture.md` - modular monolith architecture and module boundaries.
@@ -113,7 +115,8 @@ Before making changes, read:
 1. AGENTS.md
 2. DEVELOPER_CODE_PREFERENCES.md
 3. docs/agent-context/README.md
-4. The specific files in docs/agent-context/ that are relevant to the task.
+4. docs/agent-context/handoff.md
+5. The specific files in docs/agent-context/ that are relevant to the task.
 
 DEVELOPER_CODE_PREFERENCES.md captures Andrii's code-writing preferences and has higher priority than the general docs/agent-context guidance unless Andrii explicitly says otherwise.
 
@@ -125,5 +128,5 @@ Do not treat this as a one-off code generation task. Make maintainable, producti
 Short version:
 
 ```text
-Use AGENTS.md as your primary instruction file. Then read DEVELOPER_CODE_PREFERENCES.md, docs/agent-context/README.md, and relevant project guidance files before coding. Act as a senior engineer on a long-term commercial product, not as a snippet generator.
+Use AGENTS.md as your primary instruction file. Then read DEVELOPER_CODE_PREFERENCES.md, docs/agent-context/README.md, docs/agent-context/handoff.md, and relevant project guidance files before coding. Act as a senior engineer on a long-term commercial product, not as a snippet generator.
 ```

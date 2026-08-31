@@ -5,6 +5,7 @@ import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
+import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -23,6 +24,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
@@ -118,7 +120,9 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
                     .retrieve()
                     .toBodilessEntity();
         } catch (RestClientResponseException exception) {
-            throw openSearchException("Failed to add workspace knowledge item", exception);
+            throw openSearchResponseException("Failed to add workspace knowledge item", exception);
+        } catch (RestClientException exception) {
+            throw openSearchClientException("Failed to add workspace knowledge item", exception);
         }
     }
 
@@ -168,7 +172,9 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
                 return;
             }
 
-            throw openSearchException("Failed to create knowledge items index", exception);
+            throw openSearchResponseException("Failed to create knowledge items index", exception);
+        } catch (RestClientException exception) {
+            throw openSearchClientException("Failed to create knowledge items index", exception);
         }
     }
 
@@ -198,7 +204,9 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
                 return false;
             }
 
-            throw openSearchException("Failed to check OpenSearch index", exception);
+            throw openSearchResponseException("Failed to check OpenSearch index", exception);
+        } catch (RestClientException exception) {
+            throw openSearchClientException("Failed to check OpenSearch index", exception);
         }
     }
 
@@ -223,7 +231,9 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
 
             return items;
         } catch (RestClientResponseException exception) {
-            throw openSearchException(errorMessage, exception);
+            throw openSearchResponseException(errorMessage, exception);
+        } catch (RestClientException exception) {
+            throw openSearchClientException(errorMessage, exception);
         }
     }
 
@@ -292,10 +302,18 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
-    private IOException openSearchException(String message, RestClientResponseException exception) {
-        return new IOException(
-                message + ": OpenSearch returned HTTP " + exception.getStatusCode().value() + ": "
-                        + exception.getResponseBodyAsString(),
+    private UpstreamServiceException openSearchResponseException(String message, RestClientResponseException exception) {
+        return new UpstreamServiceException(
+                "OpenSearch",
+                message + ": OpenSearch returned HTTP " + exception.getStatusCode().value(),
+                exception
+        );
+    }
+
+    private UpstreamServiceException openSearchClientException(String message, RestClientException exception) {
+        return new UpstreamServiceException(
+                "OpenSearch",
+                message + ": OpenSearch is unavailable",
                 exception
         );
     }

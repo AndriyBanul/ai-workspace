@@ -2,6 +2,7 @@ package com.aiworkspace.images.client;
 
 import com.aiworkspace.images.models.GeneratedImage;
 import com.aiworkspace.images.interfaces.ImageGenerationProvider;
+import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -15,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
@@ -60,7 +62,7 @@ public class FluxImageClient implements ImageGenerationProvider {
     @Override
     public GeneratedImage generate(String description) throws IOException, InterruptedException {
         if (apiToken == null || apiToken.isBlank()) {
-            throw new IOException("FLUX API token is not configured");
+            throw new UpstreamServiceException("FLUX", "FLUX API token is not configured");
         }
 
         ResponseEntity<byte[]> response;
@@ -73,9 +75,15 @@ public class FluxImageClient implements ImageGenerationProvider {
                     .retrieve()
                     .toEntity(byte[].class);
         } catch (RestClientResponseException exception) {
-            throw new IOException(
-                    "FLUX returned HTTP " + exception.getStatusCode().value() + ": "
-                            + exception.getResponseBodyAsString(),
+            throw new UpstreamServiceException(
+                    "FLUX",
+                    "FLUX returned HTTP " + exception.getStatusCode().value(),
+                    exception
+            );
+        } catch (RestClientException exception) {
+            throw new UpstreamServiceException(
+                    "FLUX",
+                    "FLUX is unavailable",
                     exception
             );
         }

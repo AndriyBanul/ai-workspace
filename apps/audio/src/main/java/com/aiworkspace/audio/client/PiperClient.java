@@ -2,6 +2,7 @@ package com.aiworkspace.audio.client;
 
 import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.interfaces.TextToSpeechProvider;
+import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
@@ -71,7 +72,18 @@ public class PiperClient implements TextToSpeechProvider {
             }
 
             return new SynthesizedSpeech("speech.wav", wav(audioFormat, pcmAudio.toByteArray()));
+        } catch (IOException exception) {
+            throw new UpstreamServiceException("Piper", piperFailureMessage(exception), exception);
         }
+    }
+
+    private String piperFailureMessage(IOException exception) {
+        String message = exception.getMessage();
+        if (message == null || message.isBlank()) {
+            return "Piper is unavailable";
+        }
+
+        return message;
     }
 
     private void writeEvent(OutputStream outputStream, String type, Map<String, Object> data) throws IOException {

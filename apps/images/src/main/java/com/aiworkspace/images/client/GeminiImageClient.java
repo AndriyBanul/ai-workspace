@@ -1,6 +1,7 @@
 package com.aiworkspace.images.client;
 
 import com.aiworkspace.images.interfaces.ImageUnderstandingProvider;
+import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -17,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
@@ -62,7 +64,7 @@ public class GeminiImageClient implements ImageUnderstandingProvider {
     @Override
     public String describe(byte[] imageContent, String mimeType, String prompt) throws IOException, InterruptedException {
         if (apiKey == null || apiKey.isBlank()) {
-            throw new IOException("Gemini API key is not configured");
+            throw new UpstreamServiceException("Gemini", "Gemini API key is not configured");
         }
 
         try {
@@ -75,9 +77,15 @@ public class GeminiImageClient implements ImageUnderstandingProvider {
 
             return descriptionFrom(response.getBody() == null ? "" : response.getBody());
         } catch (RestClientResponseException exception) {
-            throw new IOException(
-                    "Gemini returned HTTP " + exception.getStatusCode().value() + ": "
-                            + exception.getResponseBodyAsString(),
+            throw new UpstreamServiceException(
+                    "Gemini",
+                    "Gemini returned HTTP " + exception.getStatusCode().value(),
+                    exception
+            );
+        } catch (RestClientException exception) {
+            throw new UpstreamServiceException(
+                    "Gemini",
+                    "Gemini is unavailable",
                     exception
             );
         }

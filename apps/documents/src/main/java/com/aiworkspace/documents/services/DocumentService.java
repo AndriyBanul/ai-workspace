@@ -16,6 +16,7 @@ import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +36,7 @@ import org.xml.sax.SAXException;
 @Service
 public class DocumentService {
 
-    private static final int MAX_LOGGED_CHARACTERS = 20_000;
+    private static final int MAX_REPORTED_CHARACTERS = 20_000;
     private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     private final GenericRestClient restClient;
@@ -132,7 +133,13 @@ public class DocumentService {
             throw exception;
         }
 
-        log.info("Extracted document text from '{}':\n{}", document.filename(), document.content());
+        log.info(
+                "Extracted document text for workspaceId={} fileId={} filename='{}' characterCount={}",
+                workspace.id(),
+                workspaceFile.id(),
+                document.filename(),
+                document.content().length()
+        );
         return new TextDocumentUploadResponse(document.filename(), content.length, document.content().length());
     }
 
@@ -141,17 +148,23 @@ public class DocumentService {
 
         workspaceService.getWorkspace(ownerId, request.workspaceId());
         ExtractedWebPage page = extractWebPage(request.url());
-        String loggedContent = contentForLog(page.content());
-        boolean truncated = loggedContent.length() < page.content().length();
+        int reportedCharacterCount = Math.min(page.content().length(), MAX_REPORTED_CHARACTERS);
+        boolean truncated = reportedCharacterCount < page.content().length();
 
-        log.info("Extracted web page '{}' from '{}':\n{}", page.title(), page.url(), loggedContent);
+        log.info(
+                "Extracted web page text for workspaceId={} host={} characterCount={} truncated={}",
+                request.workspaceId().trim(),
+                hostForLog(page.url()),
+                page.content().length(),
+                truncated
+        );
         knowledgeService.recordDocumentsInfo(request.workspaceId(), page.title(), null, page.content());
 
         return new WebPageExtractResponse(
                 page.url(),
                 page.title(),
                 page.content().length(),
-                loggedContent.length(),
+                reportedCharacterCount,
                 truncated
         );
     }
@@ -164,11 +177,12 @@ public class DocumentService {
         return content;
     }
 
-    private String contentForLog(String content) {
-        if (content.length() <= MAX_LOGGED_CHARACTERS) {
-            return content;
+    private String hostForLog(String url) {
+        try {
+            String host = URI.create(url).getHost();
+            return host == null || host.isBlank() ? "(unknown)" : host;
+        } catch (IllegalArgumentException exception) {
+            return "(invalid)";
         }
-
-        return content.substring(0, MAX_LOGGED_CHARACTERS);
     }
 }

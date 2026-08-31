@@ -2,6 +2,7 @@ package com.aiworkspace.videos.client;
 
 import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.interfaces.VideoGenerationProvider;
+import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -18,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
@@ -71,7 +73,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
     @Override
     public GeneratedVideo generate(String description) throws IOException, InterruptedException {
         if (apiKey == null || apiKey.isBlank()) {
-            throw new IOException("Veo API key is not configured");
+            throw new UpstreamServiceException("Veo", "Veo API key is not configured");
         }
 
         String operationName = startGeneration(description);
@@ -100,9 +102,15 @@ public class VeoVideoClient implements VideoGenerationProvider {
                     .retrieve()
                     .toEntity(String.class);
         } catch (RestClientResponseException exception) {
-            throw new IOException(
-                    "Veo returned HTTP " + exception.getStatusCode().value() + ": "
-                            + exception.getResponseBodyAsString(),
+            throw new UpstreamServiceException(
+                    "Veo",
+                    "Veo returned HTTP " + exception.getStatusCode().value(),
+                    exception
+            );
+        } catch (RestClientException exception) {
+            throw new UpstreamServiceException(
+                    "Veo",
+                    "Veo is unavailable",
                     exception
             );
         }
@@ -125,9 +133,15 @@ public class VeoVideoClient implements VideoGenerationProvider {
                         .retrieve()
                         .toEntity(String.class);
             } catch (RestClientResponseException exception) {
-                throw new IOException(
-                        "Veo operation returned HTTP " + exception.getStatusCode().value() + ": "
-                                + exception.getResponseBodyAsString(),
+                throw new UpstreamServiceException(
+                        "Veo",
+                        "Veo operation returned HTTP " + exception.getStatusCode().value(),
+                        exception
+                );
+            } catch (RestClientException exception) {
+                throw new UpstreamServiceException(
+                        "Veo",
+                        "Veo operation is unavailable",
                         exception
                 );
             }
@@ -156,9 +170,15 @@ public class VeoVideoClient implements VideoGenerationProvider {
                     .retrieve()
                     .toEntity(byte[].class);
         } catch (RestClientResponseException exception) {
-            throw new IOException(
-                    "Veo video download returned HTTP " + exception.getStatusCode().value() + ": "
-                            + exception.getResponseBodyAsString(),
+            throw new UpstreamServiceException(
+                    "Veo",
+                    "Veo video download returned HTTP " + exception.getStatusCode().value(),
+                    exception
+            );
+        } catch (RestClientException exception) {
+            throw new UpstreamServiceException(
+                    "Veo",
+                    "Veo video download is unavailable",
                     exception
             );
         }

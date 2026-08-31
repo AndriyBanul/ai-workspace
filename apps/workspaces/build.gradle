@@ -22,6 +22,7 @@ dependencies {
 	annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
 	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testImplementation 'jakarta.persistence:jakarta.persistence-api'
 	testImplementation 'org.springframework.data:spring-data-jpa'
 	testImplementation 'org.mockito:mockito-core'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

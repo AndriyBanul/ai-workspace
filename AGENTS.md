@@ -61,10 +61,13 @@ Read `docs/agent-context/README.md` before making architecture-level decisions.
 
 Read `DEVELOPER_CODE_PREFERENCES.md` before making code changes.
 
+Read `docs/agent-context/handoff.md` when continuing work from a previous chat or when a previous chat failed to compact.
+
 `DEVELOPER_CODE_PREFERENCES.md` captures Andrii's code-writing preferences and has higher priority than the general guidance in `docs/agent-context/`. If it conflicts with other project guidance, follow `DEVELOPER_CODE_PREFERENCES.md` first unless Andrii explicitly says otherwise.
 
 Use the detailed project guidance in `docs/agent-context/` as long-term project memory:
 
+- `docs/agent-context/handoff.md`
 - `docs/agent-context/vision.md`
 - `docs/agent-context/development-philosophy.md`
 - `docs/agent-context/architecture.md`

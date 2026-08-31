@@ -1,5 +1,11 @@
 package com.aiworkspace;
 
+import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
+import com.aiworkspace.knowledge.models.KnowledgeItem;
+import com.aiworkspace.knowledge.models.KnowledgeSourceType;
+import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
+import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
+import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -8,12 +14,18 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -224,6 +236,93 @@ class ApiIntegrationTest {
         String basicAuthHeader() {
             String credentials = email + ":" + password;
             return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @TestConfiguration
+    static class ApiIntegrationTestConfig {
+
+        @Bean
+        @Primary
+        KnowledgeRepository knowledgeRepository() {
+            return new InMemoryKnowledgeRepository();
+        }
+
+        @Bean
+        @Primary
+        KnowledgeAnswerProvider knowledgeAnswerProvider() {
+            return (question, context) -> "Test answer";
+        }
+    }
+
+    private static class InMemoryKnowledgeRepository implements KnowledgeRepository {
+
+        private final List<KnowledgeItem> items = new CopyOnWriteArrayList<>();
+
+        @Override
+        public Optional<WorkspaceKnowledge> findByWorkspaceId(String workspaceId) {
+            List<KnowledgeItem> workspaceItems = findKnowledgeItemsByWorkspaceId(workspaceId);
+            if (workspaceItems.isEmpty()) {
+                return Optional.empty();
+            }
+
+            return Optional.of(new WorkspaceKnowledge(
+                    workspaceId,
+                    joinedContent(workspaceItems, KnowledgeSourceType.DOCUMENT),
+                    joinedContent(workspaceItems, KnowledgeSourceType.AUDIO),
+                    joinedContent(workspaceItems, KnowledgeSourceType.VIDEO),
+                    joinedContent(workspaceItems, KnowledgeSourceType.IMAGE)
+            ));
+        }
+
+        @Override
+        public List<KnowledgeItem> findKnowledgeItemsByWorkspaceId(String workspaceId) {
+            return items.stream()
+                    .filter(item -> item.workspaceId().equals(workspaceId))
+                    .toList();
+        }
+
+        @Override
+        public List<KnowledgeItem> searchKnowledgeItems(String workspaceId, String query, int limit) {
+            return findKnowledgeItemsByWorkspaceId(workspaceId).stream()
+                    .filter(item -> item.content().contains(query))
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public void addKnowledgeItem(KnowledgeItem item) {
+            items.add(item);
+        }
+
+        @Override
+        public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value) {
+            addKnowledgeItem(new KnowledgeItem(
+                    UUID.randomUUID().toString(),
+                    workspaceId,
+                    sourceTypeFrom(field),
+                    field.fieldName(),
+                    null,
+                    value,
+                    Instant.now()
+            ));
+        }
+
+        private String joinedContent(List<KnowledgeItem> workspaceItems, KnowledgeSourceType sourceType) {
+            return workspaceItems.stream()
+                    .filter(item -> item.sourceType() == sourceType)
+                    .map(KnowledgeItem::content)
+                    .reduce((left, right) -> left + "\n\n" + right)
+                    .orElse(null);
+        }
+
+        private KnowledgeSourceType sourceTypeFrom(WorkspaceKnowledgeField field) {
+            return switch (field) {
+                case DOCUMENTS_INFO -> KnowledgeSourceType.DOCUMENT;
+                case AUDIO_INFO -> KnowledgeSourceType.AUDIO;
+                case IMAGES_INFO -> KnowledgeSourceType.IMAGE;
+                case VIDEO_INFO -> KnowledgeSourceType.VIDEO;
+            };
         }
     }
 }

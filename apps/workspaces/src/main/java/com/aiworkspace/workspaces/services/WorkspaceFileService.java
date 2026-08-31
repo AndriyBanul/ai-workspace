@@ -125,8 +125,18 @@ public class WorkspaceFileService {
 
     private WorkspaceFile updateStatus(String workspaceId, String fileId, WorkspaceFileStatus status) {
         WorkspaceFileEntity entity = findActiveEntity(workspaceId, fileId);
+        if (isTerminal(entity.getStatus()) && entity.getStatus() != status) {
+            return workspaceFileMapper.toModel(entity);
+        }
+
         entity.updateStatus(status, Instant.now());
         return workspaceFileMapper.toModel(workspaceFileRepository.save(entity));
+    }
+
+    private boolean isTerminal(WorkspaceFileStatus status) {
+        return status == WorkspaceFileStatus.PROCESSED
+                || status == WorkspaceFileStatus.FAILED
+                || status == WorkspaceFileStatus.DELETED;
     }
 
     private WorkspaceFileEntity findActiveEntity(String workspaceId, String fileId) {

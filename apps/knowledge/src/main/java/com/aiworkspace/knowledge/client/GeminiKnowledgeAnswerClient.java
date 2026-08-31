@@ -1,6 +1,7 @@
 package com.aiworkspace.knowledge.client;
 
 import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
+import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -15,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
@@ -60,7 +62,7 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider {
     @Override
     public String answer(String question, String context) throws IOException {
         if (apiKey == null || apiKey.isBlank()) {
-            throw new IOException("Gemini API key is not configured");
+            throw new UpstreamServiceException("Gemini", "Gemini API key is not configured");
         }
 
         try {
@@ -73,9 +75,15 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider {
 
             return answerFrom(response.getBody() == null ? "" : response.getBody());
         } catch (RestClientResponseException exception) {
-            throw new IOException(
-                    "Gemini returned HTTP " + exception.getStatusCode().value() + ": "
-                            + exception.getResponseBodyAsString(),
+            throw new UpstreamServiceException(
+                    "Gemini",
+                    "Gemini returned HTTP " + exception.getStatusCode().value(),
+                    exception
+            );
+        } catch (RestClientException exception) {
+            throw new UpstreamServiceException(
+                    "Gemini",
+                    "Gemini is unavailable",
                     exception
             );
         }

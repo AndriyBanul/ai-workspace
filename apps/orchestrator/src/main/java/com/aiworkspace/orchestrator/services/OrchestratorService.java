@@ -213,8 +213,9 @@ public class OrchestratorService {
                                 content.contentType().apiName() + " orchestration task timed out after "
                                         + properties.taskTimeout().toSeconds() + " seconds"
                         );
-                        ingestionJobService.markStepFailed(job.jobId(), content.contentType(), timeout);
-                        workspaceFileService.markFailed(job.workspaceId(), content.file().id());
+                        if (ingestionJobService.markStepFailed(job.jobId(), content.contentType(), timeout)) {
+                            workspaceFileService.markFailed(job.workspaceId(), content.file().id());
+                        }
                         log.warn("Timed out while running {} orchestration task", content.contentType().apiName(), timeout);
                     } else {
                         Throwable cause = rootCause(exception);
@@ -222,8 +223,9 @@ public class OrchestratorService {
                                 content.contentType().apiName() + " orchestration task failed unexpectedly",
                                 cause
                         );
-                        ingestionJobService.markStepFailed(job.jobId(), content.contentType(), failure);
-                        workspaceFileService.markFailed(job.workspaceId(), content.file().id());
+                        if (ingestionJobService.markStepFailed(job.jobId(), content.contentType(), failure)) {
+                            workspaceFileService.markFailed(job.workspaceId(), content.file().id());
+                        }
                         log.warn("Unhandled failure while running {} orchestration task",
                                 content.contentType().apiName(), cause);
                     }
@@ -256,19 +258,24 @@ public class OrchestratorService {
 
     private void runTask(IngestionJobDetails job, SubmittedContent content) {
         try {
-            ingestionJobService.markStepRunning(job.jobId(), content.contentType());
+            if (!ingestionJobService.markStepRunning(job.jobId(), content.contentType())) {
+                return;
+            }
             workspaceFileService.markProcessing(job.workspaceId(), content.file().id());
             process(job, content);
-            workspaceFileService.markProcessed(job.workspaceId(), content.file().id());
-            ingestionJobService.markStepCompleted(job.jobId(), content.contentType());
+            if (ingestionJobService.markStepCompleted(job.jobId(), content.contentType())) {
+                workspaceFileService.markProcessed(job.workspaceId(), content.file().id());
+            }
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            workspaceFileService.markFailed(job.workspaceId(), content.file().id());
-            ingestionJobService.markStepFailed(job.jobId(), content.contentType(), exception);
+            if (ingestionJobService.markStepFailed(job.jobId(), content.contentType(), exception)) {
+                workspaceFileService.markFailed(job.workspaceId(), content.file().id());
+            }
             log.warn("Interrupted while running {} orchestration task", content.contentType().apiName(), exception);
         } catch (Exception exception) {
-            workspaceFileService.markFailed(job.workspaceId(), content.file().id());
-            ingestionJobService.markStepFailed(job.jobId(), content.contentType(), exception);
+            if (ingestionJobService.markStepFailed(job.jobId(), content.contentType(), exception)) {
+                workspaceFileService.markFailed(job.workspaceId(), content.file().id());
+            }
             log.warn("Failed to run {} orchestration task", content.contentType().apiName(), exception);
         }
     }

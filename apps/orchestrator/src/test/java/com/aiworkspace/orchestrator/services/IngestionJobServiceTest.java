@@ -17,6 +17,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -87,9 +88,10 @@ class IngestionJobServiceTest {
         );
 
         service.markStepFailed(job.jobId(), IngestionContentType.DOCUMENTS, new RuntimeException("First failure"));
-        service.markStepCompleted(job.jobId(), IngestionContentType.DOCUMENTS);
+        boolean completed = service.markStepCompleted(job.jobId(), IngestionContentType.DOCUMENTS);
 
         IngestionJobStep step = repository.step(job.jobId(), IngestionContentType.DOCUMENTS);
+        assertFalse(completed);
         assertEquals(IngestionStepStatus.FAILED, step.status());
         assertEquals("First failure", step.errorMessage());
     }

@@ -91,9 +91,9 @@ public class IngestionJobService {
     }
 
     @Transactional
-    public void markStepRunning(String jobId, IngestionContentType contentType) {
+    public boolean markStepRunning(String jobId, IngestionContentType contentType) {
         if (isStepTerminal(jobId, contentType)) {
-            return;
+            return false;
         }
 
         Instant now = Instant.now();
@@ -106,12 +106,13 @@ public class IngestionJobService {
                 null
         );
         recalculateJobStatus(jobId);
+        return true;
     }
 
     @Transactional
-    public void markStepCompleted(String jobId, IngestionContentType contentType) {
+    public boolean markStepCompleted(String jobId, IngestionContentType contentType) {
         if (isStepTerminal(jobId, contentType)) {
-            return;
+            return false;
         }
 
         Instant now = Instant.now();
@@ -124,12 +125,13 @@ public class IngestionJobService {
                 null
         );
         recalculateJobStatus(jobId);
+        return true;
     }
 
     @Transactional
-    public void markStepFailed(String jobId, IngestionContentType contentType, Exception exception) {
+    public boolean markStepFailed(String jobId, IngestionContentType contentType, Exception exception) {
         if (isStepTerminal(jobId, contentType)) {
-            return;
+            return false;
         }
 
         Instant now = Instant.now();
@@ -142,6 +144,7 @@ public class IngestionJobService {
                 errorMessage(exception)
         );
         recalculateJobStatus(jobId);
+        return true;
     }
 
     private boolean isStepTerminal(String jobId, IngestionContentType contentType) {

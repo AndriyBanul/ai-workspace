@@ -1,6 +1,7 @@
 package com.aiworkspace.config;
 
 import com.aiworkspace.models.ApiErrorResponse;
+import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.time.Instant;
@@ -46,6 +47,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IOException.class)
     public ResponseEntity<ApiErrorResponse> handleIo(IOException exception, HttpServletRequest request) {
         log.warn("I/O failure while handling {}", request.getRequestURI(), exception);
+        return error(HttpStatus.BAD_GATEWAY, detail(exception), request);
+    }
+
+    @ExceptionHandler(UpstreamServiceException.class)
+    public ResponseEntity<ApiErrorResponse> handleUpstream(
+            UpstreamServiceException exception,
+            HttpServletRequest request
+    ) {
+        log.warn(
+                "Upstream service failure from {} while handling {}",
+                exception.serviceName(),
+                request.getRequestURI(),
+                exception
+        );
         return error(HttpStatus.BAD_GATEWAY, detail(exception), request);
     }
 

@@ -2,6 +2,7 @@ package com.aiworkspace.audio.client;
 
 import com.aiworkspace.audio.models.TranscriptionResponse;
 import com.aiworkspace.audio.interfaces.SpeechToTextProvider;
+import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
@@ -59,15 +60,24 @@ public class WhisperClient implements SpeechToTextProvider {
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody(boundary, filename, fileContent)))
                 .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException(
-                    "Whisper returned HTTP " + response.statusCode() + ": " + response.body()
-            );
+        HttpResponse<String> response;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException exception) {
+            throw new UpstreamServiceException("Whisper", "Whisper is unavailable", exception);
         }
 
-        JsonNode responseJson = objectMapper.readTree(response.body() == null ? "" : response.body());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new UpstreamServiceException("Whisper", "Whisper returned HTTP " + response.statusCode());
+        }
+
+        JsonNode responseJson;
+        try {
+            responseJson = objectMapper.readTree(response.body() == null ? "" : response.body());
+        } catch (IOException exception) {
+            throw new UpstreamServiceException("Whisper", "Whisper returned an invalid response", exception);
+        }
+
         return new TranscriptionResponse(
                 textValue(responseJson, "text"),
                 textValue(responseJson, "language")
