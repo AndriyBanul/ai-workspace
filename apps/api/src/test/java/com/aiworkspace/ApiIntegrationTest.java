@@ -157,6 +157,38 @@ class ApiIntegrationTest {
     }
 
     @Test
+    void completesDocumentOnlyOrchestrationIngestion() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        HttpResponse<String> created = createWorkspace(owner, "Orchestrator demo");
+        String workspaceId = OBJECT_MAPPER.readTree(created.body()).path("id").asText();
+
+        HttpResponse<String> submitted = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.basicAuthHeader())
+                .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
+                .POST(multipartBody(
+                        "ai-workspace-test",
+                        "workspaceId",
+                        workspaceId,
+                        "document",
+                        "sample.txt",
+                        "text/plain",
+                        "Knowledge from orchestrator."
+                ))
+                .build());
+        JsonNode submission = OBJECT_MAPPER.readTree(submitted.body());
+
+        assertEquals(HttpStatus.ACCEPTED.value(), submitted.statusCode());
+        assertEquals("documents", submission.path("submitted").path(0).asText());
+        assertEquals("audio", submission.path("skipped").path(0).asText());
+
+        JsonNode job = waitForJobStatus(owner, submission.path("jobId").asText(), "COMPLETED");
+        assertEquals("COMPLETED", stepStatus(job, "documents"));
+        assertEquals("SKIPPED", stepStatus(job, "audio"));
+        assertEquals("SKIPPED", stepStatus(job, "images"));
+        assertEquals("SKIPPED", stepStatus(job, "videos"));
+    }
+
+    @Test
     void servesSwaggerUiAndOpenApiSpec() throws IOException, InterruptedException {
         HttpResponse<String> swagger = send(HttpRequest.newBuilder(uri("/swagger-ui.html")).GET().build());
         HttpResponse<String> openApi = send(HttpRequest.newBuilder(uri("/openapi.yaml")).GET().build());
@@ -200,6 +232,38 @@ class ApiIntegrationTest {
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{\"name\":\"" + name + "\"}"))
                 .build());
+    }
+
+    private JsonNode waitForJobStatus(TestUser user, String jobId, String expectedStatus)
+            throws IOException, InterruptedException {
+        JsonNode lastJob = null;
+        for (int attempt = 0; attempt < 20; attempt++) {
+            HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/jobs/" + jobId))
+                    .header("Authorization", user.basicAuthHeader())
+                    .GET()
+                    .build());
+            assertEquals(HttpStatus.OK.value(), response.statusCode());
+            lastJob = OBJECT_MAPPER.readTree(response.body());
+            if (expectedStatus.equals(lastJob.path("status").asText())) {
+                return lastJob;
+            }
+
+            Thread.sleep(50);
+        }
+
+        assertNotNull(lastJob);
+        assertEquals(expectedStatus, lastJob.path("status").asText());
+        return lastJob;
+    }
+
+    private String stepStatus(JsonNode job, String type) {
+        for (JsonNode step : job.path("steps")) {
+            if (type.equals(step.path("type").asText())) {
+                return step.path("status").asText();
+            }
+        }
+
+        throw new AssertionError("Missing ingestion step " + type);
     }
 
     private HttpRequest.BodyPublisher multipartBody(

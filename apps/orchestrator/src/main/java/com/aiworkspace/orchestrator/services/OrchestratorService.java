@@ -7,7 +7,6 @@ import com.aiworkspace.documents.services.DocumentService;
 import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
-import com.aiworkspace.orchestrator.config.OrchestratorProperties;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
 import com.aiworkspace.orchestrator.models.OrchestrationContent;
@@ -25,10 +24,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,7 +45,6 @@ public class OrchestratorService {
     private final KnowledgeService knowledgeService;
     private final IngestionJobService ingestionJobService;
     private final WorkspaceService workspaceService;
-    private final OrchestratorProperties properties;
     private final Executor executor;
     private final OrchestratorValidator orchestratorValidator;
 
@@ -62,7 +57,6 @@ public class OrchestratorService {
             KnowledgeService knowledgeService,
             IngestionJobService ingestionJobService,
             WorkspaceService workspaceService,
-            OrchestratorProperties properties,
             @Qualifier("orchestratorTaskExecutor") Executor executor
     ) {
         this(
@@ -74,7 +68,6 @@ public class OrchestratorService {
                 knowledgeService,
                 ingestionJobService,
                 workspaceService,
-                properties,
                 executor,
                 new OrchestratorValidator()
         );
@@ -90,7 +83,6 @@ public class OrchestratorService {
             KnowledgeService knowledgeService,
             IngestionJobService ingestionJobService,
             WorkspaceService workspaceService,
-            OrchestratorProperties properties,
             @Qualifier("orchestratorTaskExecutor") Executor executor,
             OrchestratorValidator orchestratorValidator
     ) {
@@ -102,7 +94,6 @@ public class OrchestratorService {
         this.knowledgeService = knowledgeService;
         this.ingestionJobService = ingestionJobService;
         this.workspaceService = workspaceService;
-        this.properties = properties;
         this.executor = executor;
         this.orchestratorValidator = orchestratorValidator;
     }
@@ -205,55 +196,7 @@ public class OrchestratorService {
     }
 
     private void submit(IngestionJobDetails job, SubmittedContent content) {
-        CompletableFuture.runAsync(() -> runTask(job, content), executor)
-                .orTimeout(properties.taskTimeout().toSeconds(), TimeUnit.SECONDS)
-                .exceptionally(exception -> {
-                    if (isTimeout(exception)) {
-                        TimeoutException timeout = new TimeoutException(
-                                content.contentType().apiName() + " orchestration task timed out after "
-                                        + properties.taskTimeout().toSeconds() + " seconds"
-                        );
-                        if (ingestionJobService.markStepFailed(job.jobId(), content.contentType(), timeout)) {
-                            workspaceFileService.markFailed(job.workspaceId(), content.file().id());
-                        }
-                        log.warn("Timed out while running {} orchestration task", content.contentType().apiName(), timeout);
-                    } else {
-                        Throwable cause = rootCause(exception);
-                        RuntimeException failure = new RuntimeException(
-                                content.contentType().apiName() + " orchestration task failed unexpectedly",
-                                cause
-                        );
-                        if (ingestionJobService.markStepFailed(job.jobId(), content.contentType(), failure)) {
-                            workspaceFileService.markFailed(job.workspaceId(), content.file().id());
-                        }
-                        log.warn("Unhandled failure while running {} orchestration task",
-                                content.contentType().apiName(), cause);
-                    }
-
-                    return null;
-                });
-    }
-
-    private boolean isTimeout(Throwable exception) {
-        Throwable current = exception;
-        while (current != null) {
-            if (current instanceof TimeoutException) {
-                return true;
-            }
-
-            current = current.getCause();
-        }
-
-        return false;
-    }
-
-    private Throwable rootCause(Throwable exception) {
-        Throwable current = exception;
-        while (current instanceof CompletionException && current.getCause() != null) {
-            current = current.getCause();
-        }
-
-        return current == null ? exception : current;
+        CompletableFuture.runAsync(() -> runTask(job, content), executor);
     }
 
     private void runTask(IngestionJobDetails job, SubmittedContent content) {

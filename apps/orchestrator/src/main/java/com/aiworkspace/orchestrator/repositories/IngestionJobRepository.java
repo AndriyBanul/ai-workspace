@@ -19,7 +19,7 @@ public interface IngestionJobRepository {
 
     void updateJobStatus(String jobId, IngestionJobStatus status, Instant updatedAt, Instant completedAt);
 
-    void updateStepStatus(
+    boolean updateStepStatus(
             String jobId,
             IngestionContentType contentType,
             IngestionStepStatus status,

@@ -113,16 +113,16 @@ public class GeminiVideoClient implements VideoUnderstandingProvider {
         return objectMapper.writeValueAsString(body);
     }
 
-    private String descriptionFrom(String responseBody) throws IOException {
-        JsonNode responseJson = objectMapper.readTree(responseBody);
+    private String descriptionFrom(String responseBody) {
+        JsonNode responseJson = responseJson(responseBody);
         JsonNode candidates = responseJson.path("candidates");
         if (!candidates.isArray() || candidates.isEmpty()) {
-            throw new IOException("Gemini did not return any candidates");
+            throw new UpstreamServiceException("Gemini", "Gemini did not return any candidates");
         }
 
         JsonNode parts = candidates.get(0).path("content").path("parts");
         if (!parts.isArray()) {
-            throw new IOException("Gemini did not return response content");
+            throw new UpstreamServiceException("Gemini", "Gemini did not return response content");
         }
 
         StringBuilder description = new StringBuilder();
@@ -135,9 +135,17 @@ public class GeminiVideoClient implements VideoUnderstandingProvider {
 
         String result = description.toString().trim();
         if (result.isEmpty()) {
-            throw new IOException("Gemini returned an empty video description");
+            throw new UpstreamServiceException("Gemini", "Gemini returned an empty video description");
         }
 
         return result;
+    }
+
+    private JsonNode responseJson(String responseBody) {
+        try {
+            return objectMapper.readTree(responseBody);
+        } catch (IOException exception) {
+            throw new UpstreamServiceException("Gemini", "Gemini returned an invalid response", exception);
+        }
     }
 }

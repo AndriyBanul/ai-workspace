@@ -2,6 +2,7 @@ package com.aiworkspace.documents.services;
 
 import com.aiworkspace.documents.client.GenericRestClient;
 import com.aiworkspace.documents.client.RestResponseMapper;
+import com.aiworkspace.documents.config.WebPageFetchProperties;
 import com.aiworkspace.documents.models.FetchedWebPage;
 import java.awt.Rectangle;
 import java.io.ByteArrayOutputStream;
@@ -109,7 +110,7 @@ class DocumentServiceTest {
     private static class TestRestClient extends GenericRestClient {
 
         TestRestClient() {
-            super(RestClient.builder().build());
+            super(RestClient.builder().build(), new WebPageFetchProperties(null, null));
         }
 
         @Override

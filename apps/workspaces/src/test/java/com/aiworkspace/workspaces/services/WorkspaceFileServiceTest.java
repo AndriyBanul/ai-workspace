@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -33,6 +35,30 @@ class WorkspaceFileServiceTest {
         var file = service.markProcessed("workspace-1", "file-1");
 
         assertEquals(WorkspaceFileStatus.FAILED, file.status());
+        verify(repository, never()).save(any(WorkspaceFileEntity.class));
+    }
+
+    @Test
+    void updatesActiveFileStatusWithConditionalRepositoryUpdate() {
+        WorkspaceFileRepository repository = mock(WorkspaceFileRepository.class);
+        when(repository.updateStatusIfActive(
+                eq("file-1"),
+                eq("workspace-1"),
+                eq(WorkspaceFileStatus.PROCESSED),
+                any(Instant.class),
+                anyList()
+        )).thenReturn(1);
+        when(repository.findByIdAndWorkspaceIdAndDeletedAtIsNull("file-1", "workspace-1"))
+                .thenReturn(Optional.of(fileEntity(WorkspaceFileStatus.PROCESSED)));
+        WorkspaceFileService service = new WorkspaceFileService(
+                repository,
+                new WorkspaceFileMapperImpl(),
+                mock(FileStorage.class)
+        );
+
+        var file = service.markProcessed("workspace-1", "file-1");
+
+        assertEquals(WorkspaceFileStatus.PROCESSED, file.status());
         verify(repository, never()).save(any(WorkspaceFileEntity.class));
     }
 

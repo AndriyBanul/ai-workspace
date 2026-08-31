@@ -86,7 +86,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
 
         String videoUri = videoUri(operation);
         if (videoUri == null || videoUri.isBlank()) {
-            throw new IOException("Veo operation completed without a generated video URI");
+            throw new UpstreamServiceException("Veo", "Veo operation completed without a generated video URI");
         }
 
         return downloadVideo(videoUri);
@@ -115,10 +115,13 @@ public class VeoVideoClient implements VideoGenerationProvider {
             );
         }
 
-        JsonNode responseJson = objectMapper.readTree(response.getBody() == null ? "" : response.getBody());
+        JsonNode responseJson = responseJson(
+                response.getBody(),
+                "Veo returned an invalid generation response"
+        );
         String operationName = responseJson.path("name").asText();
         if (operationName == null || operationName.isBlank()) {
-            throw new IOException("Veo did not return an operation name");
+            throw new UpstreamServiceException("Veo", "Veo did not return an operation name");
         }
 
         return operationName;
@@ -146,11 +149,14 @@ public class VeoVideoClient implements VideoGenerationProvider {
                 );
             }
 
-            JsonNode operation = objectMapper.readTree(response.getBody() == null ? "" : response.getBody());
+            JsonNode operation = responseJson(
+                    response.getBody(),
+                    "Veo operation returned an invalid response"
+            );
             if (operation.path("done").asBoolean(false)) {
                 JsonNode error = operation.get("error");
                 if (error != null && !error.isNull()) {
-                    throw new IOException("Veo operation failed: " + error);
+                    throw new UpstreamServiceException("Veo", "Veo operation failed");
                 }
 
                 return operation;
@@ -159,7 +165,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
             Thread.sleep(POLL_INTERVAL_MILLIS);
         }
 
-        throw new IOException("Timed out while waiting for Veo video generation");
+        throw new UpstreamServiceException("Veo", "Timed out while waiting for Veo video generation");
     }
 
     private GeneratedVideo downloadVideo(String videoUri) throws IOException, InterruptedException {
@@ -189,7 +195,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
                 : response.getHeaders().getContentType().toString().split(";", 2)[0];
 
         if (!mediaType.startsWith("video/")) {
-            throw new IOException("Veo did not return video content");
+            throw new UpstreamServiceException("Veo", "Veo did not return video content");
         }
 
         return new GeneratedVideo(filename(mediaType), mediaType, body);
@@ -249,7 +255,11 @@ public class VeoVideoClient implements VideoGenerationProvider {
             mediaType = "video/mp4";
         }
 
-        return new GeneratedVideo(filename(mediaType), mediaType, Base64.getDecoder().decode(bytes.asText()));
+        try {
+            return new GeneratedVideo(filename(mediaType), mediaType, Base64.getDecoder().decode(bytes.asText()));
+        } catch (IllegalArgumentException exception) {
+            throw new UpstreamServiceException("Veo", "Veo returned invalid inline video content", exception);
+        }
     }
 
     private String videoUri(JsonNode operation) {
@@ -299,6 +309,14 @@ public class VeoVideoClient implements VideoGenerationProvider {
     private String textValue(JsonNode node, String... fieldNames) {
         JsonNode value = firstPresent(node, fieldNames);
         return value == null ? "" : value.asText();
+    }
+
+    private JsonNode responseJson(String responseBody, String message) {
+        try {
+            return objectMapper.readTree(responseBody == null ? "" : responseBody);
+        } catch (IOException exception) {
+            throw new UpstreamServiceException("Veo", message, exception);
+        }
     }
 
     private String filename(String mediaType) {

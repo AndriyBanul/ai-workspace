@@ -9,6 +9,7 @@ import com.aiworkspace.orchestrator.models.IngestionJobStatus;
 import com.aiworkspace.orchestrator.models.IngestionJobStep;
 import com.aiworkspace.orchestrator.models.IngestionStepStatus;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -16,6 +17,11 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 class JpaIngestionJobRepository implements IngestionJobRepository {
+
+    private static final Collection<IngestionStepStatus> ACTIVE_STEP_STATUSES = List.of(
+            IngestionStepStatus.PENDING,
+            IngestionStepStatus.RUNNING
+    );
 
     private final JpaIngestionJobEntityRepository jobRepository;
     private final JpaIngestionJobStepEntityRepository stepRepository;
@@ -61,7 +67,7 @@ class JpaIngestionJobRepository implements IngestionJobRepository {
     }
 
     @Override
-    public void updateStepStatus(
+    public boolean updateStepStatus(
             String jobId,
             IngestionContentType contentType,
             IngestionStepStatus status,
@@ -69,14 +75,40 @@ class JpaIngestionJobRepository implements IngestionJobRepository {
             Instant completedAt,
             String errorMessage
     ) {
-        IngestionJobStepEntity step = stepRepository.findByJobIdAndContentType(jobId, contentType)
+        jobRepository.lockById(jobId)
+                .orElseThrow(() -> new NoSuchElementException("Ingestion job was not found"));
+        int updatedRows = switch (status) {
+            case RUNNING -> stepRepository.markRunningIfActive(
+                    jobId,
+                    contentType,
+                    status,
+                    startedAt,
+                    ACTIVE_STEP_STATUSES
+            );
+            case COMPLETED -> stepRepository.markCompletedIfActive(
+                    jobId,
+                    contentType,
+                    status,
+                    completedAt,
+                    ACTIVE_STEP_STATUSES
+            );
+            case FAILED -> stepRepository.markFailedIfActive(
+                    jobId,
+                    contentType,
+                    status,
+                    completedAt,
+                    errorMessage,
+                    ACTIVE_STEP_STATUSES
+            );
+            case PENDING, SKIPPED -> throw new IllegalArgumentException("Unsupported ingestion step transition target");
+        };
+
+        if (updatedRows > 0) {
+            return true;
+        }
+
+        stepRepository.findByJobIdAndContentType(jobId, contentType)
                 .orElseThrow(() -> new NoSuchElementException("Ingestion job step was not found"));
-        step.updateStatus(
-                status,
-                startedAt == null ? step.getStartedAt() : startedAt,
-                completedAt,
-                errorMessage
-        );
-        stepRepository.save(step);
+        return false;
     }
 }

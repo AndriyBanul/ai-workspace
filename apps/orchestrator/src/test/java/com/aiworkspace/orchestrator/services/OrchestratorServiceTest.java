@@ -15,7 +15,6 @@ import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.knowledge.services.KnowledgeService;
-import com.aiworkspace.orchestrator.config.OrchestratorProperties;
 import com.aiworkspace.orchestrator.mappers.IngestionJobDetailsMapperImpl;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJob;
@@ -31,13 +30,14 @@ import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,7 +59,6 @@ class OrchestratorServiceTest {
                 new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
                 new IngestionJobService(jobRepository, new IngestionJobDetailsMapperImpl()),
                 new TestWorkspaceService(),
-                new OrchestratorProperties(Duration.ofSeconds(45)),
                 Runnable::run
         );
 
@@ -104,7 +103,6 @@ class OrchestratorServiceTest {
                 new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
                 new IngestionJobService(jobRepository, new IngestionJobDetailsMapperImpl()),
                 new TestWorkspaceService(),
-                new OrchestratorProperties(Duration.ofSeconds(45)),
                 Runnable::run
         );
 
@@ -123,6 +121,50 @@ class OrchestratorServiceTest {
         assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.AUDIO, IngestionStepStatus.FAILED);
         assertEquals(List.of(WorkspaceFileStatus.PROCESSED, WorkspaceFileStatus.FAILED),
                 workspaceFileService.files.values().stream().map(WorkspaceFile::status).toList());
+    }
+
+    @Test
+    void skipsWorkWhenTaskStartsAfterStepReachedTerminalState() throws IOException {
+        CapturingKnowledgeRepository knowledgeRepository = new CapturingKnowledgeRepository();
+        CapturingIngestionJobRepository jobRepository = new CapturingIngestionJobRepository();
+        TestWorkspaceFileService workspaceFileService = new TestWorkspaceFileService();
+        IngestionJobService ingestionJobService = new IngestionJobService(
+                jobRepository,
+                new IngestionJobDetailsMapperImpl()
+        );
+        CapturingExecutor executor = new CapturingExecutor();
+        OrchestratorService service = new OrchestratorService(
+                new TestDocumentService(),
+                new TestAudioService(),
+                new TestImageService(),
+                new TestVideoService(),
+                workspaceFileService,
+                new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
+                ingestionJobService,
+                new TestWorkspaceService(),
+                executor
+        );
+
+        var submission = service.process(
+                "owner-1",
+                "workspace-1",
+                new OrchestrationContent("document.txt", "text/plain", "Document input".getBytes()),
+                null,
+                null,
+                null
+        );
+        ingestionJobService.markStepFailed(
+                submission.jobId(),
+                IngestionContentType.DOCUMENTS,
+                new RuntimeException("Timed out")
+        );
+        workspaceFileService.markFailed(submission.workspaceId(), "file-1");
+
+        executor.runNext();
+
+        assertEquals(0, knowledgeRepository.items.size());
+        assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.DOCUMENTS, IngestionStepStatus.FAILED);
+        assertEquals(WorkspaceFileStatus.FAILED, workspaceFileService.files.get("file-1").status());
     }
 
     private static class TestDocumentService extends DocumentService {
@@ -265,6 +307,20 @@ class OrchestratorServiceTest {
         }
     }
 
+    private static class CapturingExecutor implements Executor {
+
+        private final List<Runnable> tasks = new ArrayList<>();
+
+        @Override
+        public void execute(Runnable command) {
+            tasks.add(command);
+        }
+
+        private void runNext() {
+            tasks.remove(0).run();
+        }
+    }
+
     private static class CapturingKnowledgeRepository implements KnowledgeRepository {
 
         private final List<KnowledgeItem> items = new java.util.ArrayList<>();
@@ -351,7 +407,7 @@ class OrchestratorServiceTest {
         }
 
         @Override
-        public void updateStepStatus(
+        public boolean updateStepStatus(
                 String jobId,
                 IngestionContentType contentType,
                 IngestionStepStatus status,
@@ -360,6 +416,12 @@ class OrchestratorServiceTest {
                 String errorMessage
         ) {
             IngestionJobStep existingStep = steps.get(jobId).get(contentType);
+            if (existingStep.status() == IngestionStepStatus.COMPLETED
+                    || existingStep.status() == IngestionStepStatus.FAILED
+                    || existingStep.status() == IngestionStepStatus.SKIPPED) {
+                return false;
+            }
+
             steps.get(jobId).put(contentType, new IngestionJobStep(
                     existingStep.id(),
                     existingStep.jobId(),
@@ -369,6 +431,7 @@ class OrchestratorServiceTest {
                     completedAt,
                     errorMessage
             ));
+            return true;
         }
     }
 }

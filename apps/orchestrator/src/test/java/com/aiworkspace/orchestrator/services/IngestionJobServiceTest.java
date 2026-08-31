@@ -170,7 +170,7 @@ class IngestionJobServiceTest {
         }
 
         @Override
-        public void updateStepStatus(
+        public boolean updateStepStatus(
                 String jobId,
                 IngestionContentType contentType,
                 IngestionStepStatus status,
@@ -179,6 +179,12 @@ class IngestionJobServiceTest {
                 String errorMessage
         ) {
             IngestionJobStep existing = step(jobId, contentType);
+            if (existing.status() == IngestionStepStatus.COMPLETED
+                    || existing.status() == IngestionStepStatus.FAILED
+                    || existing.status() == IngestionStepStatus.SKIPPED) {
+                return false;
+            }
+
             steps.get(jobId).put(contentType, new IngestionJobStep(
                     existing.id(),
                     existing.jobId(),
@@ -188,6 +194,7 @@ class IngestionJobServiceTest {
                     completedAt == null ? existing.completedAt() : completedAt,
                     errorMessage == null ? existing.errorMessage() : errorMessage
             ));
+            return true;
         }
 
         private IngestionJobStep step(String jobId, IngestionContentType contentType) {

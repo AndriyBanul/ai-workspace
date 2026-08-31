@@ -6,7 +6,6 @@ import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -93,7 +92,7 @@ public class FluxImageClient implements ImageGenerationProvider {
                 ? ""
                 : response.getHeaders().getContentType().toString().split(";", 2)[0];
         if (!mediaType.startsWith("image/")) {
-            throw new IOException("FLUX did not return image content: " + textBody(body));
+            throw new UpstreamServiceException("FLUX", "FLUX did not return image content");
         }
 
         return new GeneratedImage(filename(mediaType), mediaType, body);
@@ -123,9 +122,5 @@ public class FluxImageClient implements ImageGenerationProvider {
         }
 
         return "generated-image.png";
-    }
-
-    private String textBody(byte[] body) {
-        return new String(body, StandardCharsets.UTF_8);
     }
 }

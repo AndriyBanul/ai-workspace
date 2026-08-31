@@ -1,13 +1,16 @@
 package com.aiworkspace.documents.client;
 
+import com.aiworkspace.documents.config.WebPageFetchProperties;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import java.io.IOException;
+import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -19,19 +22,26 @@ import org.springframework.web.client.RestClientException;
 @Component
 public class GenericRestClient {
 
-    private static final int MAX_REDIRECTS = 5;
-    private static final int MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
-
     private final RestClient restClient;
+    private final WebPageFetchProperties properties;
 
-    public GenericRestClient(@Qualifier("webPageRestClient") RestClient restClient) {
+    @Autowired
+    public GenericRestClient(
+            @Qualifier("webPageRestClient") RestClient restClient,
+            WebPageFetchProperties properties
+    ) {
         this.restClient = restClient;
+        this.properties = properties;
+    }
+
+    GenericRestClient(RestClient restClient) {
+        this(restClient, new WebPageFetchProperties(null, null));
     }
 
     public <T> T get(String rawUrl, RestResponseMapper<T> responseMapper) throws IOException {
         URI uri = parseSafeHttpUri(rawUrl);
 
-        for (int redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
+        for (int redirectCount = 0; redirectCount <= properties.maxRedirects(); redirectCount++) {
             WebResponse response = executeGet(uri);
             if (isRedirect(response.statusCode())) {
                 uri = redirectUri(uri, response.headers());
@@ -58,13 +68,13 @@ public class GenericRestClient {
                     .uri(uri)
                     .exchange((request, response) -> {
                         long contentLength = response.getHeaders().getContentLength();
-                        if (contentLength > MAX_RESPONSE_BYTES) {
-                            throw new IllegalArgumentException("Web page response must not be larger than 2MB");
+                        if (contentLength > properties.maxResponseBytes()) {
+                            throw new IllegalArgumentException(maxResponseSizeMessage());
                         }
 
-                        byte[] body = response.getBody().readNBytes(MAX_RESPONSE_BYTES + 1);
-                        if (body.length > MAX_RESPONSE_BYTES) {
-                            throw new IllegalArgumentException("Web page response must not be larger than 2MB");
+                        byte[] body = response.getBody().readNBytes(properties.maxResponseBytes() + 1);
+                        if (body.length > properties.maxResponseBytes()) {
+                            throw new IllegalArgumentException(maxResponseSizeMessage());
                         }
 
                         return new WebResponse(
@@ -166,6 +176,7 @@ public class GenericRestClient {
                 || address.isSiteLocalAddress()
                 || address.isMulticastAddress()
                 || isCarrierGradeNatIpv4(address)
+                || isReservedIpv4(address)
                 || isUniqueLocalIpv6(address);
     }
 
@@ -180,13 +191,43 @@ public class GenericRestClient {
         return first == 100 && second >= 64 && second <= 127;
     }
 
+    private boolean isReservedIpv4(InetAddress address) {
+        if (!(address instanceof Inet4Address)) {
+            return false;
+        }
+
+        byte[] bytes = address.getAddress();
+        int first = bytes[0] & 0xff;
+        int second = bytes[1] & 0xff;
+        int third = bytes[2] & 0xff;
+
+        return first == 0
+                || first >= 240
+                || (first == 192 && second == 0 && third == 0)
+                || (first == 192 && second == 0 && third == 2)
+                || (first == 198 && (second == 18 || second == 19))
+                || (first == 198 && second == 51 && third == 100)
+                || (first == 203 && second == 0 && third == 113);
+    }
+
     private boolean isUniqueLocalIpv6(InetAddress address) {
         if (!(address instanceof Inet6Address)) {
             return false;
         }
 
         byte[] bytes = address.getAddress();
-        return (bytes[0] & 0xfe) == 0xfc;
+        return (bytes[0] & 0xfe) == 0xfc || isDocumentationIpv6(bytes);
+    }
+
+    private boolean isDocumentationIpv6(byte[] bytes) {
+        return (bytes[0] & 0xff) == 0x20
+                && (bytes[1] & 0xff) == 0x01
+                && (bytes[2] & 0xff) == 0x0d
+                && (bytes[3] & 0xff) == 0xb8;
+    }
+
+    private String maxResponseSizeMessage() {
+        return "Web page response must not be larger than " + properties.maxResponseBytes() + " bytes";
     }
 
     private record WebResponse(HttpStatusCode statusCode, HttpHeaders headers, String body) {

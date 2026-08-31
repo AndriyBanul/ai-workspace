@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -92,12 +93,10 @@ public class IngestionJobService {
 
     @Transactional
     public boolean markStepRunning(String jobId, IngestionContentType contentType) {
-        if (isStepTerminal(jobId, contentType)) {
-            return false;
-        }
-
+        ingestionJobValidator.validateJobId(jobId);
+        Objects.requireNonNull(contentType, "contentType must not be null");
         Instant now = Instant.now();
-        ingestionJobRepository.updateStepStatus(
+        boolean updated = ingestionJobRepository.updateStepStatus(
                 jobId.trim(),
                 contentType,
                 IngestionStepStatus.RUNNING,
@@ -105,18 +104,20 @@ public class IngestionJobService {
                 null,
                 null
         );
+        if (!updated) {
+            return false;
+        }
+
         recalculateJobStatus(jobId);
         return true;
     }
 
     @Transactional
     public boolean markStepCompleted(String jobId, IngestionContentType contentType) {
-        if (isStepTerminal(jobId, contentType)) {
-            return false;
-        }
-
+        ingestionJobValidator.validateJobId(jobId);
+        Objects.requireNonNull(contentType, "contentType must not be null");
         Instant now = Instant.now();
-        ingestionJobRepository.updateStepStatus(
+        boolean updated = ingestionJobRepository.updateStepStatus(
                 jobId.trim(),
                 contentType,
                 IngestionStepStatus.COMPLETED,
@@ -124,18 +125,20 @@ public class IngestionJobService {
                 now,
                 null
         );
+        if (!updated) {
+            return false;
+        }
+
         recalculateJobStatus(jobId);
         return true;
     }
 
     @Transactional
     public boolean markStepFailed(String jobId, IngestionContentType contentType, Exception exception) {
-        if (isStepTerminal(jobId, contentType)) {
-            return false;
-        }
-
+        ingestionJobValidator.validateJobId(jobId);
+        Objects.requireNonNull(contentType, "contentType must not be null");
         Instant now = Instant.now();
-        ingestionJobRepository.updateStepStatus(
+        boolean updated = ingestionJobRepository.updateStepStatus(
                 jobId.trim(),
                 contentType,
                 IngestionStepStatus.FAILED,
@@ -143,18 +146,12 @@ public class IngestionJobService {
                 now,
                 errorMessage(exception)
         );
+        if (!updated) {
+            return false;
+        }
+
         recalculateJobStatus(jobId);
         return true;
-    }
-
-    private boolean isStepTerminal(String jobId, IngestionContentType contentType) {
-        ingestionJobValidator.validateJobId(jobId);
-        return ingestionJobRepository.findSteps(jobId.trim()).stream()
-                .filter(step -> step.contentType() == contentType)
-                .map(IngestionJobStep::status)
-                .anyMatch(status -> status == IngestionStepStatus.COMPLETED
-                        || status == IngestionStepStatus.FAILED
-                        || status == IngestionStepStatus.SKIPPED);
     }
 
     private void recalculateJobStatus(String jobId) {

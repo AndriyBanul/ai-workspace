@@ -219,14 +219,15 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
                     .retrieve()
                     .toEntity(String.class);
 
-            JsonNode hits = objectMapper
-                    .readTree(response.getBody() == null ? "{}" : response.getBody())
-                    .path("hits")
-                    .path("hits");
+            JsonNode hits = searchHits(response.getBody(), errorMessage);
 
             List<KnowledgeItem> items = new ArrayList<>();
             for (JsonNode hit : hits) {
-                items.add(itemFrom(hit.path("_source"), hit.path("_id").asText()));
+                try {
+                    items.add(itemFrom(hit.path("_source"), hit.path("_id").asText()));
+                } catch (RuntimeException exception) {
+                    throw openSearchInvalidResponseException(errorMessage, exception);
+                }
             }
 
             return items;
@@ -235,6 +236,24 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         } catch (RestClientException exception) {
             throw openSearchClientException(errorMessage, exception);
         }
+    }
+
+    private JsonNode searchHits(String responseBody, String errorMessage) {
+        JsonNode hits;
+        try {
+            hits = objectMapper
+                    .readTree(responseBody == null ? "{}" : responseBody)
+                    .path("hits")
+                    .path("hits");
+        } catch (IOException exception) {
+            throw openSearchInvalidResponseException(errorMessage, exception);
+        }
+
+        if (!hits.isArray()) {
+            throw openSearchInvalidResponseException(errorMessage, null);
+        }
+
+        return hits;
     }
 
     private KnowledgeItem itemFrom(JsonNode source, String fallbackId) {
@@ -314,6 +333,18 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         return new UpstreamServiceException(
                 "OpenSearch",
                 message + ": OpenSearch is unavailable",
+                exception
+        );
+    }
+
+    private UpstreamServiceException openSearchInvalidResponseException(String message, Exception exception) {
+        if (exception == null) {
+            return new UpstreamServiceException("OpenSearch", message + ": OpenSearch returned an invalid response");
+        }
+
+        return new UpstreamServiceException(
+                "OpenSearch",
+                message + ": OpenSearch returned an invalid response",
                 exception
         );
     }

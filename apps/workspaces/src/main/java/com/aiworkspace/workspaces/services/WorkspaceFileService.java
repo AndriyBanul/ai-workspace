@@ -22,6 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class WorkspaceFileService {
 
+    private static final List<WorkspaceFileStatus> ACTIVE_STATUSES = List.of(
+            WorkspaceFileStatus.UPLOADED,
+            WorkspaceFileStatus.PROCESSING
+    );
+
     private final WorkspaceFileRepository workspaceFileRepository;
     private final WorkspaceFileMapper workspaceFileMapper;
     private final FileStorage fileStorage;
@@ -124,19 +129,16 @@ public class WorkspaceFileService {
     }
 
     private WorkspaceFile updateStatus(String workspaceId, String fileId, WorkspaceFileStatus status) {
-        WorkspaceFileEntity entity = findActiveEntity(workspaceId, fileId);
-        if (isTerminal(entity.getStatus()) && entity.getStatus() != status) {
-            return workspaceFileMapper.toModel(entity);
-        }
-
-        entity.updateStatus(status, Instant.now());
-        return workspaceFileMapper.toModel(workspaceFileRepository.save(entity));
-    }
-
-    private boolean isTerminal(WorkspaceFileStatus status) {
-        return status == WorkspaceFileStatus.PROCESSED
-                || status == WorkspaceFileStatus.FAILED
-                || status == WorkspaceFileStatus.DELETED;
+        workspaceFileValidator.validateWorkspaceId(workspaceId);
+        workspaceFileValidator.validateFileId(fileId);
+        workspaceFileRepository.updateStatusIfActive(
+                fileId.trim(),
+                workspaceId.trim(),
+                status,
+                Instant.now(),
+                ACTIVE_STATUSES
+        );
+        return workspaceFileMapper.toModel(findActiveEntity(workspaceId, fileId));
     }
 
     private WorkspaceFileEntity findActiveEntity(String workspaceId, String fileId) {
