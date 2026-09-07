@@ -1,6 +1,7 @@
 package com.aiworkspace.documents.client;
 
 import com.aiworkspace.documents.config.WebPageFetchProperties;
+import com.aiworkspace.documents.models.FetchedWebPage;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import java.io.IOException;
 import java.net.Inet4Address;
@@ -8,7 +9,6 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -38,7 +38,7 @@ public class GenericRestClient {
         this(restClient, new WebPageFetchProperties(null, null));
     }
 
-    public <T> T get(String rawUrl, RestResponseMapper<T> responseMapper) throws IOException {
+    public FetchedWebPage get(String rawUrl) throws IOException {
         URI uri = parseSafeHttpUri(rawUrl);
 
         for (int redirectCount = 0; redirectCount <= properties.maxRedirects(); redirectCount++) {
@@ -55,8 +55,15 @@ public class GenericRestClient {
                 );
             }
 
-            validateContentType(response.headers());
-            return responseMapper.map(uri.toString(), response.body());
+            MediaType contentType = validateContentType(response.headers());
+            return new FetchedWebPage(
+                    uri.toString(),
+                    contentType == null ? null : contentType.getType() + "/" + contentType.getSubtype(),
+                    contentType == null || contentType.getCharset() == null
+                            ? null
+                            : contentType.getCharset().name(),
+                    response.body()
+            );
         }
 
         throw new IllegalArgumentException("URL redirected too many times");
@@ -80,7 +87,7 @@ public class GenericRestClient {
                         return new WebResponse(
                                 response.getStatusCode(),
                                 response.getHeaders(),
-                                new String(body, StandardCharsets.UTF_8)
+                                body
                         );
                     });
         } catch (RestClientException exception) {
@@ -132,15 +139,15 @@ public class GenericRestClient {
         return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
-    private void validateContentType(HttpHeaders headers) {
+    private MediaType validateContentType(HttpHeaders headers) {
         MediaType contentType = headers.getContentType();
         if (contentType == null) {
-            return;
+            return null;
         }
 
         if ("text".equalsIgnoreCase(contentType.getType())
                 || MediaType.APPLICATION_XHTML_XML.isCompatibleWith(contentType)) {
-            return;
+            return contentType;
         }
 
         throw new IllegalArgumentException("URL must return HTML or text content");
@@ -230,6 +237,6 @@ public class GenericRestClient {
         return "Web page response must not be larger than " + properties.maxResponseBytes() + " bytes";
     }
 
-    private record WebResponse(HttpStatusCode statusCode, HttpHeaders headers, String body) {
+    private record WebResponse(HttpStatusCode statusCode, HttpHeaders headers, byte[] body) {
     }
 }

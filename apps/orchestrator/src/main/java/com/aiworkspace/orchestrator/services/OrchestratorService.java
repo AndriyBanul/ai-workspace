@@ -2,10 +2,13 @@ package com.aiworkspace.orchestrator.services;
 
 import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.services.AudioService;
+import com.aiworkspace.documents.exceptions.DocumentProcessingException;
+import com.aiworkspace.documents.models.DocumentFailureCode;
 import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.services.DocumentService;
 import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.services.ImageService;
+import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
@@ -22,7 +25,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.slf4j.Logger;
@@ -111,6 +116,10 @@ public class OrchestratorService {
         String trimmedOwnerId = ownerId.trim();
         String trimmedWorkspaceId = workspaceId.trim();
         workspaceService.getWorkspace(trimmedOwnerId, trimmedWorkspaceId);
+        if (document != null && document.isEmpty()) {
+            throw new DocumentProcessingException(DocumentFailureCode.EMPTY_DOCUMENT);
+        }
+
         List<SubmittedContent> submittedContent = new ArrayList<>();
         List<IngestionContentType> skippedTypes = new ArrayList<>();
 
@@ -126,6 +135,11 @@ public class OrchestratorService {
         List<IngestionContentType> submittedTypes = submittedContent.stream()
                 .map(SubmittedContent::contentType)
                 .toList();
+        Map<String, String> sourceIds = new LinkedHashMap<>();
+        submittedContent.forEach(content -> sourceIds.put(
+                content.contentType().apiName(),
+                content.file().id()
+        ));
         IngestionJobDetails job = ingestionJobService.createJob(trimmedWorkspaceId, submittedTypes, skippedTypes);
 
         submittedContent.forEach(content -> submit(job, content));
@@ -135,7 +149,8 @@ public class OrchestratorService {
                 job.workspaceId(),
                 job.status(),
                 submittedTypes.stream().map(IngestionContentType::apiName).toList(),
-                skippedTypes.stream().map(IngestionContentType::apiName).toList()
+                skippedTypes.stream().map(IngestionContentType::apiName).toList(),
+                sourceIds
         );
     }
 
@@ -165,11 +180,16 @@ public class OrchestratorService {
     }
 
     private OrchestrationContent contentFrom(MultipartFile file) throws IOException {
-        if (file == null || file.isEmpty()) {
+        if (file == null) {
             return null;
         }
 
-        return new OrchestrationContent(file.getOriginalFilename(), file.getContentType(), file.getBytes());
+        String filename = file.getOriginalFilename();
+        if (file.isEmpty() && (filename == null || filename.isBlank())) {
+            return null;
+        }
+
+        return new OrchestrationContent(filename, file.getContentType(), file.getBytes());
     }
 
     private void collectContent(
@@ -243,7 +263,13 @@ public class OrchestratorService {
                 job.workspaceId(),
                 content.original().filename(),
                 job.jobId(),
-                parsedDocument.content()
+                parsedDocument.content(),
+                new KnowledgeSourceMetadata(
+                        content.file().id(),
+                        null,
+                        parsedDocument.extractedAt(),
+                        parsedDocument.parserVersion()
+                )
         );
     }
 

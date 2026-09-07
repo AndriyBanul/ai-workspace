@@ -1,5 +1,7 @@
 package com.aiworkspace.orchestrator.services;
 
+import com.aiworkspace.documents.exceptions.DocumentProcessingException;
+import com.aiworkspace.documents.models.DocumentFailureCode;
 import com.aiworkspace.orchestrator.mappers.IngestionJobDetailsMapperImpl;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJob;
@@ -15,10 +17,13 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -75,10 +80,12 @@ class IngestionJobServiceTest {
 
         assertEquals(IngestionJobStatus.PARTIALLY_FAILED, repository.jobs.get(job.jobId()).status());
         assertEquals("Audio failed", repository.step(job.jobId(), IngestionContentType.AUDIO).errorMessage());
+        assertNull(repository.step(job.jobId(), IngestionContentType.AUDIO).errorCode());
     }
 
-    @Test
-    void doesNotOverwriteTerminalStepStatus() {
+    @ParameterizedTest
+    @EnumSource(DocumentFailureCode.class)
+    void exposesDocumentFailureCodeAndSafeMessage(DocumentFailureCode failureCode) {
         CapturingRepository repository = new CapturingRepository();
         IngestionJobService service = newService(repository);
         var job = service.createJob(
@@ -87,13 +94,53 @@ class IngestionJobServiceTest {
                 List.of(IngestionContentType.AUDIO, IngestionContentType.IMAGES, IngestionContentType.VIDEOS)
         );
 
-        service.markStepFailed(job.jobId(), IngestionContentType.DOCUMENTS, new RuntimeException("First failure"));
+        assertTrue(service.markStepFailed(
+                job.jobId(),
+                IngestionContentType.DOCUMENTS,
+                new DocumentProcessingException(failureCode, new RuntimeException("Private parser details"))
+        ));
+
+        var failedJob = service.getJob(job.jobId());
+        var failedStep = failedJob.steps().stream()
+                .filter(step -> step.type().equals(IngestionContentType.DOCUMENTS.apiName()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(IngestionJobStatus.FAILED, failedJob.status());
+        assertEquals(IngestionStepStatus.FAILED, failedStep.status());
+        assertEquals(failureCode.name(), failedStep.errorCode());
+        assertEquals(failureCode.message(), failedStep.errorMessage());
+    }
+
+    @Test
+    void doesNotOverwriteTerminalStepStatusOrDocumentFailure() {
+        CapturingRepository repository = new CapturingRepository();
+        IngestionJobService service = newService(repository);
+        var job = service.createJob(
+                "workspace-1",
+                List.of(IngestionContentType.DOCUMENTS),
+                List.of(IngestionContentType.AUDIO, IngestionContentType.IMAGES, IngestionContentType.VIDEOS)
+        );
+
+        service.markStepFailed(
+                job.jobId(),
+                IngestionContentType.DOCUMENTS,
+                new DocumentProcessingException(DocumentFailureCode.PASSWORD_PROTECTED_DOCUMENT)
+        );
         boolean completed = service.markStepCompleted(job.jobId(), IngestionContentType.DOCUMENTS);
+        boolean running = service.markStepRunning(job.jobId(), IngestionContentType.DOCUMENTS);
+        boolean failedAgain = service.markStepFailed(
+                job.jobId(),
+                IngestionContentType.DOCUMENTS,
+                new DocumentProcessingException(DocumentFailureCode.CORRUPT_DOCUMENT)
+        );
 
         IngestionJobStep step = repository.step(job.jobId(), IngestionContentType.DOCUMENTS);
         assertFalse(completed);
+        assertFalse(running);
+        assertFalse(failedAgain);
         assertEquals(IngestionStepStatus.FAILED, step.status());
-        assertEquals("First failure", step.errorMessage());
+        assertEquals(DocumentFailureCode.PASSWORD_PROTECTED_DOCUMENT.name(), step.errorCode());
+        assertEquals(DocumentFailureCode.PASSWORD_PROTECTED_DOCUMENT.message(), step.errorMessage());
     }
 
     @Test
@@ -109,6 +156,7 @@ class IngestionJobServiceTest {
         service.markStepFailed(job.jobId(), IngestionContentType.DOCUMENTS, new RuntimeException("x".repeat(1_200)));
 
         assertEquals(1_000, repository.step(job.jobId(), IngestionContentType.DOCUMENTS).errorMessage().length());
+        assertNull(repository.step(job.jobId(), IngestionContentType.DOCUMENTS).errorCode());
     }
 
     @Test
@@ -176,7 +224,8 @@ class IngestionJobServiceTest {
                 IngestionStepStatus status,
                 Instant startedAt,
                 Instant completedAt,
-                String errorMessage
+                String errorMessage,
+                String errorCode
         ) {
             IngestionJobStep existing = step(jobId, contentType);
             if (existing.status() == IngestionStepStatus.COMPLETED
@@ -191,8 +240,9 @@ class IngestionJobServiceTest {
                     existing.contentType(),
                     status,
                     startedAt == null ? existing.startedAt() : startedAt,
-                    completedAt == null ? existing.completedAt() : completedAt,
-                    errorMessage == null ? existing.errorMessage() : errorMessage
+                    completedAt,
+                    errorMessage,
+                    errorCode
             ));
             return true;
         }

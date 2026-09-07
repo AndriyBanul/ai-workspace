@@ -132,6 +132,13 @@ paths:
   /api/v1/orchestrator/ingestions:
     post:
       summary: Submit multimodal ingestion job
+      description: >-
+        Document inputs support plain text (TXT), PDF, DOCX, XLSX, and PPTX, detected from file content.
+        Document processing failures are reported on the documents step through errorCode and errorMessage
+        when polling the job. Scanned PDFs without extractable text require OCR before upload; this endpoint
+        does not perform automatic OCR. A named document upload with zero bytes is rejected immediately
+        with EMPTY_DOCUMENT before files or a job are created. An absent document part, or a browser file
+        input with an empty filename and zero bytes, skips the documents step.
       tags: [Orchestrator]
       requestBody:
         required: true
@@ -146,6 +153,7 @@ paths:
                 document:
                   type: string
                   format: binary
+                  description: TXT, PDF, DOCX, XLSX, or PPTX. The filename and declared MIME type do not determine the format.
                 audio:
                   type: string
                   format: binary
@@ -163,7 +171,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/OrchestrationSubmission"
         "400":
-          $ref: "#/components/responses/BadRequest"
+          description: Invalid request. A named document upload with zero bytes returns code EMPTY_DOCUMENT before job creation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "404":
           $ref: "#/components/responses/NotFound"
   /api/v1/orchestrator/jobs/{jobId}:
@@ -224,6 +236,17 @@ paths:
   /api/v1/documents/text:
     post:
       summary: Upload and extract a document directly
+      description: >-
+        Supports plain text (TXT), PDF, DOCX, XLSX, and PPTX, detected from the file content rather than
+        the filename or declared MIME type. Other formats, including legacy DOC/XLS/PPT, images,
+        archives, and macro-enabled Office documents, are unsupported. Password-protected documents
+        must be unlocked before upload. Scanned PDFs without extractable text require OCR before upload;
+        automatic OCR is disabled. Nonempty uploads that fail processing remain listed as FAILED
+        workspace files and are not added to workspace knowledge. Empty uploads are rejected before storage.
+        Extracted text is limited to 1,000,000 characters by default, and embedded attachments are excluded
+        unless enabled in server configuration. The extraction result preserves ordered headings, paragraphs,
+        list items, and table rows. Knowledge text includes page, slide, and sheet markers where the source
+        format exposes those locations.
       tags: [Documents]
       requestBody:
         required: true
@@ -246,9 +269,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TextDocumentUploadResponse"
+        "400":
+          description: Invalid request. An empty file returns code EMPTY_DOCUMENT.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "415":
+          description: File content is not a supported document format. Returns code UNSUPPORTED_DOCUMENT_FORMAT.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: >-
+            Supported document cannot be processed. Returns code PASSWORD_PROTECTED_DOCUMENT for encrypted
+            files, CORRUPT_DOCUMENT for unreadable or malformed files, EXTRACTION_LIMIT_EXCEEDED when
+            extracted text exceeds the configured limit, or NO_EXTRACTABLE_TEXT when parsing produces no
+            meaningful text, including scanned PDFs without a text layer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "502":
+          $ref: "#/components/responses/BadGateway"
   /api/v1/documents/web-page:
     post:
       summary: Extract and store web page text
+      description: >-
+        Imports HTML, XHTML, and text responses. Declared response charsets are respected; HTML meta charset
+        declarations are used when the HTTP response omits a charset. For HTML, article or main content is
+        preferred over navigation and page chrome, and paragraph, heading, list, and table-row boundaries are
+        preserved. The full extracted content is stored, so truncated is false and loggedCharacterCount equals
+        characterCount.
       tags: [Documents]
       requestBody:
         required: true
@@ -447,6 +502,26 @@ components:
           type: string
         path:
           type: string
+        code:
+          description: Optional stable failure code. Present for document processing errors; omitted for other errors.
+          allOf:
+            - $ref: "#/components/schemas/DocumentFailureCode"
+    DocumentFailureCode:
+      type: string
+      description: >-
+        EMPTY_DOCUMENT means no uploaded bytes; UNSUPPORTED_DOCUMENT_FORMAT means an unsupported detected format;
+        PASSWORD_PROTECTED_DOCUMENT means the document needs to be unlocked;
+        CORRUPT_DOCUMENT means a recognized document cannot be parsed;
+        EXTRACTION_LIMIT_EXCEEDED means extracted text exceeded the configured maximum;
+        NO_EXTRACTABLE_TEXT means parsing found no meaningful text. Documents needing OCR must be processed
+        externally before upload.
+      enum:
+        - EMPTY_DOCUMENT
+        - UNSUPPORTED_DOCUMENT_FORMAT
+        - PASSWORD_PROTECTED_DOCUMENT
+        - CORRUPT_DOCUMENT
+        - EXTRACTION_LIMIT_EXCEEDED
+        - NO_EXTRACTABLE_TEXT
     Workspace:
       type: object
       properties:
@@ -520,6 +595,11 @@ components:
           type: array
           items:
             type: string
+        sourceIds:
+          type: object
+          additionalProperties:
+            type: string
+          description: Workspace file IDs keyed by submitted content type.
     IngestionJobDetails:
       type: object
       properties:
@@ -561,6 +641,14 @@ components:
         errorMessage:
           type: string
           nullable: true
+        errorCode:
+          type: string
+          nullable: true
+          description: >-
+            Stable document failure code when a documents step fails: EMPTY_DOCUMENT,
+            UNSUPPORTED_DOCUMENT_FORMAT, PASSWORD_PROTECTED_DOCUMENT, CORRUPT_DOCUMENT,
+            EXTRACTION_LIMIT_EXCEEDED, or NO_EXTRACTABLE_TEXT.
+            Null when the step has no coded failure, including other processing failures.
     WorkspaceKnowledge:
       type: object
       properties:
@@ -613,6 +701,21 @@ components:
         jobId:
           type: string
           nullable: true
+        sourceId:
+          type: string
+          nullable: true
+          description: Durable workspace file or imported-source identifier.
+        sourceUrl:
+          type: string
+          format: uri
+          nullable: true
+        extractedAt:
+          type: string
+          format: date-time
+          nullable: true
+        parserVersion:
+          type: string
+          nullable: true
         sourceCount:
           type: integer
     WorkspaceKnowledgeSource:
@@ -626,6 +729,21 @@ components:
           type: string
           nullable: true
         jobId:
+          type: string
+          nullable: true
+        sourceId:
+          type: string
+          nullable: true
+          description: Durable workspace file or imported-source identifier.
+        sourceUrl:
+          type: string
+          format: uri
+          nullable: true
+        extractedAt:
+          type: string
+          format: date-time
+          nullable: true
+        parserVersion:
           type: string
           nullable: true
         snippet:
@@ -661,13 +779,33 @@ components:
     TextDocumentUploadResponse:
       type: object
       properties:
+        sourceId:
+          type: string
+          description: Durable workspace file ID used by stored knowledge metadata.
         filename:
           type: string
+        detectedContentType:
+          type: string
+          description: Server-detected media type based on file content.
+        title:
+          type: string
+          nullable: true
+          description: Document title when supplied by the format metadata.
         sizeBytes:
           type: integer
           format: int64
         characterCount:
           type: integer
+        blockCount:
+          type: integer
+          description: Number of extracted structural text blocks.
+        extractedAt:
+          type: string
+          format: date-time
+          description: Time at which extraction completed.
+        parserVersion:
+          type: string
+          description: Versioned extraction implementation used to produce the text.
     WebPageExtractRequest:
       type: object
       required: [workspaceId, url]
@@ -680,16 +818,36 @@ components:
     WebPageExtractResponse:
       type: object
       properties:
+        sourceId:
+          type: string
+          description: Durable identifier assigned to this web import.
         url:
           type: string
+        contentType:
+          type: string
+          nullable: true
+          description: Normalized HTTP response media type when supplied by the origin server.
         title:
           type: string
         characterCount:
           type: integer
+        storedCharacterCount:
+          type: integer
+          description: Number of extracted characters persisted to workspace knowledge.
         loggedCharacterCount:
           type: integer
+          deprecated: true
+          description: Retained for compatibility and equal to characterCount because the full content is stored.
         truncated:
           type: boolean
+          description: False while web imports store the full extracted content.
+        extractedAt:
+          type: string
+          format: date-time
+          description: Time at which extraction completed.
+        parserVersion:
+          type: string
+          description: Versioned extraction implementation used to produce the text.
     AudioTranscriptionResponse:
       type: object
       properties:

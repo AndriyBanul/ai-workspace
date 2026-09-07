@@ -1,6 +1,7 @@
 package com.aiworkspace.knowledge.services;
 
 import com.aiworkspace.knowledge.models.KnowledgeItem;
+import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
@@ -68,6 +69,32 @@ class KnowledgeServiceTest {
         assertEquals("document.txt", repository.items.get(0).sourceName());
         assertEquals("job-1", repository.items.get(0).jobId());
         assertEquals("Document text", repository.items.get(0).content());
+    }
+
+    @Test
+    void recordsDurableDocumentSourceMetadata() throws IOException {
+        CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
+        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        Instant extractedAt = Instant.parse("2026-09-07T12:00:00Z");
+
+        service.recordDocumentsInfo(
+                "workspace-1",
+                "document.txt",
+                "job-1",
+                "Document text",
+                new KnowledgeSourceMetadata(
+                        "file-42",
+                        "https://example.com/source",
+                        extractedAt,
+                        "parser-1"
+                )
+        );
+
+        KnowledgeItem item = repository.items.get(0);
+        assertEquals("file-42", item.sourceId());
+        assertEquals("https://example.com/source", item.sourceUrl());
+        assertEquals(extractedAt, item.extractedAt());
+        assertEquals("parser-1", item.parserVersion());
     }
 
     @Test
@@ -153,7 +180,11 @@ class KnowledgeServiceTest {
                         KnowledgeSourceType.DOCUMENT,
                         "document.txt",
                         "job-1",
+                        "file-42",
+                        "https://example.com/source",
                         "Document context",
+                        Instant.parse("2026-07-01T23:59:00Z"),
+                        "parser-1",
                         Instant.parse("2026-07-02T00:00:00Z")
                 ),
                 new KnowledgeItem(
@@ -178,10 +209,14 @@ class KnowledgeServiceTest {
         assertEquals("document.txt", answer.sourceFiles().get(0).name());
         assertEquals("documents", answer.sourceFiles().get(0).type());
         assertEquals("job-1", answer.sourceFiles().get(0).jobId());
+        assertEquals("file-42", answer.sourceFiles().get(0).sourceId());
+        assertEquals("https://example.com/source", answer.sourceFiles().get(0).sourceUrl());
+        assertEquals("parser-1", answer.sourceFiles().get(0).parserVersion());
         assertEquals(1, answer.sourceFiles().get(0).sourceCount());
         assertEquals(2, answer.sources().size());
         assertEquals("document.txt", answer.sources().get(0).sourceName());
-        assertEquals("documents:document.txt:job-1", answer.sources().get(0).sourceFileKey());
+        assertEquals("documents:file-42", answer.sources().get(0).sourceFileKey());
+        assertEquals("file-42", answer.sources().get(0).sourceId());
         assertEquals("What do we know?", answerProvider.question);
         org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Document context"));
         org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Audio context"));

@@ -73,7 +73,8 @@ class JpaIngestionJobRepository implements IngestionJobRepository {
             IngestionStepStatus status,
             Instant startedAt,
             Instant completedAt,
-            String errorMessage
+            String errorMessage,
+            String errorCode
     ) {
         jobRepository.lockById(jobId)
                 .orElseThrow(() -> new NoSuchElementException("Ingestion job was not found"));
@@ -98,6 +99,7 @@ class JpaIngestionJobRepository implements IngestionJobRepository {
                     status,
                     completedAt,
                     errorMessage,
+                    errorCode,
                     ACTIVE_STEP_STATUSES
             );
             case PENDING, SKIPPED -> throw new IllegalArgumentException("Unsupported ingestion step transition target");

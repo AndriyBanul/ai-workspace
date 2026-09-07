@@ -39,6 +39,77 @@ running.
 open http://localhost:8080/
 ```
 
+## Documents
+
+Document uploads support **TXT (plain text), PDF, DOCX, XLSX, and PPTX**.
+The server detects the format from file contents; a filename or declared MIME
+type does not grant support. Legacy DOC/XLS/PPT, macro-enabled Office files,
+images, HTML uploads, and generic archives are not supported document formats.
+Web-page imports remain available through `/api/v1/documents/web-page`. They
+respect the charset declared by the origin server and HTML metadata, handle
+plain-text responses without HTML parsing, and prefer `article`, `main`, or
+`role=main` content. Navigation, forms, and content outside the selected region
+are excluded; page-level headers and footers are also removed when body fallback
+is needed. Headings, paragraphs, lists, and table rows retain readable
+boundaries. The complete extracted text is stored; `storedCharacterCount` and
+the compatibility `loggedCharacterCount` field therefore match
+`characterCount`, and `truncated` is false.
+
+Extraction preserves ordered text blocks instead of reducing every file to an
+undifferentiated string. Blocks identify headings, paragraphs, list items, and
+table rows. PDF blocks carry page numbers, presentation blocks carry slide
+numbers, and spreadsheet rows carry sheet names. The knowledge text includes
+page, slide, and sheet markers so the existing search pipeline retains those
+locations. DOCX headings and tables are read through Apache POI; Word page
+numbers are unavailable because DOCX stores document flow rather than rendered
+page layout.
+
+Direct uploads to `/api/v1/documents/text` return the usual API error response
+with an additional stable `code` for document failures:
+
+| Code | HTTP status | Action |
+| --- | --- | --- |
+| `EMPTY_DOCUMENT` | 400 | Select a nonempty file. |
+| `UNSUPPORTED_DOCUMENT_FORMAT` | 415 | Export to a supported format. |
+| `PASSWORD_PROTECTED_DOCUMENT` | 422 | Upload an unencrypted copy. |
+| `CORRUPT_DOCUMENT` | 422 | Check the original file or export it again. |
+| `EXTRACTION_LIMIT_EXCEEDED` | 422 | Split the document into smaller files. |
+| `NO_EXTRACTABLE_TEXT` | 422 | Supply a document containing selectable text. |
+
+Automatic OCR is disabled. A scanned or image-only PDF may need OCR before
+upload; a textless result alone does not prove that a document is scanned.
+Nonempty files that fail extraction remain visible with status `FAILED`, and
+their content is not added to workspace knowledge. Async ingestion steps expose
+the same failure code in `errorCode` alongside a readable `errorMessage`.
+An explicitly attached empty document is rejected with `EMPTY_DOCUMENT` before
+an ingestion job or any workspace files are created; an unselected optional
+document field is still skipped.
+
+Flyway migration `V5` adds the nullable `ingestion_job_steps.error_code` column;
+existing ingestion records retain a null code.
+
+Extraction is bounded independently of the 25 MB upload limit. By default, a
+document may produce at most 1,000,000 text characters, PDF random-access
+output may contain at most 10,000 structural blocks, PDF random-access buffering
+spills to temporary storage after 64 MiB, and embedded attachments are ignored.
+The PDF threshold does not cap every JVM allocation made by a parser. Configure
+these controls with:
+
+```properties
+ai-workspace.documents.extraction.max-extracted-characters=1000000
+ai-workspace.documents.extraction.max-extracted-blocks=10000
+ai-workspace.documents.extraction.max-pdf-main-memory-bytes=67108864
+ai-workspace.documents.extraction.extract-embedded-documents=false
+```
+
+Every imported document now has a durable source identity. File uploads use the
+workspace file ID; web imports receive a generated source ID and retain their
+URL. Knowledge items also store the extraction completion time and the versioned
+parser identifier. Direct import responses return this metadata, and asynchronous
+ingestion submissions return workspace file IDs in `sourceIds`, keyed by content
+type. This makes same-named files distinguishable and provides the metadata needed
+for later deletion, reprocessing, and traceable citations.
+
 ## Local Whisper
 
 Whisper is optional supporting infrastructure for the `audio` module. Start it with Docker:
@@ -86,7 +157,8 @@ The `knowledge` module reads workspace knowledge from OpenSearch. Configure
 
 The API creates the `knowledge-items` index on first access if it does not
 exist. Each extracted result is stored as a separate knowledge item with
-`workspaceId`, `sourceType`, `sourceName`, `jobId`, `content`, and `createdAt`.
+`workspaceId`, `sourceType`, `sourceName`, `sourceId`, optional `sourceUrl`,
+`jobId`, `content`, `extractedAt`, `parserVersion`, and `createdAt`.
 
 Text produced by document parsing/web extraction, audio transcription, image
 description, and video description is attached to the selected workspace.

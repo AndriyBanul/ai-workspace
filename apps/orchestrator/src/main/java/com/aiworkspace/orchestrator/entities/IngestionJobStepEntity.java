@@ -46,15 +46,20 @@ public class IngestionJobStepEntity {
     @Column(name = "error_message", length = 1000)
     private String errorMessage;
 
+    @Column(name = "error_code", length = 64)
+    private String errorCode;
+
     public void updateStatus(
             IngestionStepStatus status,
             Instant startedAt,
             Instant completedAt,
-            String errorMessage
+            String errorMessage,
+            String errorCode
     ) {
         this.status = status;
         this.startedAt = startedAt;
         this.completedAt = completedAt;
         this.errorMessage = errorMessage;
+        this.errorCode = errorCode;
     }
 }

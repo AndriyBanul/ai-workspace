@@ -1,5 +1,6 @@
 package com.aiworkspace.config;
 
+import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.models.ApiErrorResponse;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,6 +19,20 @@ import org.springframework.web.server.ResponseStatusException;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(DocumentProcessingException.class)
+    public ResponseEntity<ApiErrorResponse> handleDocumentProcessing(
+            DocumentProcessingException exception,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = switch (exception.code()) {
+            case EMPTY_DOCUMENT -> HttpStatus.BAD_REQUEST;
+            case UNSUPPORTED_DOCUMENT_FORMAT -> HttpStatus.UNSUPPORTED_MEDIA_TYPE;
+            case PASSWORD_PROTECTED_DOCUMENT, CORRUPT_DOCUMENT, EXTRACTION_LIMIT_EXCEEDED,
+                    NO_EXTRACTABLE_TEXT -> HttpStatus.valueOf(422);
+        };
+        return error(status, exception.getMessage(), request, exception.code().name());
+    }
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiErrorResponse> handleResponseStatus(
@@ -81,12 +96,22 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ApiErrorResponse> error(HttpStatus status, String detail, HttpServletRequest request) {
+        return error(status, detail, request, null);
+    }
+
+    private ResponseEntity<ApiErrorResponse> error(
+            HttpStatus status,
+            String detail,
+            HttpServletRequest request,
+            String code
+    ) {
         return ResponseEntity.status(status).body(new ApiErrorResponse(
                 Instant.now(),
                 status.value(),
                 status.getReasonPhrase(),
                 detail,
-                request.getRequestURI()
+                request.getRequestURI(),
+                code
         ));
     }
 

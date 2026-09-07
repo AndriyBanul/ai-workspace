@@ -12,6 +12,7 @@ public record IngestionJobStep(
         IngestionStepStatus status,
         Instant startedAt,
         Instant completedAt,
-        String errorMessage
+        String errorMessage,
+        String errorCode
 ) {
 }

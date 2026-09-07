@@ -18,9 +18,16 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -29,6 +36,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -49,6 +57,12 @@ class ApiIntegrationTest {
     @LocalServerPort
     private int port;
 
+    @Autowired
+    private KnowledgeRepository knowledgeRepository;
+
+    @Autowired
+    private InMemoryKnowledgeRepository inMemoryKnowledgeRepository;
+
     @Test
     void mapsValidationErrorsToStandardErrorResponse() throws IOException, InterruptedException {
         TestUser user = registerUser();
@@ -64,6 +78,7 @@ class ApiIntegrationTest {
         assertEquals(400, error.path("status").asInt());
         assertEquals("Workspace name must not be blank", error.path("detail").asText());
         assertEquals("/api/v1/workspaces", error.path("path").asText());
+        assertFalse(error.has("code"));
     }
 
     @Test
@@ -142,8 +157,15 @@ class ApiIntegrationTest {
                 .GET()
                 .build());
         JsonNode file = OBJECT_MAPPER.readTree(files.body()).path(0);
+        JsonNode uploadResponse = OBJECT_MAPPER.readTree(uploaded.body());
 
         assertEquals(HttpStatus.OK.value(), uploaded.statusCode());
+        assertEquals(file.path("id").asText(), uploadResponse.path("sourceId").asText());
+        assertEquals("text/plain", uploadResponse.path("detectedContentType").asText());
+        assertEquals(1, uploadResponse.path("blockCount").asInt());
+        assertFalse(uploadResponse.path("extractedAt").asText().isBlank());
+        assertEquals("ai-workspace-document-structure-v1/tika-3.2.3",
+                uploadResponse.path("parserVersion").asText());
         assertEquals(HttpStatus.OK.value(), files.statusCode());
         assertEquals(HttpStatus.NOT_FOUND.value(), otherUserFiles.statusCode());
         assertEquals("sample.txt", file.path("originalFilename").asText());
@@ -154,6 +176,110 @@ class ApiIntegrationTest {
                 file.path("sizeBytes").asLong());
         assertTrue(file.path("storageKey").asText().contains(workspaceId));
         assertEquals(64, file.path("checksumSha256").asText().length());
+        KnowledgeItem knowledgeItem = knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).get(0);
+        assertEquals(file.path("id").asText(), knowledgeItem.sourceId());
+        assertEquals(uploadResponse.path("extractedAt").asText(), knowledgeItem.extractedAt().toString());
+    }
+
+    @Test
+    void marksDirectUploadFailedWhenKnowledgeIndexingFails() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Direct indexing failure").body())
+                .path("id").asText();
+        inMemoryKnowledgeRepository.failNextAddFor(workspaceId);
+
+        HttpResponse<String> uploaded = uploadDocument(
+                owner,
+                workspaceId,
+                "valid.txt",
+                "text/plain",
+                "Valid extracted content".getBytes(StandardCharsets.UTF_8)
+        );
+        JsonNode error = OBJECT_MAPPER.readTree(uploaded.body());
+
+        assertEquals(HttpStatus.BAD_GATEWAY.value(), uploaded.statusCode(), uploaded.body());
+        assertEquals("Simulated knowledge indexing failure", error.path("detail").asText());
+        assertFalse(error.has("code"));
+        assertEquals("FAILED", workspaceFiles(owner, workspaceId).path(0).path("status").asText());
+        assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidDocuments")
+    void returnsDocumentFailureCodesAndPreservesFailedFileState(
+            String filename,
+            String contentType,
+            byte[] content,
+            int expectedStatus,
+            String expectedCode
+    ) throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Invalid document").body())
+                .path("id").asText();
+
+        HttpResponse<String> uploaded = uploadDocument(owner, workspaceId, filename, contentType, content);
+        JsonNode error = OBJECT_MAPPER.readTree(uploaded.body());
+
+        assertEquals(expectedStatus, uploaded.statusCode(), uploaded.body());
+        assertEquals(expectedStatus, error.path("status").asInt());
+        assertEquals(expectedCode, error.path("code").asText());
+        assertFalse(error.path("detail").asText().isBlank());
+        assertEquals("/api/v1/documents/text", error.path("path").asText());
+        assertFalse(error.has("trace"));
+        assertFalse(error.has("cause"));
+
+        JsonNode files = workspaceFiles(owner, workspaceId);
+        if (content.length == 0) {
+            assertEquals(0, files.size());
+        } else {
+            assertEquals(1, files.size());
+            assertEquals(filename, files.path(0).path("originalFilename").asText());
+            assertEquals("FAILED", files.path(0).path("status").asText());
+        }
+        assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
+    }
+
+    private static Stream<Arguments> invalidDocuments() {
+        return Stream.of(
+                Arguments.of("empty.txt", "text/plain", new byte[0], 400, "EMPTY_DOCUMENT"),
+                Arguments.of("image.txt", "text/plain", unsupportedImage(), 415, "UNSUPPORTED_DOCUMENT_FORMAT"),
+                Arguments.of("broken.pdf", "application/pdf", "%PDF-1.7\ninvalid PDF\n%%EOF"
+                        .getBytes(StandardCharsets.UTF_8), 422, "CORRUPT_DOCUMENT"),
+                Arguments.of("large.txt", "text/plain", "A".repeat(512).getBytes(StandardCharsets.UTF_8),
+                        422, "EXTRACTION_LIMIT_EXCEEDED"),
+                Arguments.of("blank.txt", "text/plain", " \n\t ".getBytes(StandardCharsets.UTF_8),
+                        422, "NO_EXTRACTABLE_TEXT")
+        );
+    }
+
+    @Test
+    void detectsDocumentContentDespiteMisleadingUploadMetadata() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Content detection").body())
+                .path("id").asText();
+
+        HttpResponse<String> uploaded = uploadDocument(owner, workspaceId, "report.pdf", "application/pdf",
+                "This is a plain text document.".getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(HttpStatus.OK.value(), uploaded.statusCode(), uploaded.body());
+        assertEquals("PROCESSED", workspaceFiles(owner, workspaceId).path(0).path("status").asText());
+    }
+
+    @Test
+    void rejectsDocumentUploadsToAnotherOwnersWorkspaceBeforeProcessing() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        TestUser otherUser = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Private documents").body())
+                .path("id").asText();
+
+        HttpResponse<String> uploaded = uploadDocument(otherUser, workspaceId, "image.txt", "text/plain",
+                unsupportedImage());
+        JsonNode error = OBJECT_MAPPER.readTree(uploaded.body());
+
+        assertEquals(HttpStatus.NOT_FOUND.value(), uploaded.statusCode(), uploaded.body());
+        assertFalse(error.has("code"));
+        assertEquals(0, workspaceFiles(owner, workspaceId).size());
+        assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
     }
 
     @Test
@@ -186,6 +312,118 @@ class ApiIntegrationTest {
         assertEquals("SKIPPED", stepStatus(job, "audio"));
         assertEquals("SKIPPED", stepStatus(job, "images"));
         assertEquals("SKIPPED", stepStatus(job, "videos"));
+    }
+
+    @Test
+    void marksAsyncDocumentAndJobFailedWhenKnowledgeIndexingFails() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Async indexing failure").body())
+                .path("id").asText();
+        inMemoryKnowledgeRepository.failNextAddFor(workspaceId);
+
+        HttpResponse<String> submitted = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.basicAuthHeader())
+                .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
+                .POST(multipartBody(
+                        "ai-workspace-test",
+                        "workspaceId",
+                        workspaceId,
+                        "document",
+                        "valid.txt",
+                        "text/plain",
+                        "Valid asynchronous content"
+                ))
+                .build());
+        JsonNode submission = OBJECT_MAPPER.readTree(submitted.body());
+
+        assertEquals(HttpStatus.ACCEPTED.value(), submitted.statusCode(), submitted.body());
+        JsonNode job = waitForJobStatus(owner, submission.path("jobId").asText(), "FAILED");
+        JsonNode documentsStep = step(job, "documents");
+        assertEquals("FAILED", documentsStep.path("status").asText());
+        assertEquals("Simulated knowledge indexing failure", documentsStep.path("errorMessage").asText());
+        assertTrue(documentsStep.path("errorCode").isNull());
+        assertEquals(submission.path("sourceIds").path("documents").asText(),
+                workspaceFiles(owner, workspaceId).path(0).path("id").asText());
+        assertEquals("FAILED", workspaceFiles(owner, workspaceId).path(0).path("status").asText());
+        assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
+    }
+
+    @Test
+    void rejectsNamedEmptyDocumentsBeforeSubmittingIngestion() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Empty ingestion document").body())
+                .path("id").asText();
+
+        HttpResponse<String> submitted = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.basicAuthHeader())
+                .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
+                .POST(multipartBody("ai-workspace-test", "workspaceId", workspaceId, "document",
+                        "empty.txt", "text/plain", new byte[0]))
+                .build());
+        JsonNode error = OBJECT_MAPPER.readTree(submitted.body());
+
+        assertEquals(HttpStatus.BAD_REQUEST.value(), submitted.statusCode(), submitted.body());
+        assertEquals("EMPTY_DOCUMENT", error.path("code").asText());
+        assertEquals("/api/v1/orchestrator/ingestions", error.path("path").asText());
+        assertFalse(error.has("jobId"));
+        assertEquals(0, workspaceFiles(owner, workspaceId).size());
+        assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
+    }
+
+    @Test
+    void skipsUnselectedBrowserDocumentInput() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Unselected document input").body())
+                .path("id").asText();
+
+        HttpResponse<String> submitted = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.basicAuthHeader())
+                .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
+                .POST(multipartBody("ai-workspace-test", "workspaceId", workspaceId, "document",
+                        "", "application/octet-stream", new byte[0]))
+                .build());
+        assertEquals(HttpStatus.ACCEPTED.value(), submitted.statusCode(), submitted.body());
+        JsonNode submission = OBJECT_MAPPER.readTree(submitted.body());
+        assertEquals(0, submission.path("submitted").size());
+        assertEquals(4, submission.path("skipped").size());
+
+        JsonNode job = waitForJobStatus(owner, submission.path("jobId").asText(), "COMPLETED");
+        assertEquals("SKIPPED", stepStatus(job, "documents"));
+        assertEquals("SKIPPED", stepStatus(job, "audio"));
+        assertEquals("SKIPPED", stepStatus(job, "images"));
+        assertEquals("SKIPPED", stepStatus(job, "videos"));
+        assertEquals(0, workspaceFiles(owner, workspaceId).size());
+    }
+
+    @Test
+    void exposesDocumentFailureCodeOnFailedIngestionStep() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        TestUser otherUser = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Failed ingestion").body())
+                .path("id").asText();
+
+        HttpResponse<String> submitted = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.basicAuthHeader())
+                .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
+                .POST(multipartBody("ai-workspace-test", "workspaceId", workspaceId, "document",
+                        "large.txt", "text/plain", "A".repeat(512).getBytes(StandardCharsets.UTF_8)))
+                .build());
+        assertEquals(HttpStatus.ACCEPTED.value(), submitted.statusCode(), submitted.body());
+        String jobId = OBJECT_MAPPER.readTree(submitted.body()).path("jobId").asText();
+
+        JsonNode job = waitForJobStatus(owner, jobId, "FAILED");
+        JsonNode documentsStep = step(job, "documents");
+        assertEquals("FAILED", documentsStep.path("status").asText());
+        assertEquals("EXTRACTION_LIMIT_EXCEEDED", documentsStep.path("errorCode").asText());
+        assertFalse(documentsStep.path("errorMessage").asText().isBlank());
+        assertEquals("FAILED", workspaceFiles(owner, workspaceId).path(0).path("status").asText());
+        assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
+
+        HttpResponse<String> otherUserJob = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/jobs/" + jobId))
+                .header("Authorization", otherUser.basicAuthHeader())
+                .GET()
+                .build());
+        assertEquals(HttpStatus.NOT_FOUND.value(), otherUserJob.statusCode());
     }
 
     @Test
@@ -234,6 +472,34 @@ class ApiIntegrationTest {
                 .build());
     }
 
+    private HttpResponse<String> uploadDocument(
+            TestUser user,
+            String workspaceId,
+            String filename,
+            String contentType,
+            byte[] content
+    ) throws IOException, InterruptedException {
+        return send(HttpRequest.newBuilder(uri("/api/v1/documents/text"))
+                .header("Authorization", user.basicAuthHeader())
+                .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
+                .POST(multipartBody("ai-workspace-test", "workspaceId", workspaceId, "file",
+                        filename, contentType, content))
+                .build());
+    }
+
+    private JsonNode workspaceFiles(TestUser user, String workspaceId) throws IOException, InterruptedException {
+        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/workspaces/" + workspaceId + "/files"))
+                .header("Authorization", user.basicAuthHeader())
+                .GET()
+                .build());
+        assertEquals(HttpStatus.OK.value(), response.statusCode());
+        return OBJECT_MAPPER.readTree(response.body());
+    }
+
+    private static byte[] unsupportedImage() {
+        return new byte[] {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0};
+    }
+
     private JsonNode waitForJobStatus(TestUser user, String jobId, String expectedStatus)
             throws IOException, InterruptedException {
         JsonNode lastJob = null;
@@ -257,9 +523,13 @@ class ApiIntegrationTest {
     }
 
     private String stepStatus(JsonNode job, String type) {
+        return step(job, type).path("status").asText();
+    }
+
+    private JsonNode step(JsonNode job, String type) {
         for (JsonNode step : job.path("steps")) {
             if (type.equals(step.path("type").asText())) {
-                return step.path("status").asText();
+                return step;
             }
         }
 
@@ -275,6 +545,19 @@ class ApiIntegrationTest {
             String contentType,
             String fileContent
     ) {
+        return multipartBody(boundary, textName, textValue, fileName, originalFilename, contentType,
+                fileContent.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private HttpRequest.BodyPublisher multipartBody(
+            String boundary,
+            String textName,
+            String textValue,
+            String fileName,
+            String originalFilename,
+            String contentType,
+            byte[] fileContent
+    ) {
         String separator = "--" + boundary + "\r\n";
         String ending = "--" + boundary + "--\r\n";
         List<byte[]> parts = List.of(
@@ -287,7 +570,7 @@ class ApiIntegrationTest {
                 ("Content-Disposition: form-data; name=\"" + fileName + "\"; filename=\"" + originalFilename
                         + "\"\r\n").getBytes(StandardCharsets.UTF_8),
                 ("Content-Type: " + contentType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8),
-                fileContent.getBytes(StandardCharsets.UTF_8),
+                fileContent,
                 "\r\n".getBytes(StandardCharsets.UTF_8),
                 ending.getBytes(StandardCharsets.UTF_8)
         );
@@ -308,7 +591,7 @@ class ApiIntegrationTest {
 
         @Bean
         @Primary
-        KnowledgeRepository knowledgeRepository() {
+        InMemoryKnowledgeRepository knowledgeRepository() {
             return new InMemoryKnowledgeRepository();
         }
 
@@ -322,6 +605,7 @@ class ApiIntegrationTest {
     private static class InMemoryKnowledgeRepository implements KnowledgeRepository {
 
         private final List<KnowledgeItem> items = new CopyOnWriteArrayList<>();
+        private final Set<String> failingWorkspaceIds = ConcurrentHashMap.newKeySet();
 
         @Override
         public Optional<WorkspaceKnowledge> findByWorkspaceId(String workspaceId) {
@@ -355,12 +639,20 @@ class ApiIntegrationTest {
         }
 
         @Override
-        public void addKnowledgeItem(KnowledgeItem item) {
+        public void addKnowledgeItem(KnowledgeItem item) throws IOException {
+            if (failingWorkspaceIds.remove(item.workspaceId())) {
+                throw new IOException("Simulated knowledge indexing failure");
+            }
             items.add(item);
         }
 
+        void failNextAddFor(String workspaceId) {
+            failingWorkspaceIds.add(workspaceId);
+        }
+
         @Override
-        public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value) {
+        public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value)
+                throws IOException {
             addKnowledgeItem(new KnowledgeItem(
                     UUID.randomUUID().toString(),
                     workspaceId,

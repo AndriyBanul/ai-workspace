@@ -1,5 +1,6 @@
 package com.aiworkspace.orchestrator.services;
 
+import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.orchestrator.mappers.IngestionJobDetailsMapper;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJob;
@@ -75,6 +76,7 @@ public class IngestionJobService {
                         stepStatus(contentType, submittedTypes, skippedTypes),
                         null,
                         skippedTypes.contains(contentType) ? now : null,
+                        null,
                         null
                 ))
                 .toList();
@@ -102,6 +104,7 @@ public class IngestionJobService {
                 IngestionStepStatus.RUNNING,
                 now,
                 null,
+                null,
                 null
         );
         if (!updated) {
@@ -123,6 +126,7 @@ public class IngestionJobService {
                 IngestionStepStatus.COMPLETED,
                 null,
                 now,
+                null,
                 null
         );
         if (!updated) {
@@ -144,7 +148,10 @@ public class IngestionJobService {
                 IngestionStepStatus.FAILED,
                 null,
                 now,
-                errorMessage(exception)
+                errorMessage(exception),
+                exception instanceof DocumentProcessingException documentException
+                        ? documentException.code().name()
+                        : null
         );
         if (!updated) {
             return false;

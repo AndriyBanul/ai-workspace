@@ -1,6 +1,7 @@
 package com.aiworkspace.knowledge.services;
 
 import com.aiworkspace.knowledge.models.KnowledgeItem;
+import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeAnswer;
@@ -70,19 +71,29 @@ public class KnowledgeService {
     }
 
     public void recordDocumentsInfo(String workspaceId, String sourceName, String jobId, String value) throws IOException {
-        recordKnowledgeItem(workspaceId, KnowledgeSourceType.DOCUMENT, sourceName, jobId, value);
+        recordDocumentsInfo(workspaceId, sourceName, jobId, value, null);
+    }
+
+    public void recordDocumentsInfo(
+            String workspaceId,
+            String sourceName,
+            String jobId,
+            String value,
+            KnowledgeSourceMetadata sourceMetadata
+    ) throws IOException {
+        recordKnowledgeItem(workspaceId, KnowledgeSourceType.DOCUMENT, sourceName, jobId, value, sourceMetadata);
     }
 
     public void recordAudioInfo(String workspaceId, String sourceName, String jobId, String value) throws IOException {
-        recordKnowledgeItem(workspaceId, KnowledgeSourceType.AUDIO, sourceName, jobId, value);
+        recordKnowledgeItem(workspaceId, KnowledgeSourceType.AUDIO, sourceName, jobId, value, null);
     }
 
     public void recordVideoInfo(String workspaceId, String sourceName, String jobId, String value) throws IOException {
-        recordKnowledgeItem(workspaceId, KnowledgeSourceType.VIDEO, sourceName, jobId, value);
+        recordKnowledgeItem(workspaceId, KnowledgeSourceType.VIDEO, sourceName, jobId, value, null);
     }
 
     public void recordImagesInfo(String workspaceId, String sourceName, String jobId, String value) throws IOException {
-        recordKnowledgeItem(workspaceId, KnowledgeSourceType.IMAGE, sourceName, jobId, value);
+        recordKnowledgeItem(workspaceId, KnowledgeSourceType.IMAGE, sourceName, jobId, value, null);
     }
 
     public WorkspaceKnowledgeAnswer answerWorkspaceQuestion(String workspaceId, String question) throws IOException {
@@ -126,7 +137,8 @@ public class KnowledgeService {
             KnowledgeSourceType sourceType,
             String sourceName,
             String jobId,
-            String value
+            String value,
+            KnowledgeSourceMetadata sourceMetadata
     ) throws IOException {
         knowledgeValidator.validateKnowledgeItemContent(value);
         knowledgeValidator.validateWorkspaceId(workspaceId);
@@ -136,7 +148,11 @@ public class KnowledgeService {
                 sourceType,
                 normalizedOptionalValue(sourceName),
                 normalizedOptionalValue(jobId),
+                sourceMetadata == null ? null : normalizedOptionalValue(sourceMetadata.sourceId()),
+                sourceMetadata == null ? null : normalizedOptionalValue(sourceMetadata.sourceUrl()),
                 value.trim(),
+                sourceMetadata == null ? null : sourceMetadata.extractedAt(),
+                sourceMetadata == null ? null : normalizedOptionalValue(sourceMetadata.parserVersion()),
                 Instant.now()
         ));
     }
@@ -158,6 +174,14 @@ public class KnowledgeService {
                     .append(item.sourceType().apiName())
                     .append("\nJob ID: ")
                     .append(valueOrEmpty(item.jobId()))
+                    .append("\nSource ID: ")
+                    .append(valueOrEmpty(item.sourceId()))
+                    .append("\nSource URL: ")
+                    .append(valueOrEmpty(item.sourceUrl()))
+                    .append("\nExtracted at: ")
+                    .append(item.extractedAt() == null ? "(empty)" : item.extractedAt())
+                    .append("\nParser version: ")
+                    .append(valueOrEmpty(item.parserVersion()))
                     .append("\nContent:\n")
                     .append(item.content())
                     .append("\n");
@@ -172,6 +196,10 @@ public class KnowledgeService {
                 item.sourceType().apiName(),
                 item.sourceName(),
                 item.jobId(),
+                item.sourceId(),
+                item.sourceUrl(),
+                item.extractedAt(),
+                item.parserVersion(),
                 snippet(item.content()),
                 sourceFileKey(item)
         );
@@ -187,7 +215,11 @@ public class KnowledgeService {
                             key,
                             sourceDisplayName(item),
                             item.sourceType().apiName(),
-                            item.jobId()
+                            item.jobId(),
+                            item.sourceId(),
+                            item.sourceUrl(),
+                            item.extractedAt(),
+                            item.parserVersion()
                     )
             ).increment();
         }
@@ -198,6 +230,9 @@ public class KnowledgeService {
     }
 
     private String sourceFileKey(KnowledgeItem item) {
+        if (item.sourceId() != null && !item.sourceId().isBlank()) {
+            return item.sourceType().apiName() + ":" + item.sourceId();
+        }
         return item.sourceType().apiName()
                 + ":"
                 + nullToEmpty(item.sourceName())
@@ -251,13 +286,30 @@ public class KnowledgeService {
         private final String name;
         private final String type;
         private final String jobId;
+        private final String sourceId;
+        private final String sourceUrl;
+        private final Instant extractedAt;
+        private final String parserVersion;
         private int sourceCount;
 
-        SourceFileAccumulator(String key, String name, String type, String jobId) {
+        SourceFileAccumulator(
+                String key,
+                String name,
+                String type,
+                String jobId,
+                String sourceId,
+                String sourceUrl,
+                Instant extractedAt,
+                String parserVersion
+        ) {
             this.key = key;
             this.name = name;
             this.type = type;
             this.jobId = jobId;
+            this.sourceId = sourceId;
+            this.sourceUrl = sourceUrl;
+            this.extractedAt = extractedAt;
+            this.parserVersion = parserVersion;
         }
 
         void increment() {
@@ -265,7 +317,17 @@ public class KnowledgeService {
         }
 
         WorkspaceKnowledgeSourceFile toSourceFile() {
-            return new WorkspaceKnowledgeSourceFile(key, name, type, jobId, sourceCount);
+            return new WorkspaceKnowledgeSourceFile(
+                    key,
+                    name,
+                    type,
+                    jobId,
+                    sourceId,
+                    sourceUrl,
+                    extractedAt,
+                    parserVersion,
+                    sourceCount
+            );
         }
     }
 }

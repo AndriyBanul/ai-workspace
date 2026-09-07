@@ -109,7 +109,11 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         document.put("sourceType", item.sourceType().apiName());
         document.put("sourceName", item.sourceName());
         document.put("jobId", item.jobId());
+        document.put("sourceId", item.sourceId());
+        document.put("sourceUrl", item.sourceUrl());
         document.put("content", item.content());
+        document.put("extractedAt", item.extractedAt() == null ? null : item.extractedAt().toString());
+        document.put("parserVersion", item.parserVersion());
         document.put("createdAt", item.createdAt().toString());
 
         try {
@@ -153,6 +157,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
             if (!indexExists(knowledgeItemsIndexUri())) {
                 createKnowledgeItemsIndex();
             }
+            updateKnowledgeItemsIndexMapping();
 
             knowledgeItemsIndexChecked = true;
         }
@@ -179,16 +184,38 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
     }
 
     private String knowledgeItemsIndexMapping() throws IOException {
+        return objectMapper.writeValueAsString(Map.of("mappings", Map.of("properties", knowledgeItemProperties())));
+    }
+
+    private void updateKnowledgeItemsIndexMapping() throws IOException {
+        try {
+            restClient.put()
+                    .uri(knowledgeItemsMappingUri())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(objectMapper.writeValueAsString(Map.of("properties", knowledgeItemProperties())))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException exception) {
+            throw openSearchResponseException("Failed to update workspace knowledge mapping", exception);
+        } catch (RestClientException exception) {
+            throw openSearchClientException("Failed to update workspace knowledge mapping", exception);
+        }
+    }
+
+    private Map<String, Object> knowledgeItemProperties() {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("id", Map.of("type", "keyword"));
         properties.put("workspaceId", Map.of("type", "keyword"));
         properties.put("sourceType", Map.of("type", "keyword"));
         properties.put("sourceName", Map.of("type", "keyword"));
         properties.put("jobId", Map.of("type", "keyword"));
+        properties.put("sourceId", Map.of("type", "keyword"));
+        properties.put("sourceUrl", Map.of("type", "keyword", "ignore_above", 2048));
         properties.put("content", Map.of("type", "text"));
+        properties.put("extractedAt", Map.of("type", "date"));
+        properties.put("parserVersion", Map.of("type", "keyword"));
         properties.put("createdAt", Map.of("type", "date"));
-
-        return objectMapper.writeValueAsString(Map.of("mappings", Map.of("properties", properties)));
+        return properties;
     }
 
     private boolean indexExists(URI uri) throws IOException {
@@ -263,7 +290,11 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
                 sourceTypeFromApiName(textValue(source, "sourceType", "documents")),
                 textValue(source, "sourceName", null),
                 textValue(source, "jobId", null),
+                textValue(source, "sourceId", null),
+                textValue(source, "sourceUrl", null),
                 textValue(source, "content", ""),
+                instantValue(source, "extractedAt"),
+                textValue(source, "parserVersion", null),
                 Instant.parse(textValue(source, "createdAt", Instant.EPOCH.toString()))
         );
     }
@@ -305,12 +336,21 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         return value.asText();
     }
 
+    private Instant instantValue(JsonNode source, String field) {
+        String value = textValue(source, field, null);
+        return value == null ? null : Instant.parse(value);
+    }
+
     private URI knowledgeItemsIndexUri() {
         return URI.create(baseUri + "/" + KNOWLEDGE_ITEMS_INDEX);
     }
 
     private URI knowledgeItemsSearchUri() {
         return URI.create(baseUri + "/" + KNOWLEDGE_ITEMS_INDEX + "/_search");
+    }
+
+    private URI knowledgeItemsMappingUri() {
+        return URI.create(baseUri + "/" + KNOWLEDGE_ITEMS_INDEX + "/_mapping");
     }
 
     private URI knowledgeItemDocumentUri(String id) {

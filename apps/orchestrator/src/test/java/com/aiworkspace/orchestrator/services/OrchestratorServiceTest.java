@@ -2,6 +2,8 @@ package com.aiworkspace.orchestrator.services;
 
 import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.services.AudioService;
+import com.aiworkspace.documents.exceptions.DocumentProcessingException;
+import com.aiworkspace.documents.models.DocumentFailureCode;
 import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.services.DocumentService;
 import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
@@ -42,8 +44,45 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OrchestratorServiceTest {
+
+    @Test
+    void rejectsExplicitlyEmptyDocumentBeforeCreatingFilesOrJob() {
+        CapturingKnowledgeRepository knowledgeRepository = new CapturingKnowledgeRepository();
+        CapturingIngestionJobRepository jobRepository = new CapturingIngestionJobRepository();
+        TestWorkspaceFileService workspaceFileService = new TestWorkspaceFileService();
+        OrchestratorService service = new OrchestratorService(
+                new TestDocumentService(),
+                new TestAudioService(),
+                new TestImageService(),
+                new TestVideoService(),
+                workspaceFileService,
+                new KnowledgeService(knowledgeRepository, (question, context) -> "Answer"),
+                new IngestionJobService(jobRepository, new IngestionJobDetailsMapperImpl()),
+                new TestWorkspaceService(),
+                Runnable::run
+        );
+
+        DocumentProcessingException exception = assertThrows(
+                DocumentProcessingException.class,
+                () -> service.process(
+                        "owner-1",
+                        "workspace-1",
+                        new OrchestrationContent("empty.txt", "text/plain", new byte[0]),
+                        new OrchestrationContent("audio.mp3", "audio/mpeg", new byte[] {1}),
+                        null,
+                        null
+                )
+        );
+
+        assertEquals(DocumentFailureCode.EMPTY_DOCUMENT, exception.code());
+        assertTrue(workspaceFileService.files.isEmpty());
+        assertTrue(jobRepository.jobs.isEmpty());
+        assertTrue(knowledgeRepository.items.isEmpty());
+    }
 
     @Test
     void processesProvidedContentAndSkipsMissingContent() throws IOException {
@@ -76,7 +115,11 @@ class OrchestratorServiceTest {
         assertEquals(IngestionJobStatus.RUNNING, submission.status());
         assertEquals(List.of("documents", "images"), submission.submitted());
         assertEquals(List.of("audio", "videos"), submission.skipped());
+        assertEquals("file-1", submission.sourceIds().get("documents"));
+        assertEquals("file-2", submission.sourceIds().get("images"));
         assertEquals("Parsed document text", knowledgeRepository.items.get(0).content());
+        assertEquals("file-1", knowledgeRepository.items.get(0).sourceId());
+        assertEquals("test-document-parser-1", knowledgeRepository.items.get(0).parserVersion());
         assertEquals("Image description", knowledgeRepository.items.get(1).content());
 
         var job = service.findJob("owner-1", submission.jobId());
@@ -175,7 +218,15 @@ class OrchestratorServiceTest {
 
         @Override
         public ParsedTextDocument extractDocumentText(String filename, String contentType, byte[] bytes) {
-            return new ParsedTextDocument(filename, "Parsed document text");
+            return new ParsedTextDocument(
+                    filename,
+                    "text/plain",
+                    null,
+                    "Parsed document text",
+                    List.of(),
+                    Instant.parse("2026-09-07T12:00:00Z"),
+                    "test-document-parser-1"
+            );
         }
     }
 
@@ -413,7 +464,8 @@ class OrchestratorServiceTest {
                 IngestionStepStatus status,
                 Instant startedAt,
                 Instant completedAt,
-                String errorMessage
+                String errorMessage,
+                String errorCode
         ) {
             IngestionJobStep existingStep = steps.get(jobId).get(contentType);
             if (existingStep.status() == IngestionStepStatus.COMPLETED
@@ -429,7 +481,8 @@ class OrchestratorServiceTest {
                     status,
                     startedAt == null ? existingStep.startedAt() : startedAt,
                     completedAt,
-                    errorMessage
+                    errorMessage,
+                    errorCode
             ));
             return true;
         }

@@ -1,5 +1,6 @@
 package com.aiworkspace.models;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
 
 import lombok.Builder;
@@ -10,6 +11,7 @@ public record ApiErrorResponse(
         int status,
         String error,
         String detail,
-        String path
+        String path,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String code
 ) {
 }

@@ -26,7 +26,8 @@ interface JpaIngestionJobStepEntityRepository extends JpaRepository<IngestionJob
             set step.status = :status,
                 step.startedAt = :startedAt,
                 step.completedAt = null,
-                step.errorMessage = null
+                step.errorMessage = null,
+                step.errorCode = null
             where step.jobId = :jobId
               and step.contentType = :contentType
               and step.status in :activeStatuses
@@ -44,7 +45,8 @@ interface JpaIngestionJobStepEntityRepository extends JpaRepository<IngestionJob
             update IngestionJobStepEntity step
             set step.status = :status,
                 step.completedAt = :completedAt,
-                step.errorMessage = null
+                step.errorMessage = null,
+                step.errorCode = null
             where step.jobId = :jobId
               and step.contentType = :contentType
               and step.status in :activeStatuses
@@ -62,7 +64,8 @@ interface JpaIngestionJobStepEntityRepository extends JpaRepository<IngestionJob
             update IngestionJobStepEntity step
             set step.status = :status,
                 step.completedAt = :completedAt,
-                step.errorMessage = :errorMessage
+                step.errorMessage = :errorMessage,
+                step.errorCode = :errorCode
             where step.jobId = :jobId
               and step.contentType = :contentType
               and step.status in :activeStatuses
@@ -73,6 +76,7 @@ interface JpaIngestionJobStepEntityRepository extends JpaRepository<IngestionJob
             @Param("status") IngestionStepStatus status,
             @Param("completedAt") Instant completedAt,
             @Param("errorMessage") String errorMessage,
+            @Param("errorCode") String errorCode,
             @Param("activeStatuses") Collection<IngestionStepStatus> activeStatuses
     );
 }
