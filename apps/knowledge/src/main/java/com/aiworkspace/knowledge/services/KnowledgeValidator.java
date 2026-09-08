@@ -15,6 +15,12 @@ public class KnowledgeValidator {
         }
     }
 
+    public void validateSourceId(String sourceId) {
+        if (sourceId == null || sourceId.isBlank()) {
+            throw new IllegalArgumentException("Knowledge source ID must not be blank");
+        }
+    }
+
     public void validateKnowledgeField(WorkspaceKnowledgeField field) {
         if (field == null) {
             throw new IllegalArgumentException("Knowledge field must not be null");

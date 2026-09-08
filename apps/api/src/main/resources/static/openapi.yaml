@@ -85,6 +85,16 @@ paths:
                 $ref: "#/components/schemas/Workspace"
         "404":
           $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete workspace and its stored files and knowledge
+      tags: [Workspaces]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "204":
+          description: Workspace deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/workspaces/{workspaceId}/files:
     get:
       summary: List workspace files
@@ -718,6 +728,7 @@ components:
           nullable: true
         sourceCount:
           type: integer
+          description: Number of matching knowledge chunks returned for this source.
     WorkspaceKnowledgeSource:
       type: object
       properties:
@@ -744,6 +755,26 @@ components:
           format: date-time
           nullable: true
         parserVersion:
+          type: string
+          nullable: true
+        chunkId:
+          type: string
+          nullable: true
+          description: Stable identifier of the matched source chunk.
+        chunkSequence:
+          type: integer
+          nullable: true
+          description: One-based chunk position within the source.
+        heading:
+          type: string
+          nullable: true
+        pageNumber:
+          type: integer
+          nullable: true
+        slideNumber:
+          type: integer
+          nullable: true
+        sheetName:
           type: string
           nullable: true
         snippet:

@@ -397,6 +397,16 @@ class OrchestratorServiceTest {
         }
 
         @Override
+        public void deleteKnowledgeItemsBySourceId(String workspaceId, String sourceId) {
+            items.removeIf(item -> item.workspaceId().equals(workspaceId) && sourceId.equals(item.sourceId()));
+        }
+
+        @Override
+        public void deleteKnowledgeItemsByWorkspaceId(String workspaceId) {
+            items.removeIf(item -> item.workspaceId().equals(workspaceId));
+        }
+
+        @Override
         public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value)
                 throws IOException {
         }

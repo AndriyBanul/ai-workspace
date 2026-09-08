@@ -182,6 +182,122 @@ class ApiIntegrationTest {
     }
 
     @Test
+    void storesLargeDocumentsAsOrderedSearchChunks() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Chunked search").body())
+                .path("id").asText();
+        String content = "Revenue increased during the quarter. ".repeat(5);
+
+        HttpResponse<String> uploaded = uploadDocument(
+                owner,
+                workspaceId,
+                "report.txt",
+                "text/plain",
+                content.getBytes(StandardCharsets.UTF_8)
+        );
+        String sourceId = OBJECT_MAPPER.readTree(uploaded.body()).path("sourceId").asText();
+        List<KnowledgeItem> items = knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId);
+
+        assertEquals(HttpStatus.OK.value(), uploaded.statusCode(), uploaded.body());
+        assertTrue(items.size() > 1);
+        for (int index = 0; index < items.size(); index++) {
+            KnowledgeItem item = items.get(index);
+            assertEquals(sourceId, item.sourceId());
+            assertEquals(sourceId + ":" + (index + 1), item.chunkId());
+            assertEquals(index + 1, item.chunkSequence());
+            assertTrue(item.content().length() <= 64);
+        }
+    }
+
+    @Test
+    void deletingDocumentFileRemovesItsKnowledgeChunks() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Deletion lifecycle").body())
+                .path("id").asText();
+        HttpResponse<String> uploaded = uploadDocument(
+                owner,
+                workspaceId,
+                "obsolete.txt",
+                "text/plain",
+                "Knowledge that must be removed".getBytes(StandardCharsets.UTF_8)
+        );
+        String fileId = OBJECT_MAPPER.readTree(uploaded.body()).path("sourceId").asText();
+
+        HttpResponse<String> deleted = send(HttpRequest.newBuilder(
+                        uri("/api/v1/workspaces/" + workspaceId + "/files/" + fileId)
+                )
+                .header("Authorization", owner.basicAuthHeader())
+                .DELETE()
+                .build());
+        HttpResponse<String> fileAfterDeletion = send(HttpRequest.newBuilder(
+                        uri("/api/v1/workspaces/" + workspaceId + "/files/" + fileId)
+                )
+                .header("Authorization", owner.basicAuthHeader())
+                .GET()
+                .build());
+
+        assertEquals(HttpStatus.NO_CONTENT.value(), deleted.statusCode(), deleted.body());
+        assertEquals(HttpStatus.NOT_FOUND.value(), fileAfterDeletion.statusCode());
+        assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
+    }
+
+    @Test
+    void anotherOwnerCannotDeleteDocumentKnowledge() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        TestUser otherUser = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Protected deletion").body())
+                .path("id").asText();
+        HttpResponse<String> uploaded = uploadDocument(
+                owner,
+                workspaceId,
+                "private.txt",
+                "text/plain",
+                "Private knowledge".getBytes(StandardCharsets.UTF_8)
+        );
+        String fileId = OBJECT_MAPPER.readTree(uploaded.body()).path("sourceId").asText();
+
+        HttpResponse<String> deletion = send(HttpRequest.newBuilder(
+                        uri("/api/v1/workspaces/" + workspaceId + "/files/" + fileId)
+                )
+                .header("Authorization", otherUser.basicAuthHeader())
+                .DELETE()
+                .build());
+
+        assertEquals(HttpStatus.NOT_FOUND.value(), deletion.statusCode());
+        assertEquals(1, knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).size());
+    }
+
+    @Test
+    void deletingWorkspaceRemovesItsFilesAndKnowledge() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Disposable workspace").body())
+                .path("id").asText();
+        HttpResponse<String> uploaded = uploadDocument(
+                owner,
+                workspaceId,
+                "temporary.txt",
+                "text/plain",
+                "Temporary knowledge".getBytes(StandardCharsets.UTF_8)
+        );
+        assertEquals(HttpStatus.OK.value(), uploaded.statusCode(), uploaded.body());
+
+        HttpResponse<String> deleted = send(HttpRequest.newBuilder(uri("/api/v1/workspaces/" + workspaceId))
+                .header("Authorization", owner.basicAuthHeader())
+                .DELETE()
+                .build());
+        HttpResponse<String> workspaceAfterDeletion = send(
+                HttpRequest.newBuilder(uri("/api/v1/workspaces/" + workspaceId))
+                        .header("Authorization", owner.basicAuthHeader())
+                        .GET()
+                        .build()
+        );
+
+        assertEquals(HttpStatus.NO_CONTENT.value(), deleted.statusCode(), deleted.body());
+        assertEquals(HttpStatus.NOT_FOUND.value(), workspaceAfterDeletion.statusCode());
+        assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
+    }
+
+    @Test
     void marksDirectUploadFailedWhenKnowledgeIndexingFails() throws IOException, InterruptedException {
         TestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Direct indexing failure").body())
@@ -644,6 +760,26 @@ class ApiIntegrationTest {
                 throw new IOException("Simulated knowledge indexing failure");
             }
             items.add(item);
+        }
+
+        @Override
+        public void replaceKnowledgeItems(String workspaceId, String sourceId, List<KnowledgeItem> replacements)
+                throws IOException {
+            if (failingWorkspaceIds.remove(workspaceId)) {
+                throw new IOException("Simulated knowledge indexing failure");
+            }
+            items.removeIf(item -> item.workspaceId().equals(workspaceId) && sourceId.equals(item.sourceId()));
+            items.addAll(replacements);
+        }
+
+        @Override
+        public void deleteKnowledgeItemsBySourceId(String workspaceId, String sourceId) {
+            items.removeIf(item -> item.workspaceId().equals(workspaceId) && sourceId.equals(item.sourceId()));
+        }
+
+        @Override
+        public void deleteKnowledgeItemsByWorkspaceId(String workspaceId) {
+            items.removeIf(item -> item.workspaceId().equals(workspaceId));
         }
 
         void failNextAddFor(String workspaceId) {

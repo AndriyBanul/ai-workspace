@@ -13,6 +13,12 @@ public record WorkspaceKnowledgeSource(
         String sourceUrl,
         Instant extractedAt,
         String parserVersion,
+        String chunkId,
+        Integer chunkSequence,
+        String heading,
+        Integer pageNumber,
+        Integer slideNumber,
+        String sheetName,
         String snippet,
         String sourceFileKey
 ) {

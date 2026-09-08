@@ -7,6 +7,8 @@ import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
 import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
 import com.aiworkspace.workspaces.repositories.WorkspaceFileRepository;
 import java.time.Instant;
+import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -62,15 +64,39 @@ class WorkspaceFileServiceTest {
         verify(repository, never()).save(any(WorkspaceFileEntity.class));
     }
 
+    @Test
+    void deletesEveryStoredFileForWorkspace() throws IOException {
+        WorkspaceFileRepository repository = mock(WorkspaceFileRepository.class);
+        FileStorage storage = mock(FileStorage.class);
+        WorkspaceFileEntity first = fileEntity("file-1", WorkspaceFileStatus.PROCESSED);
+        WorkspaceFileEntity second = fileEntity("file-2", WorkspaceFileStatus.FAILED);
+        when(repository.findAllByWorkspaceIdAndDeletedAtIsNullOrderByCreatedAtDesc("workspace-1"))
+                .thenReturn(List.of(first, second));
+        WorkspaceFileService service = new WorkspaceFileService(
+                repository,
+                new WorkspaceFileMapperImpl(),
+                storage
+        );
+
+        service.deleteStoredFilesByWorkspaceId("workspace-1");
+
+        verify(storage).delete("workspace-1/file-1");
+        verify(storage).delete("workspace-1/file-2");
+    }
+
     private WorkspaceFileEntity fileEntity(WorkspaceFileStatus status) {
+        return fileEntity("file-1", status);
+    }
+
+    private WorkspaceFileEntity fileEntity(String id, WorkspaceFileStatus status) {
         Instant now = Instant.parse("2026-08-30T00:00:00Z");
         return WorkspaceFileEntity.builder()
-                .id("file-1")
+                .id(id)
                 .workspaceId("workspace-1")
                 .originalFilename("sample.txt")
                 .contentType("text/plain")
                 .sizeBytes(12)
-                .storageKey("workspace-1/file-1")
+                .storageKey("workspace-1/" + id)
                 .checksumSha256("a".repeat(64))
                 .sourceType(WorkspaceFileSourceType.DOCUMENT)
                 .status(status)

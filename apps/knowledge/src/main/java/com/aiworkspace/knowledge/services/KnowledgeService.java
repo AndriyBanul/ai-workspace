@@ -1,5 +1,8 @@
 package com.aiworkspace.knowledge.services;
 
+import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
+import com.aiworkspace.knowledge.interfaces.TextEmbeddingProvider;
+import com.aiworkspace.knowledge.models.KnowledgeChunk;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
@@ -13,7 +16,12 @@ import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +29,8 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -28,14 +38,24 @@ public class KnowledgeService {
 
     private static final int RETRIEVAL_LIMIT = 8;
     private static final int SOURCE_SNIPPET_LENGTH = 500;
+    private static final Logger LOGGER = LoggerFactory.getLogger(KnowledgeService.class);
 
     private final KnowledgeRepository knowledgeRepository;
     private final KnowledgeAnswerProvider knowledgeAnswerProvider;
     private final WorkspaceService workspaceService;
     private final KnowledgeValidator knowledgeValidator;
+    private final TextEmbeddingProvider textEmbeddingProvider;
+    private final KnowledgeEmbeddingProperties embeddingProperties;
 
     public KnowledgeService(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider) {
-        this(knowledgeRepository, knowledgeAnswerProvider, null, new KnowledgeValidator());
+        this(
+                knowledgeRepository,
+                knowledgeAnswerProvider,
+                null,
+                new KnowledgeValidator(),
+                null,
+                new KnowledgeEmbeddingProperties(false, null, null, null, null, null)
+        );
     }
 
     @Autowired
@@ -43,12 +63,16 @@ public class KnowledgeService {
             KnowledgeRepository knowledgeRepository,
             KnowledgeAnswerProvider knowledgeAnswerProvider,
             WorkspaceService workspaceService,
-            KnowledgeValidator knowledgeValidator
+            KnowledgeValidator knowledgeValidator,
+            TextEmbeddingProvider textEmbeddingProvider,
+            KnowledgeEmbeddingProperties embeddingProperties
     ) {
         this.knowledgeRepository = knowledgeRepository;
         this.knowledgeAnswerProvider = knowledgeAnswerProvider;
         this.workspaceService = workspaceService;
         this.knowledgeValidator = knowledgeValidator;
+        this.textEmbeddingProvider = textEmbeddingProvider;
+        this.embeddingProperties = embeddingProperties;
     }
 
     public Optional<WorkspaceKnowledge> findWorkspaceKnowledge(String workspaceId) throws IOException {
@@ -67,7 +91,7 @@ public class KnowledgeService {
         knowledgeValidator.validateKnowledgeField(field);
         knowledgeValidator.validateKnowledgeFieldValue(value);
         knowledgeValidator.validateWorkspaceId(workspaceId);
-        knowledgeRepository.updateWorkspaceKnowledgeField(workspaceId.trim(), field, value.trim());
+        recordKnowledgeItem(workspaceId, sourceTypeFrom(field), field.fieldName(), null, value, null);
     }
 
     public void recordDocumentsInfo(String workspaceId, String sourceName, String jobId, String value) throws IOException {
@@ -84,6 +108,66 @@ public class KnowledgeService {
         recordKnowledgeItem(workspaceId, KnowledgeSourceType.DOCUMENT, sourceName, jobId, value, sourceMetadata);
     }
 
+    public void recordDocumentsInfo(
+            String workspaceId,
+            String sourceName,
+            String jobId,
+            List<KnowledgeChunk> chunks,
+            KnowledgeSourceMetadata sourceMetadata
+    ) throws IOException {
+        knowledgeValidator.validateWorkspaceId(workspaceId);
+        if (chunks == null || chunks.isEmpty()) {
+            throw new IllegalArgumentException("Document chunks must not be empty");
+        }
+
+        String sourceIdentity = sourceMetadata == null
+                ? UUID.randomUUID().toString()
+                : normalizedOptionalValue(sourceMetadata.sourceId());
+        if (sourceIdentity == null) {
+            sourceIdentity = UUID.randomUUID().toString();
+        }
+
+        Instant createdAt = Instant.now();
+        List<KnowledgeItem> items = new ArrayList<>(chunks.size());
+        for (KnowledgeChunk chunk : chunks) {
+            if (chunk == null) {
+                throw new IllegalArgumentException("Document chunk must not be null");
+            }
+            knowledgeValidator.validateKnowledgeItemContent(chunk.content());
+            String chunkId = sourceIdentity + ":" + chunk.sequence();
+            items.add(new KnowledgeItem(
+                    chunkId,
+                    workspaceId.trim(),
+                    KnowledgeSourceType.DOCUMENT,
+                    normalizedOptionalValue(sourceName),
+                    normalizedOptionalValue(jobId),
+                    sourceMetadata == null ? null : normalizedOptionalValue(sourceMetadata.sourceId()),
+                    sourceMetadata == null ? null : normalizedOptionalValue(sourceMetadata.sourceUrl()),
+                    chunk.content().trim(),
+                    sourceMetadata == null ? null : sourceMetadata.extractedAt(),
+                    sourceMetadata == null ? null : normalizedOptionalValue(sourceMetadata.parserVersion()),
+                    chunkId,
+                    chunk.sequence(),
+                    normalizedOptionalValue(chunk.heading()),
+                    chunk.pageNumber(),
+                    chunk.slideNumber(),
+                    normalizedOptionalValue(chunk.sheetName()),
+                    null,
+                    null,
+                    null,
+                    null,
+                    createdAt
+            ));
+        }
+        List<KnowledgeItem> embeddedItems = withEmbeddings(items);
+        String sourceId = sourceMetadata == null ? null : normalizedOptionalValue(sourceMetadata.sourceId());
+        if (sourceId == null) {
+            knowledgeRepository.addKnowledgeItems(embeddedItems);
+        } else {
+            knowledgeRepository.replaceKnowledgeItems(workspaceId.trim(), sourceId, embeddedItems);
+        }
+    }
+
     public void recordAudioInfo(String workspaceId, String sourceName, String jobId, String value) throws IOException {
         recordKnowledgeItem(workspaceId, KnowledgeSourceType.AUDIO, sourceName, jobId, value, null);
     }
@@ -96,16 +180,23 @@ public class KnowledgeService {
         recordKnowledgeItem(workspaceId, KnowledgeSourceType.IMAGE, sourceName, jobId, value, null);
     }
 
+    public void deleteSourceKnowledge(String workspaceId, String sourceId) throws IOException {
+        knowledgeValidator.validateWorkspaceId(workspaceId);
+        knowledgeValidator.validateSourceId(sourceId);
+        knowledgeRepository.deleteKnowledgeItemsBySourceId(workspaceId.trim(), sourceId.trim());
+    }
+
+    public void deleteWorkspaceKnowledge(String workspaceId) throws IOException {
+        knowledgeValidator.validateWorkspaceId(workspaceId);
+        knowledgeRepository.deleteKnowledgeItemsByWorkspaceId(workspaceId.trim());
+    }
+
     public WorkspaceKnowledgeAnswer answerWorkspaceQuestion(String workspaceId, String question) throws IOException {
         knowledgeValidator.validateWorkspaceId(workspaceId);
         knowledgeValidator.validateQuestion(question);
         String trimmedWorkspaceId = workspaceId.trim();
         String trimmedQuestion = question.trim();
-        List<KnowledgeItem> items = knowledgeRepository.searchKnowledgeItems(
-                trimmedWorkspaceId,
-                trimmedQuestion,
-                RETRIEVAL_LIMIT
-        );
+        List<KnowledgeItem> items = retrieve(trimmedWorkspaceId, trimmedQuestion);
         if (items.isEmpty()) {
             throw new NoSuchElementException("Workspace knowledge was not found");
         }
@@ -142,7 +233,7 @@ public class KnowledgeService {
     ) throws IOException {
         knowledgeValidator.validateKnowledgeItemContent(value);
         knowledgeValidator.validateWorkspaceId(workspaceId);
-        knowledgeRepository.addKnowledgeItem(new KnowledgeItem(
+        KnowledgeItem item = new KnowledgeItem(
                 UUID.randomUUID().toString(),
                 workspaceId.trim(),
                 sourceType,
@@ -154,7 +245,103 @@ public class KnowledgeService {
                 sourceMetadata == null ? null : sourceMetadata.extractedAt(),
                 sourceMetadata == null ? null : normalizedOptionalValue(sourceMetadata.parserVersion()),
                 Instant.now()
-        ));
+        );
+        knowledgeRepository.addKnowledgeItems(withEmbeddings(List.of(item)));
+    }
+
+    private List<KnowledgeItem> retrieve(String workspaceId, String question) throws IOException {
+        if (textEmbeddingProvider == null || !textEmbeddingProvider.isConfigured()) {
+            return knowledgeRepository.searchKnowledgeItems(workspaceId, question, RETRIEVAL_LIMIT);
+        }
+
+        try {
+            List<Float> queryEmbedding = textEmbeddingProvider.embedQuery(question);
+            return knowledgeRepository.searchKnowledgeItems(
+                    workspaceId,
+                    question,
+                    queryEmbedding,
+                    RETRIEVAL_LIMIT,
+                    embeddingProperties.candidateLimit(),
+                    embeddingProperties.rrfRankConstant()
+            );
+        } catch (IOException | RuntimeException exception) {
+            LOGGER.warn(
+                    "Embedding query failed for workspaceId={} with {}; falling back to lexical retrieval",
+                    workspaceId,
+                    exception.getClass().getSimpleName()
+            );
+            return knowledgeRepository.searchKnowledgeItems(workspaceId, question, RETRIEVAL_LIMIT);
+        }
+    }
+
+    private List<KnowledgeItem> withEmbeddings(List<KnowledgeItem> items) throws IOException {
+        if (textEmbeddingProvider == null || !textEmbeddingProvider.isConfigured()) {
+            return items;
+        }
+
+        List<String> inputs = items.stream().map(this::embeddingInput).toList();
+        List<List<Float>> embeddings = textEmbeddingProvider.embedDocuments(inputs);
+        if (embeddings.size() != items.size()) {
+            throw new IllegalStateException("Embedding provider returned an unexpected number of vectors");
+        }
+
+        List<KnowledgeItem> embeddedItems = new ArrayList<>(items.size());
+        for (int index = 0; index < items.size(); index++) {
+            KnowledgeItem item = items.get(index);
+            List<Float> embedding = embeddings.get(index);
+            if (embedding.size() != textEmbeddingProvider.dimensions()) {
+                throw new IllegalStateException("Embedding provider returned a vector with unexpected dimensions");
+            }
+            embeddedItems.add(new KnowledgeItem(
+                    item.id(),
+                    item.workspaceId(),
+                    item.sourceType(),
+                    item.sourceName(),
+                    item.jobId(),
+                    item.sourceId(),
+                    item.sourceUrl(),
+                    item.content(),
+                    item.extractedAt(),
+                    item.parserVersion(),
+                    item.chunkId(),
+                    item.chunkSequence(),
+                    item.heading(),
+                    item.pageNumber(),
+                    item.slideNumber(),
+                    item.sheetName(),
+                    List.copyOf(embedding),
+                    textEmbeddingProvider.model(),
+                    textEmbeddingProvider.dimensions(),
+                    sha256(inputs.get(index)),
+                    item.createdAt()
+            ));
+        }
+        return List.copyOf(embeddedItems);
+    }
+
+    private String embeddingInput(KnowledgeItem item) {
+        if (item.heading() == null || item.heading().isBlank()) {
+            return item.content();
+        }
+        return item.heading() + "\n\n" + item.content();
+    }
+
+    private String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    private KnowledgeSourceType sourceTypeFrom(WorkspaceKnowledgeField field) {
+        return switch (field) {
+            case DOCUMENTS_INFO -> KnowledgeSourceType.DOCUMENT;
+            case AUDIO_INFO -> KnowledgeSourceType.AUDIO;
+            case IMAGES_INFO -> KnowledgeSourceType.IMAGE;
+            case VIDEO_INFO -> KnowledgeSourceType.VIDEO;
+        };
     }
 
     private String contextFrom(String workspaceId, List<KnowledgeItem> items) {
@@ -182,6 +369,14 @@ public class KnowledgeService {
                     .append(item.extractedAt() == null ? "(empty)" : item.extractedAt())
                     .append("\nParser version: ")
                     .append(valueOrEmpty(item.parserVersion()))
+                    .append("\nChunk ID: ")
+                    .append(valueOrEmpty(item.chunkId()))
+                    .append("\nChunk sequence: ")
+                    .append(item.chunkSequence() == null ? "(empty)" : item.chunkSequence())
+                    .append("\nHeading: ")
+                    .append(valueOrEmpty(item.heading()))
+                    .append("\nLocation: ")
+                    .append(location(item))
                     .append("\nContent:\n")
                     .append(item.content())
                     .append("\n");
@@ -200,6 +395,12 @@ public class KnowledgeService {
                 item.sourceUrl(),
                 item.extractedAt(),
                 item.parserVersion(),
+                item.chunkId(),
+                item.chunkSequence(),
+                item.heading(),
+                item.pageNumber(),
+                item.slideNumber(),
+                item.sheetName(),
                 snippet(item.content()),
                 sourceFileKey(item)
         );
@@ -246,6 +447,19 @@ public class KnowledgeService {
         }
 
         return item.sourceName();
+    }
+
+    private String location(KnowledgeItem item) {
+        if (item.pageNumber() != null) {
+            return "page " + item.pageNumber();
+        }
+        if (item.slideNumber() != null) {
+            return "slide " + item.slideNumber();
+        }
+        if (item.sheetName() != null && !item.sheetName().isBlank()) {
+            return "sheet " + item.sheetName();
+        }
+        return "(empty)";
     }
 
     private String snippet(String value) {

@@ -97,4 +97,15 @@ public class WorkspaceService {
         workspaceFileService.deleteFile(getWorkspace(ownerId, workspaceId).id(), fileId);
     }
 
+    @Transactional
+    public void deleteWorkspace(String ownerId, String workspaceId) throws IOException {
+        workspaceValidator.validateOwnerId(ownerId);
+        workspaceValidator.validateWorkspaceId(workspaceId);
+        WorkspaceEntity workspace = workspaceRepository
+                .findByIdAndOwnerId(workspaceId.trim(), ownerId.trim())
+                .orElseThrow(() -> new NoSuchElementException("Workspace was not found"));
+        workspaceFileService.deleteStoredFilesByWorkspaceId(workspace.getId());
+        workspaceRepository.delete(workspace);
+    }
+
 }

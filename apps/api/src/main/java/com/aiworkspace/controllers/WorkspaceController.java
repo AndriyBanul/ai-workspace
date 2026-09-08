@@ -1,6 +1,7 @@
 package com.aiworkspace.controllers;
 
 import com.aiworkspace.users.services.UserAccountService;
+import com.aiworkspace.orchestrator.services.WorkspaceLifecycleService;
 import com.aiworkspace.workspaces.models.CreateWorkspaceRequest;
 import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
@@ -25,10 +26,16 @@ public class WorkspaceController {
 
     private final WorkspaceService workspaceService;
     private final UserAccountService userAccountService;
+    private final WorkspaceLifecycleService workspaceLifecycleService;
 
-    public WorkspaceController(WorkspaceService workspaceService, UserAccountService userAccountService) {
+    public WorkspaceController(
+            WorkspaceService workspaceService,
+            UserAccountService userAccountService,
+            WorkspaceLifecycleService workspaceLifecycleService
+    ) {
         this.workspaceService = workspaceService;
         this.userAccountService = userAccountService;
+        this.workspaceLifecycleService = workspaceLifecycleService;
     }
 
     @PostMapping
@@ -47,6 +54,18 @@ public class WorkspaceController {
     @GetMapping("/{workspaceId}")
     public ResponseEntity<Workspace> getWorkspace(@PathVariable String workspaceId, Authentication authentication) {
         return ResponseEntity.ok(workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId));
+    }
+
+    @DeleteMapping("/{workspaceId}")
+    public ResponseEntity<Void> deleteWorkspace(
+            @PathVariable String workspaceId,
+            Authentication authentication
+    ) throws IOException {
+        workspaceLifecycleService.deleteWorkspace(
+                userAccountService.currentUserId(authentication),
+                workspaceId
+        );
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{workspaceId}/files")
@@ -72,7 +91,11 @@ public class WorkspaceController {
             @PathVariable String fileId,
             Authentication authentication
     ) throws IOException {
-        workspaceService.deleteFile(userAccountService.currentUserId(authentication), workspaceId, fileId);
+        workspaceLifecycleService.deleteFile(
+                userAccountService.currentUserId(authentication),
+                workspaceId,
+                fileId
+        );
         return ResponseEntity.noContent().build();
     }
 }

@@ -92,6 +92,7 @@ Extraction is bounded independently of the 25 MB upload limit. By default, a
 document may produce at most 1,000,000 text characters, PDF random-access
 output may contain at most 10,000 structural blocks, PDF random-access buffering
 spills to temporary storage after 64 MiB, and embedded attachments are ignored.
+Search chunks contain at most 2,000 characters.
 The PDF threshold does not cap every JVM allocation made by a parser. Configure
 these controls with:
 
@@ -100,6 +101,7 @@ ai-workspace.documents.extraction.max-extracted-characters=1000000
 ai-workspace.documents.extraction.max-extracted-blocks=10000
 ai-workspace.documents.extraction.max-pdf-main-memory-bytes=67108864
 ai-workspace.documents.extraction.extract-embedded-documents=false
+ai-workspace.documents.extraction.max-chunk-characters=2000
 ```
 
 Every imported document now has a durable source identity. File uploads use the
@@ -155,10 +157,36 @@ curl http://localhost:8080/api/v1/workspaces/{workspaceId}
 The `knowledge` module reads workspace knowledge from OpenSearch. Configure
 `OPENSEARCH_URL` if OpenSearch is not available at `http://localhost:9200`.
 
-The API creates the `knowledge-items` index on first access if it does not
-exist. Each extracted result is stored as a separate knowledge item with
+The API creates the vector-enabled `knowledge-items` index on first access if
+it does not exist. Each extracted result is stored as a separate knowledge item with
 `workspaceId`, `sourceType`, `sourceName`, `sourceId`, optional `sourceUrl`,
-`jobId`, `content`, `extractedAt`, `parserVersion`, and `createdAt`.
+`jobId`, `content`, `extractedAt`, `parserVersion`, chunk identity and sequence,
+optional heading and source location, `embedding`, `embeddingModel`,
+`embeddingDimensions`, `contentHash`, and `createdAt`.
+
+Document and web content is indexed as bounded, structure-aware chunks rather
+than one OpenSearch record per source. Each chunk retains its source ID,
+sequence, current heading, and page, slide, or sheet location where available.
+When `GEMINI_API_KEY` is configured, each chunk receives one normalized Gemini
+embedding. Search combines BM25 matches over chunk content and headings with
+OpenSearch kNN results using reciprocal rank fusion; the eight highest-ranked
+chunks are supplied as evidence for an answer. Search falls back to BM25 when
+embeddings are disabled, unconfigured, or temporarily unavailable.
+
+Reprocessing the same document source replaces its complete chunk set. Obsolete
+chunk IDs are pruned only after OpenSearch accepts the replacement bulk request,
+and a retry converges on the complete current set. Deleting a stored document
+first removes its source-scoped knowledge from OpenSearch and then deletes the
+stored file; if knowledge cleanup fails, the file remains available for retry.
+Deleting a workspace performs the same cleanup for all of its OpenSearch
+knowledge and stored files before removing the workspace metadata.
+
+Embedding defaults are configurable with `GEMINI_EMBEDDING_MODEL`,
+`KNOWLEDGE_EMBEDDING_DIMENSIONS`, `KNOWLEDGE_EMBEDDING_BATCH_SIZE`,
+`KNOWLEDGE_SEARCH_CANDIDATE_LIMIT`, and
+`KNOWLEDGE_SEARCH_RRF_RANK_CONSTANT`. Changing embedding dimensions requires a
+new vector index and re-ingestion because OpenSearch vector dimensions are part
+of the index mapping.
 
 Text produced by document parsing/web extraction, audio transcription, image
 description, and video description is attached to the selected workspace.

@@ -7,12 +7,14 @@ public record DocumentExtractionProperties(
         Integer maxExtractedCharacters,
         Integer maxExtractedBlocks,
         Long maxPdfMainMemoryBytes,
-        Boolean extractEmbeddedDocuments
+        Boolean extractEmbeddedDocuments,
+        Integer maxChunkCharacters
 ) {
 
     private static final int DEFAULT_MAX_EXTRACTED_CHARACTERS = 1_000_000;
     private static final int DEFAULT_MAX_EXTRACTED_BLOCKS = 10_000;
     private static final long DEFAULT_MAX_PDF_MAIN_MEMORY_BYTES = 64L * 1024 * 1024;
+    private static final int DEFAULT_MAX_CHUNK_CHARACTERS = 2_000;
 
     public DocumentExtractionProperties {
         if (maxExtractedCharacters == null) {
@@ -38,6 +40,13 @@ public record DocumentExtractionProperties(
 
         if (extractEmbeddedDocuments == null) {
             extractEmbeddedDocuments = false;
+        }
+
+        if (maxChunkCharacters == null) {
+            maxChunkCharacters = DEFAULT_MAX_CHUNK_CHARACTERS;
+        }
+        if (maxChunkCharacters <= 0) {
+            throw new IllegalArgumentException("Document extraction max chunk characters must be positive");
         }
     }
 }

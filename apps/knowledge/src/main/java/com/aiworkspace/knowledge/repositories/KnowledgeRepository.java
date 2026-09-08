@@ -15,7 +15,34 @@ public interface KnowledgeRepository {
 
     List<KnowledgeItem> searchKnowledgeItems(String workspaceId, String query, int limit) throws IOException;
 
+    default List<KnowledgeItem> searchKnowledgeItems(
+            String workspaceId,
+            String query,
+            List<Float> queryEmbedding,
+            int limit,
+            int candidateLimit,
+            int rrfRankConstant
+    ) throws IOException {
+        return searchKnowledgeItems(workspaceId, query, limit);
+    }
+
     void addKnowledgeItem(KnowledgeItem item) throws IOException;
+
+    default void addKnowledgeItems(List<KnowledgeItem> items) throws IOException {
+        for (KnowledgeItem item : items) {
+            addKnowledgeItem(item);
+        }
+    }
+
+    default void replaceKnowledgeItems(String workspaceId, String sourceId, List<KnowledgeItem> items)
+            throws IOException {
+        deleteKnowledgeItemsBySourceId(workspaceId, sourceId);
+        addKnowledgeItems(items);
+    }
+
+    void deleteKnowledgeItemsBySourceId(String workspaceId, String sourceId) throws IOException;
+
+    void deleteKnowledgeItemsByWorkspaceId(String workspaceId) throws IOException;
 
     void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value)
             throws IOException;

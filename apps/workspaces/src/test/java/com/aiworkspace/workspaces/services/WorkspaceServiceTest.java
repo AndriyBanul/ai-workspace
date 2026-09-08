@@ -3,6 +3,7 @@ package com.aiworkspace.workspaces.services;
 import com.aiworkspace.workspaces.entities.WorkspaceEntity;
 import com.aiworkspace.workspaces.mappers.WorkspaceMapperImpl;
 import com.aiworkspace.workspaces.repositories.WorkspaceRepository;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -14,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 
 class WorkspaceServiceTest {
 
@@ -82,6 +84,27 @@ class WorkspaceServiceTest {
         );
 
         assertEquals("Workspace was not found", exception.getMessage());
+    }
+
+    @Test
+    void deletesStoredFilesBeforeWorkspaceMetadata() throws IOException {
+        WorkspaceRepository repository = mock(WorkspaceRepository.class);
+        WorkspaceFileService fileService = mock(WorkspaceFileService.class);
+        Instant now = Instant.now();
+        WorkspaceEntity entity = new WorkspaceEntity("workspace-1", "owner-1", "Demo", now, now);
+        when(repository.findByIdAndOwnerId("workspace-1", "owner-1")).thenReturn(Optional.of(entity));
+        WorkspaceService service = new WorkspaceService(
+                repository,
+                new WorkspaceMapperImpl(),
+                fileService,
+                new WorkspaceValidator()
+        );
+
+        service.deleteWorkspace("owner-1", "workspace-1");
+
+        var ordered = inOrder(fileService, repository);
+        ordered.verify(fileService).deleteStoredFilesByWorkspaceId("workspace-1");
+        ordered.verify(repository).delete(entity);
     }
 
     private static WorkspaceService newService(WorkspaceRepository repository) {

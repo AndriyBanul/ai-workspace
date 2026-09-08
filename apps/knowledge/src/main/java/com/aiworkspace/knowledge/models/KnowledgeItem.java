@@ -1,6 +1,7 @@
 package com.aiworkspace.knowledge.models;
 
 import java.time.Instant;
+import java.util.List;
 
 import lombok.Builder;
 
@@ -16,8 +17,56 @@ public record KnowledgeItem(
         String content,
         Instant extractedAt,
         String parserVersion,
+        String chunkId,
+        Integer chunkSequence,
+        String heading,
+        Integer pageNumber,
+        Integer slideNumber,
+        String sheetName,
+        List<Float> embedding,
+        String embeddingModel,
+        Integer embeddingDimensions,
+        String contentHash,
         Instant createdAt
 ) {
+
+    public KnowledgeItem(
+            String id,
+            String workspaceId,
+            KnowledgeSourceType sourceType,
+            String sourceName,
+            String jobId,
+            String sourceId,
+            String sourceUrl,
+            String content,
+            Instant extractedAt,
+            String parserVersion,
+            Instant createdAt
+    ) {
+        this(
+                id,
+                workspaceId,
+                sourceType,
+                sourceName,
+                jobId,
+                sourceId,
+                sourceUrl,
+                content,
+                extractedAt,
+                parserVersion,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                createdAt
+        );
+    }
 
     public KnowledgeItem(
             String id,

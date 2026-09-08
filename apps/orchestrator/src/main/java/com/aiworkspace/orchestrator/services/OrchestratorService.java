@@ -263,7 +263,7 @@ public class OrchestratorService {
                 job.workspaceId(),
                 content.original().filename(),
                 job.jobId(),
-                parsedDocument.content(),
+                documentService.chunkForKnowledge(parsedDocument),
                 new KnowledgeSourceMetadata(
                         content.file().id(),
                         null,

@@ -128,6 +128,15 @@ public class WorkspaceFileService {
         workspaceFileRepository.save(entity);
     }
 
+    public void deleteStoredFilesByWorkspaceId(String workspaceId) throws IOException {
+        workspaceFileValidator.validateWorkspaceId(workspaceId);
+        List<WorkspaceFileEntity> files = workspaceFileRepository
+                .findAllByWorkspaceIdAndDeletedAtIsNullOrderByCreatedAtDesc(workspaceId.trim());
+        for (WorkspaceFileEntity file : files) {
+            fileStorage.delete(file.getStorageKey());
+        }
+    }
+
     private WorkspaceFile updateStatus(String workspaceId, String fileId, WorkspaceFileStatus status) {
         workspaceFileValidator.validateWorkspaceId(workspaceId);
         workspaceFileValidator.validateFileId(fileId);

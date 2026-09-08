@@ -9,6 +9,7 @@ import com.aiworkspace.documents.models.DocumentFailureCode;
 import com.aiworkspace.documents.models.FetchedWebPage;
 import com.aiworkspace.documents.models.WebPageExtractRequest;
 import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
+import com.aiworkspace.knowledge.models.KnowledgeChunk;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.knowledge.services.KnowledgeService;
@@ -326,7 +327,7 @@ class DocumentServiceTest {
     void rejectsDocumentWhenExtractedTextExceedsConfiguredLimit() {
         DocumentService service = new DocumentService(
                 new TestRestClient(),
-                new DocumentExtractionProperties(32, null, null, null)
+                new DocumentExtractionProperties(32, null, null, null, null)
         );
 
         DocumentProcessingException exception = assertThrows(
@@ -346,7 +347,7 @@ class DocumentServiceTest {
     void rejectsDocumentWhenStructuralBlockCountExceedsConfiguredLimit() throws IOException {
         DocumentService service = new DocumentService(
                 new TestRestClient(),
-                new DocumentExtractionProperties(1_000, 2, null, null)
+                new DocumentExtractionProperties(1_000, 2, null, null, null)
         );
 
         DocumentProcessingException exception = assertThrows(
@@ -365,7 +366,7 @@ class DocumentServiceTest {
     void appliesCharacterLimitToStructuredDocxExtraction() throws IOException {
         DocumentService service = new DocumentService(
                 new TestRestClient(),
-                new DocumentExtractionProperties(32, 100, null, null)
+                new DocumentExtractionProperties(32, 100, null, null, null)
         );
 
         DocumentProcessingException exception = assertThrows(
@@ -483,7 +484,7 @@ class DocumentServiceTest {
                 knowledgeService,
                 new TestWorkspaceService(),
                 new DocumentValidator(),
-                new DocumentExtractionProperties(null, null, null, null),
+                new DocumentExtractionProperties(null, null, null, null, null),
                 new DocxStructureExtractor()
         );
 
@@ -499,6 +500,7 @@ class DocumentServiceTest {
         assertEquals(response.sourceId(), knowledgeService.sourceMetadata.sourceId());
         assertEquals("https://example.com/large", knowledgeService.sourceMetadata.sourceUrl());
         assertEquals(content, knowledgeService.content);
+        assertTrue(knowledgeService.chunkCount > 1);
     }
 
     private static class TestRestClient extends GenericRestClient {
@@ -549,6 +551,7 @@ class DocumentServiceTest {
 
         private KnowledgeSourceMetadata sourceMetadata;
         private String content;
+        private int chunkCount;
 
         TestKnowledgeService() {
             super(new EmptyKnowledgeRepository(), new EmptyKnowledgeAnswerProvider());
@@ -559,10 +562,11 @@ class DocumentServiceTest {
                 String workspaceId,
                 String sourceName,
                 String jobId,
-                String value,
+                List<KnowledgeChunk> chunks,
                 KnowledgeSourceMetadata sourceMetadata
         ) {
-            this.content = value;
+            this.content = chunks.stream().map(KnowledgeChunk::content).reduce("", String::concat);
+            this.chunkCount = chunks.size();
             this.sourceMetadata = sourceMetadata;
         }
     }
@@ -604,6 +608,14 @@ class DocumentServiceTest {
 
         @Override
         public void addKnowledgeItem(com.aiworkspace.knowledge.models.KnowledgeItem item) {
+        }
+
+        @Override
+        public void deleteKnowledgeItemsBySourceId(String workspaceId, String sourceId) {
+        }
+
+        @Override
+        public void deleteKnowledgeItemsByWorkspaceId(String workspaceId) {
         }
 
         @Override

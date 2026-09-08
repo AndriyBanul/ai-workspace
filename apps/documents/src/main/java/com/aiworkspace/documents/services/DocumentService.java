@@ -9,6 +9,7 @@ import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.models.TextDocumentUploadResponse;
 import com.aiworkspace.documents.models.WebPageExtractRequest;
 import com.aiworkspace.documents.models.WebPageExtractResponse;
+import com.aiworkspace.knowledge.models.KnowledgeChunk;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.apache.tika.exception.EncryptedDocumentException;
 import org.apache.tika.exception.TikaException;
@@ -60,10 +62,11 @@ public class DocumentService {
     private final DocumentExtractionProperties extractionProperties;
     private final DocxStructureExtractor docxStructureExtractor;
     private final WebPageContentExtractor webPageContentExtractor;
+    private final DocumentChunker documentChunker;
     private final AutoDetectParser parser = new AutoDetectParser();
 
     public DocumentService(GenericRestClient restClient) {
-        this(restClient, new DocumentExtractionProperties(null, null, null, null));
+        this(restClient, new DocumentExtractionProperties(null, null, null, null, null));
     }
 
     DocumentService(GenericRestClient restClient, DocumentExtractionProperties extractionProperties) {
@@ -75,7 +78,8 @@ public class DocumentService {
                 new DocumentValidator(),
                 extractionProperties,
                 new DocxStructureExtractor(),
-                new WebPageContentExtractor()
+                new WebPageContentExtractor(),
+                new DocumentChunker()
         );
     }
 
@@ -96,7 +100,8 @@ public class DocumentService {
                 documentValidator,
                 extractionProperties,
                 docxStructureExtractor,
-                new WebPageContentExtractor()
+                new WebPageContentExtractor(),
+                new DocumentChunker()
         );
     }
 
@@ -109,7 +114,8 @@ public class DocumentService {
             DocumentValidator documentValidator,
             DocumentExtractionProperties extractionProperties,
             DocxStructureExtractor docxStructureExtractor,
-            WebPageContentExtractor webPageContentExtractor
+            WebPageContentExtractor webPageContentExtractor,
+            DocumentChunker documentChunker
     ) {
         this.restClient = restClient;
         this.workspaceFileService = workspaceFileService;
@@ -119,6 +125,7 @@ public class DocumentService {
         this.extractionProperties = extractionProperties;
         this.docxStructureExtractor = docxStructureExtractor;
         this.webPageContentExtractor = webPageContentExtractor;
+        this.documentChunker = documentChunker;
     }
 
     public ParsedTextDocument parseTextDocument(String filename, byte[] bytes) throws IOException {
@@ -228,6 +235,14 @@ public class DocumentService {
         return webPageContentExtractor.extract(restClient.get(rawUrl));
     }
 
+    public List<KnowledgeChunk> chunkForKnowledge(ParsedTextDocument document) {
+        return documentChunker.chunk(
+                document.blocks(),
+                document.content(),
+                extractionProperties.maxChunkCharacters()
+        );
+    }
+
     public TextDocumentUploadResponse uploadTextDocument(
             String ownerId,
             String workspaceId,
@@ -254,7 +269,7 @@ public class DocumentService {
                     workspace.id(),
                     document.filename(),
                     null,
-                    document.content(),
+                    chunkForKnowledge(document),
                     new KnowledgeSourceMetadata(
                             workspaceFile.id(),
                             null,
@@ -306,7 +321,7 @@ public class DocumentService {
                 request.workspaceId(),
                 page.title(),
                 null,
-                page.content(),
+                documentChunker.chunkText(page.content(), extractionProperties.maxChunkCharacters()),
                 new KnowledgeSourceMetadata(
                         sourceId,
                         page.url(),
