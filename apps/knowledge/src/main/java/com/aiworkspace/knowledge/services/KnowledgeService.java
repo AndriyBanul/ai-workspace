@@ -1,7 +1,13 @@
 package com.aiworkspace.knowledge.services;
 
+import com.aiworkspace.knowledge.observability.SearchTelemetry;
 import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
+import com.aiworkspace.knowledge.config.KnowledgeQueryExpansionProperties;
+import com.aiworkspace.knowledge.config.KnowledgeRerankingProperties;
+import com.aiworkspace.knowledge.config.KnowledgeSearchProperties;
+import com.aiworkspace.knowledge.interfaces.SearchQueryProvider;
 import com.aiworkspace.knowledge.interfaces.TextEmbeddingProvider;
+import com.aiworkspace.knowledge.interfaces.TextReranker;
 import com.aiworkspace.knowledge.models.KnowledgeChunk;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
@@ -36,7 +42,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class KnowledgeService {
 
-    private static final int RETRIEVAL_LIMIT = 8;
+    private static final int RETRIEVAL_LIMIT = 12;
     private static final int SOURCE_SNIPPET_LENGTH = 500;
     private static final Logger LOGGER = LoggerFactory.getLogger(KnowledgeService.class);
 
@@ -45,7 +51,13 @@ public class KnowledgeService {
     private final WorkspaceService workspaceService;
     private final KnowledgeValidator knowledgeValidator;
     private final TextEmbeddingProvider textEmbeddingProvider;
+    private SearchTelemetry telemetry = SearchTelemetry.NOOP;
     private final KnowledgeEmbeddingProperties embeddingProperties;
+    private final KnowledgeQueryExpansionProperties queryExpansionProperties;
+    private final KnowledgeRerankingProperties rerankingProperties;
+    private final SearchQueryProvider searchQueryProvider;
+    private final KnowledgeSearchProperties searchProperties;
+    private final TextReranker textReranker;
 
     public KnowledgeService(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider) {
         this(
@@ -54,11 +66,15 @@ public class KnowledgeService {
                 null,
                 new KnowledgeValidator(),
                 null,
-                new KnowledgeEmbeddingProperties(false, null, null, null, null, null)
+                new KnowledgeEmbeddingProperties(false, null, null, null, null, null),
+                new KnowledgeSearchProperties(KnowledgeSearchProperties.HYBRID),
+                TextReranker.NONE,
+                KnowledgeRerankingProperties.disabled(),
+                SearchQueryProvider.NONE,
+                KnowledgeQueryExpansionProperties.disabled()
         );
     }
 
-    @Autowired
     public KnowledgeService(
             KnowledgeRepository knowledgeRepository,
             KnowledgeAnswerProvider knowledgeAnswerProvider,
@@ -67,12 +83,64 @@ public class KnowledgeService {
             TextEmbeddingProvider textEmbeddingProvider,
             KnowledgeEmbeddingProperties embeddingProperties
     ) {
+        this(knowledgeRepository, knowledgeAnswerProvider, workspaceService, knowledgeValidator,
+                textEmbeddingProvider, embeddingProperties,
+                new KnowledgeSearchProperties(KnowledgeSearchProperties.HYBRID),
+                TextReranker.NONE, KnowledgeRerankingProperties.disabled(),
+                SearchQueryProvider.NONE, KnowledgeQueryExpansionProperties.disabled());
+    }
+
+    public KnowledgeService(
+            KnowledgeRepository knowledgeRepository,
+            KnowledgeAnswerProvider knowledgeAnswerProvider,
+            WorkspaceService workspaceService,
+            KnowledgeValidator knowledgeValidator,
+            TextEmbeddingProvider textEmbeddingProvider,
+            KnowledgeEmbeddingProperties embeddingProperties,
+            KnowledgeSearchProperties searchProperties
+    ) {
+        this(knowledgeRepository, knowledgeAnswerProvider, workspaceService, knowledgeValidator,
+                textEmbeddingProvider, embeddingProperties, searchProperties,
+                TextReranker.NONE, KnowledgeRerankingProperties.disabled(),
+                SearchQueryProvider.NONE, KnowledgeQueryExpansionProperties.disabled());
+    }
+
+    public KnowledgeService(
+            KnowledgeRepository knowledgeRepository,
+            KnowledgeAnswerProvider knowledgeAnswerProvider,
+            WorkspaceService workspaceService,
+            KnowledgeValidator knowledgeValidator,
+            TextEmbeddingProvider textEmbeddingProvider,
+            KnowledgeEmbeddingProperties embeddingProperties,
+            KnowledgeSearchProperties searchProperties,
+            TextReranker textReranker,
+            KnowledgeRerankingProperties rerankingProperties,
+            SearchQueryProvider searchQueryProvider,
+            KnowledgeQueryExpansionProperties queryExpansionProperties
+    ) {
         this.knowledgeRepository = knowledgeRepository;
         this.knowledgeAnswerProvider = knowledgeAnswerProvider;
         this.workspaceService = workspaceService;
         this.knowledgeValidator = knowledgeValidator;
         this.textEmbeddingProvider = textEmbeddingProvider;
         this.embeddingProperties = embeddingProperties;
+        this.searchProperties = searchProperties;
+        this.textReranker = textReranker;
+        this.rerankingProperties = rerankingProperties;
+        this.searchQueryProvider = searchQueryProvider;
+        this.queryExpansionProperties = queryExpansionProperties;
+    }
+
+    @Autowired
+    public KnowledgeService(KnowledgeRepository repository, KnowledgeAnswerProvider answers,
+            WorkspaceService workspaces, KnowledgeValidator validator, TextEmbeddingProvider embeddings,
+            KnowledgeEmbeddingProperties properties, KnowledgeSearchProperties searchProperties,
+            TextReranker reranker, KnowledgeRerankingProperties rerankingProperties,
+            SearchQueryProvider searchQueryProvider, KnowledgeQueryExpansionProperties queryExpansionProperties,
+            SearchTelemetry telemetry) {
+        this(repository, answers, workspaces, validator, embeddings, properties, searchProperties,
+                reranker, rerankingProperties, searchQueryProvider, queryExpansionProperties);
+        this.telemetry = telemetry;
     }
 
     public Optional<WorkspaceKnowledge> findWorkspaceKnowledge(String workspaceId) throws IOException {
@@ -156,7 +224,8 @@ public class KnowledgeService {
                     null,
                     null,
                     null,
-                    createdAt
+                    createdAt,
+                    chunk.sectionId()
             ));
         }
         List<KnowledgeItem> embeddedItems = withEmbeddings(items);
@@ -196,7 +265,8 @@ public class KnowledgeService {
         knowledgeValidator.validateQuestion(question);
         String trimmedWorkspaceId = workspaceId.trim();
         String trimmedQuestion = question.trim();
-        List<KnowledgeItem> items = retrieve(trimmedWorkspaceId, trimmedQuestion);
+        List<KnowledgeItem> items = knowledgeRepository.expandNeighbors(trimmedWorkspaceId,
+                retrieve(trimmedWorkspaceId, trimmedQuestion));
         if (items.isEmpty()) {
             throw new NoSuchElementException("Workspace knowledge was not found");
         }
@@ -251,32 +321,151 @@ public class KnowledgeService {
 
     private List<KnowledgeItem> retrieve(String workspaceId, String question) throws IOException {
         if (textEmbeddingProvider == null || !textEmbeddingProvider.isConfigured()) {
+            telemetry.fallback("unconfigured");
             return knowledgeRepository.searchKnowledgeItems(workspaceId, question, RETRIEVAL_LIMIT);
         }
 
+        List<String> queries = searchQueries(question);
+        if (queries.size() > 1) {
+            return retrieveExpanded(workspaceId, question, queries);
+        }
+
+        int candidateLimit = rerankingEnabled() ? rerankingProperties.candidateLimit() : RETRIEVAL_LIMIT;
+        List<KnowledgeItem> candidates;
+        String stage = "embedding";
         try {
             List<Float> queryEmbedding = textEmbeddingProvider.embedQuery(question);
-            return knowledgeRepository.searchKnowledgeItems(
-                    workspaceId,
-                    question,
-                    queryEmbedding,
-                    RETRIEVAL_LIMIT,
-                    embeddingProperties.candidateLimit(),
-                    embeddingProperties.rrfRankConstant()
-            );
+            if (searchProperties.vectorOnly()) {
+                stage = "vector_search";
+                candidates = knowledgeRepository.searchKnowledgeItemsByVector(
+                        workspaceId, queryEmbedding, candidateLimit,
+                        Math.max(candidateLimit, embeddingProperties.candidateLimit()));
+            } else {
+                stage = "hybrid_search";
+                candidates = knowledgeRepository.searchKnowledgeItems(
+                        workspaceId,
+                        question,
+                        queryEmbedding,
+                        candidateLimit,
+                        Math.max(candidateLimit, embeddingProperties.candidateLimit()),
+                        embeddingProperties.rrfRankConstant()
+                );
+            }
         } catch (IOException | RuntimeException exception) {
+            telemetry.fallback(stage);
             LOGGER.warn(
-                    "Embedding query failed for workspaceId={} with {}; falling back to lexical retrieval",
+                    "Retrieval fallback stage={} workspaceId={} exception={}",
+                    stage, workspaceId,
+                    exception.getClass().getSimpleName()
+            );
+            return knowledgeRepository.searchKnowledgeItems(workspaceId, question, RETRIEVAL_LIMIT);
+        }
+
+        return rerank(question, candidates);
+    }
+
+    private List<String> searchQueries(String question) {
+        List<String> queries = new ArrayList<>();
+        queries.add(question);
+        if (searchQueryProvider == null
+                || !searchQueryProvider.isConfigured()
+                || !queryExpansionProperties.enabled()) {
+            return List.copyOf(queries);
+        }
+        try {
+            for (String expanded : searchQueryProvider.expand(question, queryExpansionProperties.queryLimit())) {
+                if (expanded != null
+                        && !expanded.isBlank()
+                        && queries.stream().noneMatch(query -> query.equalsIgnoreCase(expanded.trim()))) {
+                    queries.add(expanded.trim());
+                }
+            }
+        } catch (IOException | RuntimeException exception) {
+            telemetry.fallback("query_expansion");
+            LOGGER.warn("Query expansion fallback exception={}", exception.getClass().getSimpleName());
+        }
+        return List.copyOf(queries);
+    }
+
+    private List<KnowledgeItem> retrieveExpanded(String workspaceId, String question, List<String> queries)
+            throws IOException {
+        int mergedLimit = rerankingEnabled() ? rerankingProperties.candidateLimit() : RETRIEVAL_LIMIT;
+        int perQueryLimit = rerankingEnabled() ? rerankingProperties.candidateLimit() : RETRIEVAL_LIMIT;
+        List<List<KnowledgeItem>> rankings = new ArrayList<>();
+        try {
+            for (String query : queries) {
+                List<Float> embedding = textEmbeddingProvider.embedQuery(query);
+                rankings.add(knowledgeRepository.searchKnowledgeItemsByVector(
+                        workspaceId,
+                        embedding,
+                        perQueryLimit,
+                        Math.max(perQueryLimit, embeddingProperties.candidateLimit())
+                ));
+                if (!searchProperties.vectorOnly()) {
+                    rankings.add(knowledgeRepository.searchKnowledgeItems(workspaceId, query, perQueryLimit));
+                }
+            }
+        } catch (IOException | RuntimeException exception) {
+            telemetry.fallback("expanded_search");
+            LOGGER.warn(
+                    "Expanded retrieval fallback workspaceId={} exception={}",
                     workspaceId,
                     exception.getClass().getSimpleName()
             );
             return knowledgeRepository.searchKnowledgeItems(workspaceId, question, RETRIEVAL_LIMIT);
         }
+        return rerank(question, interleave(rankings, mergedLimit));
+    }
+
+    private List<KnowledgeItem> interleave(List<List<KnowledgeItem>> rankings, int limit) {
+        Map<String, KnowledgeItem> merged = new LinkedHashMap<>();
+        int rank = 0;
+        boolean added;
+        do {
+            added = false;
+            for (List<KnowledgeItem> ranking : rankings) {
+                if (rank < ranking.size()) {
+                    KnowledgeItem item = ranking.get(rank);
+                    merged.putIfAbsent(item.id(), item);
+                    added = true;
+                    if (merged.size() == limit) {
+                        return List.copyOf(merged.values());
+                    }
+                }
+            }
+            rank++;
+        } while (added);
+        return List.copyOf(merged.values());
+    }
+
+    private List<KnowledgeItem> rerank(String question, List<KnowledgeItem> candidates) {
+        if (!rerankingEnabled()) {
+            return candidates.stream().limit(RETRIEVAL_LIMIT).toList();
+        }
+        try {
+            return telemetry.measure("search.rerank", () -> textReranker.rerank(
+                    question, candidates, rerankingProperties.resultLimit()));
+        } catch (IOException | RuntimeException exception) {
+            telemetry.fallback("reranking");
+            LOGGER.warn(
+                    "Reranking fallback model={} exception={}",
+                    rerankingProperties.model(),
+                    exception.getClass().getSimpleName()
+            );
+            return candidates.stream().limit(RETRIEVAL_LIMIT).toList();
+        }
+    }
+
+    private boolean rerankingEnabled() {
+        return textReranker != null && textReranker.isConfigured() && rerankingProperties.enabled();
     }
 
     private List<KnowledgeItem> withEmbeddings(List<KnowledgeItem> items) throws IOException {
-        if (textEmbeddingProvider == null || !textEmbeddingProvider.isConfigured()) {
+        if (textEmbeddingProvider == null) {
             return items;
+        }
+        if (!textEmbeddingProvider.isConfigured()) {
+            throw new IllegalStateException("Text embedding provider is not configured");
         }
 
         List<String> inputs = items.stream().map(this::embeddingInput).toList();
@@ -313,7 +502,8 @@ public class KnowledgeService {
                     textEmbeddingProvider.model(),
                     textEmbeddingProvider.dimensions(),
                     sha256(inputs.get(index)),
-                    item.createdAt()
+                    item.createdAt(),
+                    item.sectionId()
             ));
         }
         return List.copyOf(embeddedItems);

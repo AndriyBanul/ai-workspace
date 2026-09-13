@@ -37,3 +37,4 @@ logs/
 # Local runtime data
 data/exports/*
 !data/exports/.gitkeep
+**/data/models/

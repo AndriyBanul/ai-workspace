@@ -9,6 +9,11 @@ public record KnowledgeChunk(
         String heading,
         Integer pageNumber,
         Integer slideNumber,
-        String sheetName
+        String sheetName,
+        String sectionId
 ) {
+    public KnowledgeChunk(int sequence, String content, String heading, Integer pageNumber,
+            Integer slideNumber, String sheetName) {
+        this(sequence, content, heading, pageNumber, slideNumber, sheetName, null);
+    }
 }

@@ -44,31 +44,268 @@ or remote.
 
 ## Current Focus
 
-- No active implementation focus has been recorded in this file yet.
+- Local in-process document and query embeddings with Spring AI are implemented
+  and verified. The changes are intentionally uncommitted until Andrii asks for
+  a commit.
 
 ## Completed
 
 - Added this handoff file so future chats can continue without depending on
   remote compaction.
+- Replaced Gemini embedding generation with Spring AI 2.0.1 and the pinned
+  `intfloat/multilingual-e5-small` ONNX model.
+- Added E5 passage/query prefixes, batching, vector validation, and L2
+  normalization behind `TextEmbeddingProvider`.
+- Changed the vector dimension from 768 to 384 and moved OpenSearch storage to
+  the fresh `knowledge-items-v2` index.
+- Kept ingestion atomic with respect to embedding generation: all vectors are
+  created before a chunk set is indexed. Query embedding failures still fall
+  back to BM25.
+- Added offline application tests and successfully ran the real model on Apple
+  ARM, producing a finite 384-dimensional vector.
+- Aligned Spring Boot from 4.1.0 to 4.1.1 because Spring AI 2.0.1 targets that
+  patch release.
+- Recorded the dependency and architecture decision in ADR 0007.
 
 ## In Progress
 
-- Unknown. Run `git status --short` and inspect relevant diffs before making
-  assumptions.
+- No implementation work remains for local embedding generation. The working
+  tree contains the uncommitted implementation and documentation changes.
 
 ## Open Decisions
 
-- Decide whether any current dirty working-tree changes should be kept,
-  continued, committed, or reverted. Do not revert user changes without explicit
-  instruction.
+- Do not commit or push the local embedding changes unless Andrii explicitly
+  asks.
+- Production sizing should later measure embedding latency, concurrency, CPU,
+  memory, and startup/cache behavior on the deployment host.
 
 ## Verification
 
-- Documentation-only change. No Gradle tests were run for this handoff update.
+- `cd apps && ./gradlew clean test` passed after aligning Spring Boot.
+- `cd apps && ./gradlew :knowledge:test :api:test :api:bootJar` passed after the
+  final dependency placement and `knowledge-items-v2` migration.
+- A standalone smoke test loaded the pinned ONNX model through Spring AI and
+  produced `dimensions=384 finite=true` on macOS ARM.
+- `git diff --check` passed before the final documentation updates.
 
 ## Next Steps
 
-- At the start of future coding sessions, read this file after the standard
-  project instructions.
-- Before long sessions end, update this file with the actual implementation
-  state and next action.
+- Review the local embedding diff with Andrii.
+- Commit and push only when requested.
+
+## OpenSearch integration testing (2026-09-08)
+
+- Step 1 completed: local OpenSearch 3.8.0 runs in Docker on 127.0.0.1:9200
+  with persistent data. Configuration is in infra/docker/opensearch.
+- test.sh creates an isolated cluster on port 19200, runs the tagged Gradle
+  integration suite, and removes test containers/data on exit.
+- Real-server tests exposed and fixed delete-by-query's invalid
+  refresh=wait_for parameter; the request now uses refresh=true.
+- Mapping, bulk indexing, workspace filtering, hybrid/kNN, replacement and
+  deletion checks pass. Normal Gradle tests and bootJar also pass.
+- Retrieval quality evaluation is the next step; observability and reranking
+  have not been started. Changes remain uncommitted.
+
+## Retrieval evaluation (2026-09-08)
+
+- Step 2 implemented: evaluate.sh runs real chunking, local E5 embeddings and
+  OpenSearch against 16 synthetic documents and 24 labelled questions.
+- 54 hybrid configurations and 9 BM25 configurations run on 12 tuning
+  questions; baseline and tuning winner are validated on 12 held-out questions.
+- Baseline held-out hybrid Hit@1/3/8: 75%, 91.7%, 100%; BM25: 58.3%, 91.7%, 91.7%.
+  Candidate count 8 won tuning but did not improve held-out hit rates. Defaults
+  remain unchanged. Detailed findings are in docs/evaluations/retrieval-baseline.md.
+- Made heading weight configurable (default 2). Fixed bulk NDJSON UTF-8 encoding
+  exposed by the German fixture, and added a real-server multilingual check.
+- Step 3 (search observability) is next. Nothing has been committed.
+
+## For-test.txt live test (2026-09-09)
+
+- User steered ongoing observability work to a real-file workspace/answer test.
+  Observability is partially implemented (telemetry and actuator dependency);
+  health/security checks and tests are NOT complete.
+- Found /Users/andriibanul/For-test.txt (Sherlock Holmes anthology).
+- Created a separate ai_workspace_document_test PostgreSQL database in existing
+  riverbank_db container, and launched API on localhost:8080 using Java 25.
+- Registered dedicated test account; credentials and runtime config are stored
+  with mode 0600 under ignored data/exports/sherlock-test. Do not print secrets.
+- Created workspace 70ef2b15-3fcc-4fea-9392-e37a6ae7fddb; uploaded through real API:
+  source b2faa108-93cc-46e0-aa3a-5cf8b5904f8b, 578271 chars, 290 chunks.
+- Prepared 12 questions and checked real hybrid retrieval. Seven factual cases
+  have complete evidence in top eight; one has only surname; two miss.
+- Answer endpoint returns 502 because Gemini key is absent. Asked user for
+  local runtime config path; waiting. Do not claim generated answers passed.
+- Results: data/exports/sherlock-test/report.md, questions.json,
+  retrieved-chunks.json and answer-attempt.json.
+- Build succeeded using --no-daemon -Dhttp.proxyHost= -Dhttps.proxyHost= because
+  an old Gradle daemon pointed to unavailable proxy port 9091.
+
+## Live answer evaluation completed (2026-09-09)
+
+- User provided Gemini key in /Users/andriibanul/gem-api.txt. Never print it.
+  Restarted the owned API process with the key in its environment.
+- All 12 real answer requests returned 200. Ten factual cases: seven complete,
+  one partial (Norton without Godfrey), two misses (encyclopedia copying and
+  fifty-guinea fee). Both deliberately unanswerable cases correctly abstained.
+- All returned source IDs match the previously reviewed retrieval set.
+- Updated ignored data/exports/sherlock-test/report.md with actual answers,
+  expected answers, manual grading and next experiment suggestions.
+- API remains running on localhost:8080 with the test database/account.
+- No commits. Earlier observability implementation remains unfinished.
+
+## User's 20-question benchmark (2026-09-09)
+
+- Submitted all 20 questions verbatim to the same workspace and actual API.
+- All returned HTTP 200. Manual review: 12 broadly correct (some caveats),
+  four incomplete and four failed. Full answers and reference criteria are in
+  ignored data/exports/sherlock-test/benchmark-20-report.md.
+- Raw API results: benchmark-20-answers.json; all 92 unique retrieved chunks:
+  benchmark-20-evidence.json. No retrieval or prompt changes during the run.
+- Main failures: story title and address lookup; St. Clair's original motive;
+  exhaustive marriage/disguise coverage. No commits.
+
+## Sentence chunks and neighboring context (2026-09-09)
+
+- Implemented configurable five-complete-sentence chunks, chapter/section IDs,
+  heading paths and paragraph preservation (including Tika plain-text extraction).
+- No sentence character limit. Oversized embedding inputs use token-safe inference
+  windows, then average and normalize to one vector per stored chunk.
+- Retrieval selects five matches and expands each by one adjacent chunk on either
+  side within the same workspace/source/section, deduplicated (at most 15).
+- Existing sources require reingestion to gain structure metadata. Legacy sources
+  still search but do not receive neighboring context.
+- Full test suite and bootJar pass, including the final paragraph-preservation
+  regression test. Real OpenSearch neighbor-isolation tests pass.
+- Updated synthetic evaluation passes: held-out hybrid Hit@1/3/5 =
+  50%/91.7%/100%, expanded-context hit = 100%. Top-one performance is lower than
+  the old character-chunk baseline (75%); do not claim universal improvement.
+- All changes remain uncommitted. Earlier observability work remains incomplete.
+
+- Corrected live book workspace: 96b4de1c-24e4-4fb0-b14d-9dc9308fb87b;
+  1,397 chunks across 19 detected sections. Earlier temporary comparison
+  workspace fec4baae-2d6d-4bb8-aad2-aaf160fb0eed had flattened paragraphs and is
+  obsolete. Original benchmark workspace remains unchanged.
+- Live oversized-sentence test: 7,507 characters preserved exactly in one chunk,
+  with one 384-dimensional vector. Separate test workspace
+  49647080-9a5b-4ec6-8223-d8c16ac922ba.
+- Repeated all 20 real book questions: HTTP 200 throughout; manual review 7
+  broadly correct, 5 incomplete, 8 failed, versus earlier 12/4/4. Results in
+  ignored data/exports/sherlock-sentence-test/benchmark-20-report.md. Do not claim
+  retrieval quality improved overall; distant resolutions and broad coverage
+  remain weak. No additional tuning performed beyond the requested design.
+
+## Twelve matches plus following chunk (2026-09-09)
+
+- User requested 12 seed matches and only the next chunk, replacing five seeds
+  with both neighbors. Retrieval now returns up to 24 deduplicated evidence
+  chunks, preserving workspace/source/section restrictions. Chunking, vectors,
+  ranking settings and the indexed book are unchanged.
+- Full Gradle tests and bootJar pass. Five real OpenSearch tests pass, including
+  following-only expansion, isolation, overlap deduplication and 12-to-24
+  expansion. API restarted with the new build.
+- Benchmark results are saved separately under ignored
+  data/exports/sherlock-twelve-next-test; earlier comparison is preserved.
+- No commit or push. Earlier observability work remains incomplete.
+
+## Vector-only retrieval experiment (2026-09-09)
+
+- Added `KNOWLEDGE_SEARCH_MODE=VECTOR` and a repository vector-only path. The
+  mode embeds the question, runs only OpenSearch kNN with the workspace filter,
+  takes the top 12 results from 32 candidates, then applies the existing
+  following-chunk expansion. `HYBRID` remains the default.
+- Unit tests, full Gradle tests, bootJar, and real OpenSearch integration tests
+  pass. The vector-only API benchmark completed all 20 questions with HTTP 200.
+- Manual review of the same book benchmark: 14 broadly correct, 5 incomplete,
+  1 failed. Hybrid was 12 broadly correct, 5 incomplete, 3 failed. This is a
+  single manually reviewed run, not a quality guarantee. Vector-only improved
+  exact retrieval cases such as Holmes's address, Wilson's motive, and the
+  orange pips, but still missed Julia Stoner's resolution and broad exhaustive
+  coverage. Results are in ignored data/exports/sherlock-twelve-next-test/
+  benchmark-vector-20-answers.json.
+- The local API is currently running with `KNOWLEDGE_SEARCH_MODE=VECTOR` for
+  inspection. No commit or push was performed.
+- Completed all 20 real questions: HTTP 200 throughout; manual review 12 broadly
+  correct, 5 incomplete, 3 failed (previous 7/5/8). Recovered carbuncle discovery,
+  St. Clair identity and both comparison subjects. Still misses address and two
+  motives; exhaustive story coverage remains incomplete. Report and retrieved
+  evidence saved in the new benchmark directory. Maximum evidence count is 24.
+
+## 768-dimensional embedding migration (2026-09-10)
+
+- Replaced the default `intfloat/multilingual-e5-small` model with the pinned
+  `intfloat/multilingual-e5-base` ONNX model and changed the configured vector
+  dimension from 384 to 768.
+- Moved current storage to `knowledge-items-v3`; OpenSearch vector dimensions
+  cannot be changed in place. The old v2 index remains available only for local
+  comparison.
+- Full Gradle tests and `:api:bootJar` pass. The isolated real OpenSearch suite
+  passes against the v3 index. A real v3 record was verified to contain 768
+  numbers and the expected model identifier.
+- Re-ingested the 580,876-character `For-test.txt` source into workspace
+  `57b7463c-7e07-4850-b6c4-040bdbba2ed9`: 1,397 chunks across the same structural
+  chunking scheme. The API used roughly 2.8 GB RSS during ingestion.
+- Repeated the 20-question vector-only benchmark with unchanged retrieval and
+  answer settings. All requests returned HTTP 200 in 110.57 seconds. Manual
+  review: 16 correct, 3 incomplete, and 1 failed, compared with 14/4/2 for the
+  final 384-dimensional rank-preserving run. Julia Stoner improved from a miss
+  to a partial answer and the disguise answer expanded from one case to four.
+  The exact `221B, Baker Street` lookup still failed, and exhaustive questions
+  remain incomplete.
+- Raw results are ignored runtime artifacts under
+  `data/exports/sherlock-768-test/benchmark-20-answers.json`. The implementation
+  and documentation remain uncommitted until Andrii asks for a commit.
+
+## Full-context answer instruction (2026-09-10)
+
+- Strengthened the Gemini knowledge-answer prompt after the Julia Stoner
+  benchmark retrieved the resolution but omitted it from the generated answer.
+- The model must review every supplied chunk before deciding, combine evidence
+  from later and nonadjacent chunks, resolve supported implicit references, and
+  include an available outcome or explanation for what/why/how questions.
+- Added a focused request-body test; `:knowledge:test` and `:api:bootJar` pass.
+- Restarted the vector-only local API and repeated the Julia Stoner question
+  against exactly the same 21 chunks. The answer now combines her death before
+  the wedding with the later evidence that she was a victim of the speckled-band
+  snake. The result is stored in the ignored
+  `data/exports/sherlock-768-test/question-9-after-prompt.json` artifact.
+- Changes remain uncommitted.
+
+## Full 20-question rerun after answer prompt change (2026-09-10)
+
+- Repeated all 20 questions against the same 768-dimensional vector-only index.
+  Every question returned exactly the same ordered chunk IDs as the preceding
+  run, isolating the Gemini prompt as the changed variable.
+- All requests returned HTTP 200 in 136.98 seconds. Manual review: 17 correct,
+  3 incomplete, and 0 failed, compared with 16/3/1 before the prompt change.
+- Question 8 improved from abstention to `Baker Street` but still lacks `221B`
+  because chunk 709 was not retrieved. Question 9 now combines Julia Stoner's
+  death with the later snake resolution. Questions 18 and 20 remain incomplete
+  because retrieval lacks exhaustive cross-story coverage; question 20 listed
+  only two cases on this run, illustrating answer-model variability.
+- Raw results and the report are ignored artifacts under
+  `data/exports/sherlock-768-test/benchmark-20-answers-after-prompt.json` and
+  `benchmark-20-report-after-prompt.md`. No commit was made.
+
+## Query expansion and reranker evaluation (2026-09-10)
+
+- Added an optional local ONNX cross-encoder reranker and tested it with a
+  contextual-embedding re-ingestion. The reranker worked technically, but the
+  real 20-question run regressed to approximately 13 correct, 5 incomplete,
+  and 2 failed, while increasing ingestion memory to roughly 4.8 GB. It is
+  therefore disabled by default (`KNOWLEDGE_RERANKING_ENABLED=false`).
+- Added Gemini query expansion before retrieval. The answer model proposes up
+  to two concrete search formulations; the service embeds and searches the
+  original plus expanded queries, interleaves deduplicated vector/BM25 hits,
+  and keeps the existing answer prompt and fallback behavior.
+- Re-ran all 20 questions against the unchanged 768-dimensional workspace with
+  reranking disabled and query expansion enabled. All requests returned HTTP
+  200 in 183.09 seconds (9.15 seconds average). Manual review is approximately
+  18 correct, 2 incomplete, and 0 failed. Query 8 now returns the exact
+  `221B, Baker Street` address; queries 6, 9, 10, 12, and 16 also include the
+  previously missing resolution or causal detail. Exhaustive aggregation in
+  queries 18 and 20 remains incomplete, and query 14 is correct but less
+  explicit about the discovery sequence.
+- Raw results are ignored under
+  `data/exports/sherlock-768-test/benchmark-20-answers-query-expansion.json`.
+  The implementation and documentation remain uncommitted until Andrii asks
+  for a commit.

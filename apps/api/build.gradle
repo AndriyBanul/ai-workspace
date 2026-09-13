@@ -1,6 +1,6 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '4.1.0'
+	id 'org.springframework.boot' version '4.1.1'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -30,7 +30,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-flyway'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.ai:spring-ai-starter-model-transformers:2.0.1'
 	implementation 'org.flywaydb:flyway-database-postgresql'
 	implementation 'com.fasterxml.jackson.core:jackson-databind'
 	runtimeOnly 'org.postgresql:postgresql'
@@ -40,5 +42,18 @@ dependencies {
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+	useJUnitPlatform { excludeTags 'retrieval-evaluation' }
+}
+
+
+tasks.register('retrievalEvaluation', Test) {
+    description = 'Evaluates real chunking, local embeddings and OpenSearch retrieval.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform { includeTags 'retrieval-evaluation' }
+    maxHeapSize = '2g'
+    systemProperty 'evaluation.applicationProperties', file('src/main/resources/application.properties').absolutePath
+    systemProperty 'evaluation.output', layout.buildDirectory.dir('reports/retrieval').get().asFile.absolutePath
+    outputs.upToDateWhen { false }
 }

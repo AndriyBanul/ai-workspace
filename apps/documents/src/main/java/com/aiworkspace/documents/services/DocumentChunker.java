@@ -3,175 +3,142 @@ package com.aiworkspace.documents.services;
 import com.aiworkspace.documents.models.DocumentBlockType;
 import com.aiworkspace.documents.models.DocumentTextBlock;
 import com.aiworkspace.knowledge.models.KnowledgeChunk;
+import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import org.springframework.stereotype.Component;
 
 @Component
 public class DocumentChunker {
 
-    public List<KnowledgeChunk> chunk(List<DocumentTextBlock> blocks, String fallbackContent, int maxCharacters) {
-        if (maxCharacters <= 0) {
-            throw new IllegalArgumentException("Maximum chunk characters must be positive");
+    public List<KnowledgeChunk> chunk(List<DocumentTextBlock> blocks, String fallbackContent, int maxSentences) {
+        if (maxSentences <= 0) {
+            throw new IllegalArgumentException("Maximum chunk sentences must be positive");
         }
         if (blocks == null || blocks.isEmpty()) {
-            return chunkText(fallbackContent, maxCharacters);
+            return chunkText(fallbackContent, maxSentences);
         }
-
         List<KnowledgeChunk> chunks = new ArrayList<>();
-        ChunkBuilder current = null;
+        Builder current = null;
         String heading = null;
-
-        for (DocumentTextBlock block : blocks) {
-            if (block == null || block.text() == null || block.text().isBlank()) {
+        var headingPath = new ArrayList<String>();
+        int section = 0;
+        var paragraphs = new ArrayList<DocumentTextBlock>();
+        for (var original : blocks) {
+            if (original == null || original.text() == null) continue;
+            for (String part : original.text().split("\\R\\s*\\R")) {
+                paragraphs.add(new DocumentTextBlock(original.sequence(), original.type(), part,
+                        original.pageNumber(), original.slideNumber(), original.sheetName()));
+            }
+        }
+        for (var block : paragraphs) {
+            if (block == null || block.text() == null || block.text().isBlank()) continue;
+            String text = block.text().trim();
+            if (block.type() == DocumentBlockType.HEADING || isPlainTextHeading(text)) {
+                if (current != null) current.flush(chunks);
+                int level = headingLevel(text);
+                while (headingPath.size() >= level) headingPath.removeLast();
+                headingPath.add(text);
+                heading = String.join(" > ", headingPath);
+                section++;
+                current = new Builder(heading, Integer.toString(section), block);
                 continue;
             }
-
-            String blockText = block.text().trim();
-            if (block.type() == DocumentBlockType.HEADING) {
-                if (current != null && !current.isEmpty()) {
-                    chunks.add(current.build(chunks.size() + 1));
-                }
-                heading = blockText;
-                current = new ChunkBuilder(heading, block.pageNumber(), block.slideNumber(), block.sheetName());
-                current = append(chunks, current, "# " + blockText, maxCharacters);
-                continue;
-            }
-
             if (current == null || !current.sameLocation(block)) {
-                if (current != null && !current.isEmpty()) {
-                    chunks.add(current.build(chunks.size() + 1));
-                }
-                current = new ChunkBuilder(heading, block.pageNumber(), block.slideNumber(), block.sheetName());
+                if (current != null) current.flush(chunks);
+                current = new Builder(heading, Integer.toString(section), block);
             }
-            current = append(chunks, current, blockText, maxCharacters);
+            boolean firstInParagraph = true;
+            for (String sentence : sentences(text)) {
+                if (current.sentences == maxSentences) current.flush(chunks);
+                current.append(sentence, firstInParagraph);
+                firstInParagraph = false;
+            }
         }
-
-        if (current != null && !current.isEmpty()) {
-            chunks.add(current.build(chunks.size() + 1));
-        }
+        if (current != null) current.flush(chunks);
         return List.copyOf(chunks);
     }
 
-    public List<KnowledgeChunk> chunkText(String content, int maxCharacters) {
-        if (content == null || content.isBlank()) {
-            return List.of();
-        }
-
-        List<DocumentTextBlock> blocks = new ArrayList<>();
-        int sequence = 0;
+    public List<KnowledgeChunk> chunkText(String content, int maxSentences) {
+        if (maxSentences <= 0) throw new IllegalArgumentException("Maximum chunk sentences must be positive");
+        if (content == null || content.isBlank()) return List.of();
+        var blocks = new ArrayList<DocumentTextBlock>();
         for (String paragraph : content.split("\\R\\s*\\R")) {
-            if (!paragraph.isBlank()) {
-                blocks.add(new DocumentTextBlock(
-                        ++sequence,
-                        DocumentBlockType.PARAGRAPH,
-                        paragraph.trim(),
-                        null,
-                        null,
-                        null
-                ));
-            }
+            if (!paragraph.isBlank()) blocks.add(new DocumentTextBlock(blocks.size() + 1,
+                    DocumentBlockType.PARAGRAPH, paragraph.trim(), null, null, null));
         }
-        return chunk(blocks, content, maxCharacters);
+        return chunk(blocks, content, maxSentences);
     }
 
-    private ChunkBuilder append(
-            List<KnowledgeChunk> chunks,
-            ChunkBuilder current,
-            String text,
-            int maxCharacters
-    ) {
-        String remaining = text;
-        while (!remaining.isEmpty()) {
-            int separatorLength = current.isEmpty() ? 0 : 2;
-            int available = maxCharacters - current.length() - separatorLength;
-            if (available <= 0) {
-                chunks.add(current.build(chunks.size() + 1));
-                current = current.next();
-                continue;
-            }
-
-            if (remaining.length() <= available) {
-                current.append(remaining);
-                break;
-            }
-
-            int splitAt = splitAt(remaining, available);
-            if (splitAt == 0 && !current.isEmpty()) {
-                chunks.add(current.build(chunks.size() + 1));
-                current = current.next();
-                continue;
-            }
-            if (splitAt == 0) {
-                splitAt = Math.min(remaining.length(), maxCharacters);
-            }
-            current.append(remaining.substring(0, splitAt).trim());
-            chunks.add(current.build(chunks.size() + 1));
-            current = current.next();
-            remaining = remaining.substring(splitAt).trim();
+    private List<String> sentences(String text) {
+        var iterator = BreakIterator.getSentenceInstance(Locale.ENGLISH);
+        iterator.setText(text);
+        var result = new ArrayList<String>();
+        var pending = new StringBuilder();
+        int start = iterator.first();
+        for (int end = iterator.next(); end != BreakIterator.DONE; start = end, end = iterator.next()) {
+            pending.append(text, start, end);
+            if (pending.toString().trim().matches("(?s).*(?:\\b(?:Mr|Mrs|Ms|Dr|Prof|St)|\\b[A-Z])\\.$")) continue;
+            if (!pending.toString().isBlank()) result.add(pending.toString().trim());
+            pending.setLength(0);
         }
-        return current;
+        if (!pending.toString().isBlank()) result.add(pending.toString().trim());
+        return result;
     }
 
-    private int splitAt(String value, int maximum) {
-        if (maximum <= 0) {
-            return 0;
+    private int headingLevel(String text) {
+        if (text.startsWith("#")) {
+            int level = 0;
+            while (level < text.length() && text.charAt(level) == '#') level++;
+            return Math.min(6, level);
         }
-        int candidate = Math.min(value.length(), maximum);
-        if (candidate == value.length()) {
-            return candidate;
-        }
-        for (int index = candidate; index > Math.max(0, candidate / 2); index--) {
-            if (Character.isWhitespace(value.charAt(index - 1))) {
-                return index;
-            }
-        }
-        return candidate;
+        if (text.matches("^[IVXLCDM]+\\.$") || text.matches("(?i)^section\\s+.*")) return 2;
+        return 1;
     }
 
-    private static final class ChunkBuilder {
+    private boolean isPlainTextHeading(String text) {
+        // Conservative markers only; arbitrary short paragraphs are not headings.
+        return text.matches("^[IVXLCDM]+\\.$")
+                || text.matches("(?s)^#{1,6}\\s+[^\\r\\n]+$")
+                || text.matches("(?iu)^(chapter|section|part)\\s+[\\p{L}\\d]+(?:[.: —-].*)?$")
+                || text.matches("^[IVXLCDM]+\\. [A-Z][A-Z ’'—-]+$");
+    }
 
+    private static final class Builder {
         private final String heading;
-        private final Integer pageNumber;
-        private final Integer slideNumber;
-        private final String sheetName;
+        private final String sectionId;
+        private final DocumentTextBlock location;
         private final StringBuilder content = new StringBuilder();
+        private int sentences;
+        private boolean emitted;
 
-        private ChunkBuilder(String heading, Integer pageNumber, Integer slideNumber, String sheetName) {
+        private Builder(String heading, String sectionId, DocumentTextBlock location) {
             this.heading = heading;
-            this.pageNumber = pageNumber;
-            this.slideNumber = slideNumber;
-            this.sheetName = sheetName;
+            this.sectionId = sectionId;
+            this.location = location;
         }
-
         private boolean sameLocation(DocumentTextBlock block) {
-            return Objects.equals(pageNumber, block.pageNumber())
-                    && Objects.equals(slideNumber, block.slideNumber())
-                    && Objects.equals(sheetName, block.sheetName());
+            return Objects.equals(location.pageNumber(), block.pageNumber())
+                    && Objects.equals(location.slideNumber(), block.slideNumber())
+                    && Objects.equals(location.sheetName(), block.sheetName());
         }
-
-        private void append(String value) {
-            if (!content.isEmpty()) {
-                content.append("\n\n");
+        private void append(String sentence, boolean paragraphStart) {
+            if (!content.isEmpty()) content.append(paragraphStart ? "\n\n" : " ");
+            content.append(sentence);
+            sentences++;
+        }
+        private void flush(List<KnowledgeChunk> chunks) {
+            if (content.isEmpty()) {
+                if (emitted || heading == null) return;
+                content.append(heading);
             }
-            content.append(value);
-        }
-
-        private int length() {
-            return content.length();
-        }
-
-        private boolean isEmpty() {
-            return content.isEmpty();
-        }
-
-        private ChunkBuilder next() {
-            return new ChunkBuilder(heading, pageNumber, slideNumber, sheetName);
-        }
-
-        private KnowledgeChunk build(int sequence) {
-            return new KnowledgeChunk(sequence, content.toString(), heading, pageNumber, slideNumber, sheetName);
+            emitted = true;
+            chunks.add(new KnowledgeChunk(chunks.size() + 1, content.toString(), heading,
+                    location.pageNumber(), location.slideNumber(), location.sheetName(), sectionId));
+            content.setLength(0);
+            sentences = 0;
         }
     }
 }

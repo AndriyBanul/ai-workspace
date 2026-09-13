@@ -52,6 +52,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DocumentServiceTest {
 
     @Test
+    void preservesPlainTextParagraphsAndChaptersBeforeChunking() throws IOException {
+        var service = new DocumentService(new TestRestClient());
+        var document = service.parseTextDocument("book.txt",
+                "I. FIRST STORY\n\nFirst sentence.\n\nSecond paragraph.\n\nII. SECOND STORY\n\nAnother sentence."
+                        .getBytes(StandardCharsets.UTF_8));
+        var chunks = service.chunkForKnowledge(document);
+        assertEquals(2, chunks.size());
+        assertEquals("I. FIRST STORY", chunks.getFirst().heading());
+        assertTrue(chunks.getFirst().content().contains("First sentence.\n\nSecond paragraph."));
+        assertEquals("II. SECOND STORY", chunks.getLast().heading());
+        assertTrue(!chunks.getFirst().sectionId().equals(chunks.getLast().sectionId()));
+    }
+
+    @Test
     void parsesUtf8TextDocumentAndRemovesBom() throws IOException {
         DocumentService service = new DocumentService(new TestRestClient());
 
@@ -500,7 +514,7 @@ class DocumentServiceTest {
         assertEquals(response.sourceId(), knowledgeService.sourceMetadata.sourceId());
         assertEquals("https://example.com/large", knowledgeService.sourceMetadata.sourceUrl());
         assertEquals(content, knowledgeService.content);
-        assertTrue(knowledgeService.chunkCount > 1);
+        assertEquals(1, knowledgeService.chunkCount);
     }
 
     private static class TestRestClient extends GenericRestClient {

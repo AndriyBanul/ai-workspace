@@ -1,0 +1,21 @@
+name: ai-workspace-search
+services:
+  opensearch:
+    image: opensearchproject/opensearch:3.8.0
+    environment:
+      discovery.type: single-node
+      cluster.name: ai-workspace-local
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - search-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s'"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+volumes:
+  search-data:

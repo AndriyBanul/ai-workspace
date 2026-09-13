@@ -1,5 +1,6 @@
 package com.aiworkspace.knowledge.client;
 
+import com.aiworkspace.knowledge.observability.SearchTelemetry;
 import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
@@ -11,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -29,12 +31,14 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public class OpenSearchKnowledgeClient implements KnowledgeRepository {
 
-    private static final String KNOWLEDGE_ITEMS_INDEX = "knowledge-items";
+    private static final String KNOWLEDGE_ITEMS_INDEX = "knowledge-items-v3";
 
     private final URI baseUri;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
+    private SearchTelemetry telemetry = SearchTelemetry.NOOP;
     private final KnowledgeEmbeddingProperties embeddingProperties;
+    private final int headingWeight;
     private volatile boolean knowledgeItemsIndexChecked;
 
     @Autowired
@@ -42,14 +46,18 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
             @Value("${ai-workspace.opensearch.base-url:http://localhost:9200}") String baseUrl,
             RestClient restClient,
             ObjectMapper objectMapper,
-            KnowledgeEmbeddingProperties embeddingProperties
+            KnowledgeEmbeddingProperties embeddingProperties,
+            @Value("${ai-workspace.knowledge.search.heading-weight:2}") int headingWeight,
+            SearchTelemetry telemetry
     ) {
         this(
                 URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
                 restClient,
                 objectMapper,
-                embeddingProperties
+                embeddingProperties,
+                headingWeight
         );
+        this.telemetry = telemetry;
     }
 
     OpenSearchKnowledgeClient(URI baseUri, RestClient restClient, ObjectMapper objectMapper) {
@@ -62,6 +70,17 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
             ObjectMapper objectMapper,
             KnowledgeEmbeddingProperties embeddingProperties
     ) {
+        this(baseUri, restClient, objectMapper, embeddingProperties, 2);
+    }
+
+    OpenSearchKnowledgeClient(
+            URI baseUri, RestClient restClient, ObjectMapper objectMapper,
+            KnowledgeEmbeddingProperties embeddingProperties, int headingWeight
+    ) {
+        if (headingWeight <= 0) {
+            throw new IllegalArgumentException("Heading weight must be positive");
+        }
+        this.headingWeight = headingWeight;
         this.baseUri = baseUri;
         this.restClient = restClient;
         this.objectMapper = objectMapper;
@@ -110,7 +129,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         bool.put("filter", List.of(Map.of("term", Map.of("workspaceId", workspaceId))));
         bool.put("must", List.of(Map.of("multi_match", Map.of(
                 "query", query,
-                "fields", List.of("content", "heading^2")
+                "fields", List.of("content", "heading^" + headingWeight)
         ))));
 
         Map<String, Object> request = new LinkedHashMap<>();
@@ -118,7 +137,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         request.put("_source", Map.of("excludes", List.of("embedding")));
         request.put("query", Map.of("bool", bool));
 
-        return searchItems(request, "Failed to search workspace knowledge items");
+        return telemetry.measure("search.bm25", () -> searchItems(request, "Failed to search workspace knowledge items"));
     }
 
     @Override
@@ -135,22 +154,95 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         int effectiveCandidateLimit = Math.max(limit, candidateLimit);
 
         List<KnowledgeItem> lexicalResults = searchKnowledgeItems(workspaceId, query, effectiveCandidateLimit);
+        List<KnowledgeItem> vectorResults = searchVectorCandidates(
+                workspaceId, queryEmbedding, effectiveCandidateLimit, effectiveCandidateLimit);
+
+        return reciprocalRankFusion(lexicalResults, vectorResults, limit, rrfRankConstant);
+    }
+
+    @Override
+    public List<KnowledgeItem> searchKnowledgeItemsByVector(
+            String workspaceId,
+            List<Float> queryEmbedding,
+            int limit,
+            int candidateLimit
+    ) throws IOException {
+        int effectiveCandidateLimit = Math.max(limit, candidateLimit);
+        return searchVectorCandidates(workspaceId, queryEmbedding, effectiveCandidateLimit, limit);
+    }
+
+    private List<KnowledgeItem> searchVectorCandidates(
+            String workspaceId,
+            List<Float> queryEmbedding,
+            int candidateLimit,
+            int resultLimit
+    ) throws IOException {
+        ensureKnowledgeItemsIndex();
+        validateQueryEmbedding(queryEmbedding);
+
         Map<String, Object> knn = new LinkedHashMap<>();
         knn.put("vector", queryEmbedding);
-        knn.put("k", effectiveCandidateLimit);
+        knn.put("k", candidateLimit);
         knn.put("filter", Map.of("term", Map.of("workspaceId", workspaceId)));
 
         Map<String, Object> request = new LinkedHashMap<>();
-        request.put("size", effectiveCandidateLimit);
+        request.put("size", candidateLimit);
         request.put("_source", Map.of("excludes", List.of("embedding")));
         request.put("query", Map.of("knn", Map.of("embedding", knn)));
-        List<KnowledgeItem> vectorResults = searchItems(
-                request,
-                vectorKnowledgeItemsSearchUri(),
-                "Failed to run vector search"
-        );
+        return telemetry.measure("search.vector", () -> searchItems(
+                request, vectorKnowledgeItemsSearchUri(), "Failed to run vector search"))
+                .stream()
+                .limit(resultLimit)
+                .toList();
+    }
 
-        return reciprocalRankFusion(lexicalResults, vectorResults, limit, rrfRankConstant);
+    @Override
+    public List<KnowledgeItem> expandNeighbors(String workspaceId, List<KnowledgeItem> matches) throws IOException {
+        if (matches.size() > 12) throw new IllegalArgumentException("At most twelve search matches can be expanded");
+        if (matches.isEmpty()) return List.of();
+        var clauses = new ArrayList<Map<String, Object>>();
+        var result = new LinkedHashMap<String, KnowledgeItem>();
+        for (var match : matches) {
+            if (!workspaceId.equals(match.workspaceId())) throw new IllegalArgumentException("Workspace mismatch");
+            result.put(match.id(), match);
+            // Legacy/non-document items have no trustworthy section boundaries.
+            if (match.sourceId() == null || match.sectionId() == null || match.chunkSequence() == null) continue;
+            clauses.add(Map.of("bool", Map.of("filter", List.of(
+                    Map.of("term", Map.of("sourceId", match.sourceId())),
+                    Map.of("term", Map.of("sectionId", match.sectionId())),
+                    Map.of("range", Map.of("chunkSequence", Map.of(
+                            "gte", match.chunkSequence(), "lte", match.chunkSequence() + 1)))
+            ))));
+        }
+        if (!clauses.isEmpty()) {
+            ensureKnowledgeItemsIndex();
+            var request = new LinkedHashMap<String, Object>();
+            request.put("size", 24);
+            request.put("_source", Map.of("excludes", List.of("embedding")));
+            request.put("query", Map.of("bool", Map.of(
+                    "filter", List.of(Map.of("term", Map.of("workspaceId", workspaceId))),
+                    "should", clauses, "minimum_should_match", 1)));
+            var neighborsByKey = new LinkedHashMap<String, KnowledgeItem>();
+            for (var item : searchItems(request, "Failed to fetch neighboring chunks")) {
+                if (item.sourceId() != null && item.sectionId() != null && item.chunkSequence() != null) {
+                    neighborsByKey.put(neighborKey(item.sourceId(), item.sectionId(), item.chunkSequence()), item);
+                }
+            }
+            result.clear();
+            for (var match : matches) {
+                result.put(match.id(), match);
+                if (match.sourceId() != null && match.sectionId() != null && match.chunkSequence() != null) {
+                    var following = neighborsByKey.get(neighborKey(
+                            match.sourceId(), match.sectionId(), match.chunkSequence() + 1));
+                    if (following != null) result.put(following.id(), following);
+                }
+            }
+        }
+        return List.copyOf(result.values());
+    }
+
+    private String neighborKey(String sourceId, String sectionId, int chunkSequence) {
+        return sourceId + "\u0000" + sectionId + "\u0000" + chunkSequence;
     }
 
     @Override
@@ -178,7 +270,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
             ResponseEntity<String> response = restClient.post()
                     .uri(knowledgeItemsBulkUri())
                     .contentType(MediaType.parseMediaType("application/x-ndjson"))
-                    .body(body.toString())
+                    .body(body.toString().getBytes(StandardCharsets.UTF_8))
                     .retrieve()
                     .toEntity(String.class);
             JsonNode responseBody = objectMapper.readTree(response.getBody() == null ? "{}" : response.getBody());
@@ -280,6 +372,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         document.put("parserVersion", item.parserVersion());
         document.put("chunkId", item.chunkId());
         document.put("chunkSequence", item.chunkSequence());
+        document.put("sectionId", item.sectionId());
         document.put("heading", item.heading());
         document.put("pageNumber", item.pageNumber());
         document.put("slideNumber", item.slideNumber());
@@ -381,6 +474,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         properties.put("parserVersion", Map.of("type", "keyword"));
         properties.put("chunkId", Map.of("type", "keyword"));
         properties.put("chunkSequence", Map.of("type", "integer"));
+        properties.put("sectionId", Map.of("type", "keyword"));
         properties.put("heading", Map.of("type", "text"));
         properties.put("pageNumber", Map.of("type", "integer"));
         properties.put("slideNumber", Map.of("type", "integer"));
@@ -441,6 +535,9 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
             for (JsonNode hit : hits) {
                 try {
                     KnowledgeItem item = itemFrom(hit.path("_source"), hit.path("_id").asText());
+                    org.slf4j.LoggerFactory.getLogger(OpenSearchKnowledgeClient.class).debug(
+                            "retrieval_candidate workspaceId={} chunkId={} score={}",
+                            item.workspaceId(), item.id(), hit.path("_score").asDouble());
                     items.putIfAbsent(item.id(), item);
                 } catch (RuntimeException exception) {
                     throw openSearchInvalidResponseException(errorMessage, exception);
@@ -495,7 +592,8 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
                 textValue(source, "embeddingModel", null),
                 integerValue(source, "embeddingDimensions"),
                 textValue(source, "contentHash", null),
-                Instant.parse(textValue(source, "createdAt", Instant.EPOCH.toString()))
+                Instant.parse(textValue(source, "createdAt", Instant.EPOCH.toString())),
+                textValue(source, "sectionId", null)
         );
     }
 
@@ -615,7 +713,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
 
     private URI knowledgeItemsDeleteByQueryUri() {
         return URI.create(baseUri + "/" + KNOWLEDGE_ITEMS_INDEX
-                + "/_delete_by_query?refresh=wait_for&conflicts=proceed");
+                + "/_delete_by_query?refresh=true&conflicts=proceed");
     }
 
     private UpstreamServiceException openSearchResponseException(String message, RestClientResponseException exception) {

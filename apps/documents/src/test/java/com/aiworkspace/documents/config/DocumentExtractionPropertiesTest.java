@@ -17,18 +17,18 @@ class DocumentExtractionPropertiesTest {
         assertEquals(10_000, properties.maxExtractedBlocks());
         assertEquals(64L * 1024 * 1024, properties.maxPdfMainMemoryBytes());
         assertFalse(properties.extractEmbeddedDocuments());
-        assertEquals(2_000, properties.maxChunkCharacters());
+        assertEquals(5, properties.maxChunkSentences());
     }
 
     @Test
     void preservesConfiguredValues() {
-        DocumentExtractionProperties properties = new DocumentExtractionProperties(25_000, 250, 8_000_000L, true, 750);
+        DocumentExtractionProperties properties = new DocumentExtractionProperties(25_000, 250, 8_000_000L, true, 3);
 
         assertEquals(25_000, properties.maxExtractedCharacters());
         assertEquals(250, properties.maxExtractedBlocks());
         assertEquals(8_000_000L, properties.maxPdfMainMemoryBytes());
         assertTrue(properties.extractEmbeddedDocuments());
-        assertEquals(750, properties.maxChunkCharacters());
+        assertEquals(3, properties.maxChunkSentences());
     }
 
     @Test
@@ -68,6 +68,6 @@ class DocumentExtractionPropertiesTest {
                 () -> new DocumentExtractionProperties(null, null, null, null, 0)
         );
 
-        assertEquals("Document extraction max chunk characters must be positive", exception.getMessage());
+        assertEquals("Document extraction max chunk sentences must be positive", exception.getMessage());
     }
 }

@@ -1,7 +1,12 @@
 package com.aiworkspace.knowledge.services;
 
 import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
+import com.aiworkspace.knowledge.config.KnowledgeQueryExpansionProperties;
+import com.aiworkspace.knowledge.config.KnowledgeRerankingProperties;
+import com.aiworkspace.knowledge.config.KnowledgeSearchProperties;
+import com.aiworkspace.knowledge.interfaces.SearchQueryProvider;
 import com.aiworkspace.knowledge.interfaces.TextEmbeddingProvider;
+import com.aiworkspace.knowledge.interfaces.TextReranker;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeChunk;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
@@ -20,6 +25,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class KnowledgeServiceTest {
 
@@ -345,6 +351,124 @@ class KnowledgeServiceTest {
         assertEquals(60, repository.rrfRankConstant);
     }
 
+    @Test
+    void usesVectorOnlyRetrievalWhenConfigured() throws IOException {
+        CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
+        repository.searchResults = List.of(KnowledgeItem.builder()
+                .id("item-1")
+                .workspaceId("workspace-1")
+                .sourceType(KnowledgeSourceType.DOCUMENT)
+                .content("Vector result")
+                .createdAt(Instant.now())
+                .build());
+        KnowledgeService service = new KnowledgeService(
+                repository,
+                new CapturingKnowledgeAnswerProvider(),
+                null,
+                new KnowledgeValidator(),
+                new FixedTextEmbeddingProvider(),
+                new KnowledgeEmbeddingProperties(true, "test-embedding-model", 3, 32, 32, 60),
+                new KnowledgeSearchProperties(KnowledgeSearchProperties.VECTOR)
+        );
+
+        service.answerWorkspaceQuestion("workspace-1", "What grew?");
+
+        assertTrue(repository.vectorOnly);
+        assertEquals(32, repository.vectorCandidateLimit);
+    }
+
+    @Test
+    void retrievesOneHundredCandidatesAndReranksToTwelve() throws IOException {
+        CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
+        repository.searchResults = List.of(
+                item("first", "First candidate"),
+                item("second", "Second candidate")
+        );
+        CapturingTextReranker reranker = new CapturingTextReranker();
+        KnowledgeService service = new KnowledgeService(
+                repository,
+                new CapturingKnowledgeAnswerProvider(),
+                null,
+                new KnowledgeValidator(),
+                new FixedTextEmbeddingProvider(),
+                new KnowledgeEmbeddingProperties(true, "test-embedding-model", 3, 32, 32, 60),
+                new KnowledgeSearchProperties(KnowledgeSearchProperties.VECTOR),
+                reranker,
+                rerankingProperties(),
+                SearchQueryProvider.NONE,
+                KnowledgeQueryExpansionProperties.disabled()
+        );
+
+        var answer = service.answerWorkspaceQuestion("workspace-1", "Which candidate is relevant?");
+
+        assertEquals(100, repository.vectorResultLimit);
+        assertEquals(100, repository.vectorCandidateLimit);
+        assertEquals("Which candidate is relevant?", reranker.query);
+        assertEquals(12, reranker.limit);
+        assertEquals(List.of("second", "first"), answer.sources().stream().map(source -> source.id()).toList());
+    }
+
+    @Test
+    void interleavesOriginalAndExpandedHybridQueries() throws IOException {
+        CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
+        repository.searchResults = List.of(item("original", "Original candidate"));
+        repository.expandedSearchResults = List.of(item("expanded", "Expanded lexical candidate"));
+        SearchQueryProvider queryProvider = new SearchQueryProvider() {
+            @Override
+            public boolean isConfigured() {
+                return true;
+            }
+
+            @Override
+            public List<String> expand(String question, int limit) {
+                return List.of("expanded query");
+            }
+        };
+        KnowledgeService service = new KnowledgeService(
+                repository,
+                new CapturingKnowledgeAnswerProvider(),
+                null,
+                new KnowledgeValidator(),
+                new FixedTextEmbeddingProvider(),
+                new KnowledgeEmbeddingProperties(true, "test-embedding-model", 3, 32, 32, 60),
+                new KnowledgeSearchProperties(KnowledgeSearchProperties.HYBRID),
+                TextReranker.NONE,
+                KnowledgeRerankingProperties.disabled(),
+                queryProvider,
+                new KnowledgeQueryExpansionProperties(true, 2)
+        );
+
+        var answer = service.answerWorkspaceQuestion("workspace-1", "Original question");
+
+        assertEquals(List.of("Original question", "expanded query"), repository.lexicalQueries);
+        assertEquals(2, repository.vectorCalls);
+        assertEquals(List.of("original", "expanded"), answer.sources().stream().map(source -> source.id()).toList());
+    }
+
+    private KnowledgeItem item(String id, String content) {
+        return KnowledgeItem.builder()
+                .id(id)
+                .workspaceId("workspace-1")
+                .sourceType(KnowledgeSourceType.DOCUMENT)
+                .content(content)
+                .createdAt(Instant.now())
+                .build();
+    }
+
+    private KnowledgeRerankingProperties rerankingProperties() {
+        return new KnowledgeRerankingProperties(
+                true,
+                "test-reranker",
+                "file:/model.onnx",
+                "file:/tokenizer.json",
+                "cache",
+                100,
+                12,
+                16,
+                512
+        );
+    }
+
     private KnowledgeService embeddingService(CapturingKnowledgeRepository repository) {
         return new KnowledgeService(
                 repository,
@@ -406,10 +530,16 @@ class KnowledgeServiceTest {
         private String workspaceId;
         private final List<KnowledgeItem> items = new ArrayList<>();
         private List<KnowledgeItem> searchResults = List.of();
+        private List<KnowledgeItem> expandedSearchResults = List.of();
+        private final List<String> lexicalQueries = new ArrayList<>();
+        private int vectorCalls;
         private Optional<WorkspaceKnowledge> knowledge = Optional.empty();
         private List<Float> queryEmbedding;
         private int candidateLimit;
         private int rrfRankConstant;
+        private boolean vectorOnly;
+        private int vectorResultLimit;
+        private int vectorCandidateLimit;
 
         @Override
         public Optional<WorkspaceKnowledge> findByWorkspaceId(String workspaceId) {
@@ -426,6 +556,10 @@ class KnowledgeServiceTest {
         @Override
         public List<KnowledgeItem> searchKnowledgeItems(String workspaceId, String query, int limit) {
             this.workspaceId = workspaceId;
+            lexicalQueries.add(query);
+            if (query.equals("expanded query")) {
+                return expandedSearchResults;
+            }
             return searchResults;
         }
 
@@ -442,6 +576,19 @@ class KnowledgeServiceTest {
             this.queryEmbedding = queryEmbedding;
             this.candidateLimit = candidateLimit;
             this.rrfRankConstant = rrfRankConstant;
+            return searchResults;
+        }
+
+        @Override
+        public List<KnowledgeItem> searchKnowledgeItemsByVector(
+                String workspaceId, List<Float> queryEmbedding, int limit, int candidateLimit
+        ) {
+            this.workspaceId = workspaceId;
+            this.queryEmbedding = queryEmbedding;
+            this.vectorOnly = true;
+            this.vectorCalls++;
+            this.vectorResultLimit = limit;
+            this.vectorCandidateLimit = candidateLimit;
             return searchResults;
         }
 
@@ -505,6 +652,26 @@ class KnowledgeServiceTest {
         @Override
         public List<Float> embedQuery(String text) {
             return List.of(0.0f, 1.0f, 0.0f);
+        }
+    }
+
+    private static class CapturingTextReranker implements TextReranker {
+
+        private String query;
+        private int limit;
+
+        @Override
+        public boolean isConfigured() {
+            return true;
+        }
+
+        @Override
+        public List<KnowledgeItem> rerank(String query, List<KnowledgeItem> candidates, int limit) {
+            this.query = query;
+            this.limit = limit;
+            List<KnowledgeItem> reranked = new ArrayList<>(candidates);
+            java.util.Collections.reverse(reranked);
+            return List.copyOf(reranked);
         }
     }
 

@@ -14,7 +14,7 @@ flowchart LR
     user["User / Future UI"]
     api["AI Workspace API\nSpring Boot modular monolith"]
     llm["External LLM APIs\nGemini / future providers"]
-    opensearch[("OpenSearch\nknowledge-items index")]
+    opensearch[("OpenSearch\nknowledge-items-v3 index")]
     postgres[("PostgreSQL\ningestion jobs + future metadata")]
     redis[("Redis\nfuture async/job/cache support")]
     localServices["Optional local AI services\nWhisper / Piper"]
@@ -46,7 +46,7 @@ flowchart TB
         shared["apps/shared\nshared stable models"]
     end
 
-    opensearch[("OpenSearch\nknowledge-items index")]
+    opensearch[("OpenSearch\nknowledge-items-v3 index")]
     postgres[("PostgreSQL\ningestion job tables")]
     llm["Gemini / external AI providers"]
     whisper["Whisper\noptional local service"]
@@ -349,7 +349,7 @@ flowchart LR
 
     normalized["Normalized text knowledge\nfacts, notes, descriptions"]
     knowledgeService["KnowledgeService\ncontext + answer flow"]
-    opensearch[("OpenSearch knowledge-items\nappend-only workspace memory")]
+    opensearch[("OpenSearch knowledge-items-v3\nworkspace knowledge chunks")]
     postgres[("PostgreSQL\nworkspaces + ingestion jobs")]
     prompt["LLM prompt\nquestion + context"]
     answer["Workspace answer\nreturned to API client"]

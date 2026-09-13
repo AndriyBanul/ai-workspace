@@ -147,7 +147,10 @@ final class DocumentStructureContentHandler extends DefaultHandler {
 
     private String normalizeText(String value) {
         return value.replace('\uFEFF', ' ')
-                .replaceAll("[\\p{Z}\\s]+", " ")
+                .replaceAll("\\R", "\n")
+                .replaceAll("[\\p{Z}\\t\\x0B\\f]+", " ")
+                .replaceAll(" *\n *", "\n")
+                .replaceAll("\n{3,}", "\n\n")
                 .replaceAll(" ?\\| ?", " | ")
                 .trim();
     }

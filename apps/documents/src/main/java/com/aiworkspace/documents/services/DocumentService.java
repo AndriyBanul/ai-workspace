@@ -239,7 +239,7 @@ public class DocumentService {
         return documentChunker.chunk(
                 document.blocks(),
                 document.content(),
-                extractionProperties.maxChunkCharacters()
+                extractionProperties.maxChunkSentences()
         );
     }
 
@@ -321,7 +321,7 @@ public class DocumentService {
                 request.workspaceId(),
                 page.title(),
                 null,
-                documentChunker.chunkText(page.content(), extractionProperties.maxChunkCharacters()),
+                documentChunker.chunkText(page.content(), extractionProperties.maxChunkSentences()),
                 new KnowledgeSourceMetadata(
                         sourceId,
                         page.url(),

@@ -12,6 +12,9 @@ Current ADRs:
 - `0004-use-apps-level-gradle-multi-module-structure.md` - accepted current application structure.
 - `0005-add-shared-data-model-module.md` - accepted shared library module for common data models.
 - `0006-add-multimodal-business-modules.md` - accepted business modules for documents, images, videos, and audio.
+- `0007-use-spring-ai-local-text-embeddings.md` - accepted in-process ONNX embeddings through Spring AI.
+- `0008-sentence-chunks-and-neighbor-context.md` - accepted structure-aware sentence chunks and following-chunk expansion.
+- `0009-use-768-dimensional-e5-embeddings.md` - accepted 768-dimensional local E5 embeddings and the v3 index.
 
 Suggested file name:
 

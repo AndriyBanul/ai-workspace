@@ -28,18 +28,18 @@ class OpenSearchKnowledgeClientTest {
     void createsVectorIndexWithKnnEnabledAndConfiguredDimensions() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("http://localhost:9200/knowledge-items"))
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3"))
                 .andExpect(method(HttpMethod.HEAD))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
-        server.expect(requestTo("http://localhost:9200/knowledge-items"))
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3"))
                 .andExpect(method(HttpMethod.PUT))
                 .andExpect(content().string(containsString("\"knn\":true")))
                 .andExpect(content().string(containsString("\"type\":\"knn_vector\"")))
                 .andExpect(content().string(containsString("\"dimension\":3")))
                 .andRespond(withSuccess());
-        server.expect(requestTo("http://localhost:9200/knowledge-items/_mapping"))
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping"))
                 .andRespond(withSuccess());
-        server.expect(requestTo("http://localhost:9200/knowledge-items/_search"))
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
                 .andRespond(withSuccess("{\"hits\":{\"hits\":[]}}", MediaType.APPLICATION_JSON));
         OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
                 URI.create("http://localhost:9200"),
@@ -57,16 +57,16 @@ class OpenSearchKnowledgeClientTest {
     void bulkIndexesChunkMetadata() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("http://localhost:9200/knowledge-items"))
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3"))
                 .andRespond(withSuccess());
-        server.expect(requestTo("http://localhost:9200/knowledge-items/_mapping"))
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping"))
                 .andRespond(withSuccess());
         server.expect(requestTo("http://localhost:9200/_bulk?refresh=wait_for"))
                 .andExpect(method(org.springframework.http.HttpMethod.POST))
                 .andExpect(content().contentType(MediaType.parseMediaType("application/x-ndjson")))
                 .andExpect(content().string(containsString("\"chunkId\":\"file-1:1\"")))
                 .andExpect(content().string(containsString("\"pageNumber\":4")))
-                .andExpect(content().string(containsString("\"_index\":\"knowledge-items\"")))
+                .andExpect(content().string(containsString("\"_index\":\"knowledge-items-v3\"")))
                 .andRespond(withSuccess("{\"errors\":false,\"items\":[]}", MediaType.APPLICATION_JSON));
         OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
                 URI.create("http://localhost:9200"),
@@ -95,12 +95,12 @@ class OpenSearchKnowledgeClientTest {
     void replacesSourceThenPrunesObsoleteChunkIds() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("http://localhost:9200/knowledge-items")).andRespond(withSuccess());
-        server.expect(requestTo("http://localhost:9200/knowledge-items/_mapping")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping")).andRespond(withSuccess());
         server.expect(requestTo("http://localhost:9200/_bulk?refresh=wait_for"))
                 .andRespond(withSuccess("{\"errors\":false,\"items\":[]}", MediaType.APPLICATION_JSON));
         server.expect(requestTo(
-                        "http://localhost:9200/knowledge-items/_delete_by_query?refresh=wait_for&conflicts=proceed"
+                        "http://localhost:9200/knowledge-items-v3/_delete_by_query?refresh=true&conflicts=proceed"
                 ))
                 .andExpect(content().string(containsString("\"workspaceId\":\"workspace-1\"")))
                 .andExpect(content().string(containsString("\"sourceId\":\"file-1\"")))
@@ -127,10 +127,10 @@ class OpenSearchKnowledgeClientTest {
     void deletesAllKnowledgeForSourceWithinWorkspace() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("http://localhost:9200/knowledge-items")).andRespond(withSuccess());
-        server.expect(requestTo("http://localhost:9200/knowledge-items/_mapping")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping")).andRespond(withSuccess());
         server.expect(requestTo(
-                        "http://localhost:9200/knowledge-items/_delete_by_query?refresh=wait_for&conflicts=proceed"
+                        "http://localhost:9200/knowledge-items-v3/_delete_by_query?refresh=true&conflicts=proceed"
                 ))
                 .andExpect(content().string(containsString("\"workspaceId\":\"workspace-1\"")))
                 .andExpect(content().string(containsString("\"sourceId\":\"file-1\"")))
@@ -148,10 +148,10 @@ class OpenSearchKnowledgeClientTest {
     void deletesAllKnowledgeForWorkspace() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("http://localhost:9200/knowledge-items")).andRespond(withSuccess());
-        server.expect(requestTo("http://localhost:9200/knowledge-items/_mapping")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping")).andRespond(withSuccess());
         server.expect(requestTo(
-                        "http://localhost:9200/knowledge-items/_delete_by_query?refresh=wait_for&conflicts=proceed"
+                        "http://localhost:9200/knowledge-items-v3/_delete_by_query?refresh=true&conflicts=proceed"
                 ))
                 .andExpect(content().string(containsString("\"workspaceId\":\"workspace-1\"")))
                 .andRespond(withSuccess("{\"timed_out\":false,\"failures\":[]}", MediaType.APPLICATION_JSON));
@@ -168,11 +168,11 @@ class OpenSearchKnowledgeClientTest {
     void searchesChunkContentAndBoostsHeadings() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("http://localhost:9200/knowledge-items"))
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3"))
                 .andRespond(withSuccess());
-        server.expect(requestTo("http://localhost:9200/knowledge-items/_mapping"))
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping"))
                 .andRespond(withSuccess());
-        server.expect(requestTo("http://localhost:9200/knowledge-items/_search"))
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
                 .andExpect(content().string(containsString("\"multi_match\"")))
                 .andExpect(content().string(containsString("\"heading^2\"")))
                 .andExpect(content().string(containsString("\"embedding\"")))
@@ -202,11 +202,11 @@ class OpenSearchKnowledgeClientTest {
     void combinesLexicalAndVectorRanksWithRrf() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("http://localhost:9200/knowledge-items")).andRespond(withSuccess());
-        server.expect(requestTo("http://localhost:9200/knowledge-items/_mapping")).andRespond(withSuccess());
-        server.expect(requestTo("http://localhost:9200/knowledge-items/_search"))
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
                 .andRespond(withSuccess(searchResponse("lexical", "Lexical only"), MediaType.APPLICATION_JSON));
-        server.expect(requestTo("http://localhost:9200/knowledge-items/_search"))
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
                 .andExpect(content().string(containsString("\"knn\"")))
                 .andExpect(content().string(containsString("\"vector\":[1.0,0.0,0.0]")))
                 .andExpect(content().string(containsString("\"workspaceId\":\"workspace-1\"")))
@@ -223,6 +223,33 @@ class OpenSearchKnowledgeClientTest {
         );
 
         assertEquals(List.of("lexical", "vector"), results.stream().map(KnowledgeItem::id).toList());
+        server.verify();
+    }
+
+    @Test
+    void searchesVectorOnlyWithoutRunningBm25() throws Exception {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3"))
+                .andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping"))
+                .andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
+                .andExpect(content().string(containsString("\"knn\"")))
+                .andExpect(content().string(containsString("\"vector\":[1.0,0.0,0.0]")))
+                .andRespond(withSuccess(searchResponse("vector", "Semantic match"), MediaType.APPLICATION_JSON));
+        OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
+                URI.create("http://localhost:9200"),
+                builder.build(),
+                new ObjectMapper(),
+                new KnowledgeEmbeddingProperties(true, null, 3, null, 2, 60)
+        );
+
+        List<KnowledgeItem> results = client.searchKnowledgeItemsByVector(
+                "workspace-1", List.of(1.0f, 0.0f, 0.0f), 2, 2
+        );
+
+        assertEquals(List.of("vector"), results.stream().map(KnowledgeItem::id).toList());
         server.verify();
     }
 

@@ -1,0 +1,323 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "id": "travel",
+      "heading": "Employee travel expenses",
+      "paragraphs": [
+        "Before booking a trip, obtain approval from your manager. Travel agents cannot authorize reimbursement exceptions. Canceled reservations should be refunded to the company payment card. Finance reviews the currency conversion using the transaction date rather than the date on which the claim was submitted.",
+        "Employees must submit travel expense claims within 30 calendar days after returning. Attach itemized receipts and the approved trip identifier. Finance pays approved claims in the next payroll cycle.",
+        "Before booking a trip, obtain approval from your manager. Travel agents cannot authorize reimbursement exceptions. Canceled reservations should be refunded to the company payment card. Finance reviews the currency conversion using the transaction date rather than the date on which the claim was submitted.",
+        "Hotel reimbursement is capped at 180 euros per night. Meals are reimbursed separately and must not be included in the accommodation total. Exceptions require written approval from the department director."
+      ]
+    },
+    {
+      "id": "leave",
+      "heading": "Annual leave and sick leave",
+      "paragraphs": [
+        "Holiday requests should be made before purchasing nonrefundable tickets. Teams maintain a shared absence calendar so support coverage remains available. Public holidays are counted separately from annual leave. Part-time employees receive a prorated allowance based on contracted weekly hours.",
+        "Full-time employees receive 25 days of paid annual leave per calendar year. Unused annual leave can be carried into the next year only until March 31. Managers approve requests through the employee portal.",
+        "Holiday requests should be made before purchasing nonrefundable tickets. Teams maintain a shared absence calendar so support coverage remains available. Public holidays are counted separately from annual leave. Part-time employees receive a prorated allowance based on contracted weekly hours.",
+        "A medical certificate is required after three consecutive working days of sickness. Inform your manager before your normal start time. Sick leave does not reduce the annual holiday allowance."
+      ]
+    },
+    {
+      "id": "backup",
+      "heading": "Database backup and recovery",
+      "paragraphs": [
+        "The recovery operator records the incident identifier and requested timestamp. Application owners validate row counts and referential integrity before routing traffic. Search indexes are rebuilt from source records and are not treated as authoritative backups. Restoring a database does not automatically restore files from object storage.",
+        "PostgreSQL point-in-time recovery retains write-ahead logs for seven days. To recover an accidental deletion, select a timestamp before the transaction and restore into a separate database. Verify the restored rows before copying them back.",
+        "The recovery operator records the incident identifier and requested timestamp. Application owners validate row counts and referential integrity before routing traffic. Search indexes are rebuilt from source records and are not treated as authoritative backups. Restoring a database does not automatically restore files from object storage.",
+        "Full database backups run every night at 02:00 UTC. Encrypted snapshots are retained for 35 days. Quarterly recovery exercises verify that the restored database can serve application reads."
+      ]
+    },
+    {
+      "id": "retention",
+      "heading": "Workspace deletion and retention",
+      "paragraphs": [
+        "Workspace owners can delete their own workspaces; membership alone does not grant deletion rights. A workspace deletion is separate from deleting a user account. Removing a member revokes access without deleting shared documents. Export any required files before requesting workspace removal.",
+        "Deleting a workspace removes its indexed knowledge and stored files before deleting workspace metadata. If search cleanup fails, the workspace remains available for retry. This prevents inaccessible files from becoming orphaned.",
+        "Workspace owners can delete their own workspaces; membership alone does not grant deletion rights. A workspace deletion is separate from deleting a user account. Removing a member revokes access without deleting shared documents. Export any required files before requesting workspace removal.",
+        "Audit events remain for 90 days after workspace deletion. Audit events contain actor IDs and action names but never document contents. The retention job permanently removes expired audit events each morning."
+      ]
+    },
+    {
+      "id": "api",
+      "heading": "API rate limits",
+      "paragraphs": [
+        "Rate limits apply to successful requests and validation failures alike. A separate worker pool processes document extraction. Repeated immediate retries consume the same workspace quota. Clients should use bounded exponential backoff with jitter when handling temporary service failures, and preserve request identifiers for support.",
+        "The public API permits 120 requests per minute per workspace. Excess requests receive HTTP 429 and a Retry-After header. Clients should delay further requests by the number of seconds in that header.",
+        "Rate limits apply to successful requests and validation failures alike. A separate worker pool processes document extraction. Repeated immediate retries consume the same workspace quota. Clients should use bounded exponential backoff with jitter when handling temporary service failures, and preserve request identifiers for support.",
+        "The document upload endpoint accepts files up to 20 megabytes. Larger uploads receive HTTP 413 before extraction starts. Compressing a file does not bypass the extraction size limits."
+      ]
+    },
+    {
+      "id": "security",
+      "heading": "Account security",
+      "paragraphs": [
+        "Administrators can revoke active sessions after suspicious activity. Multifactor authentication is mandatory for administrators. Users should report unexpected reset messages without clicking the links. Authentication logs contain event IDs rather than passwords, tokens, or the full contents of reset URLs.",
+        "Password reset links expire after 15 minutes and can be used only once. Requesting another reset invalidates earlier links. The account remains locked until a successful reset or an administrator review.",
+        "Administrators can revoke active sessions after suspicious activity. Multifactor authentication is mandatory for administrators. Users should report unexpected reset messages without clicking the links. Authentication logs contain event IDs rather than passwords, tokens, or the full contents of reset URLs.",
+        "API keys must be rotated every 90 days. Create the replacement key, deploy it to clients, verify successful authentication, and then revoke the old key. Never send keys through support tickets."
+      ]
+    },
+    {
+      "id": "billing",
+      "heading": "Subscription billing",
+      "paragraphs": [
+        "Invoices include the billing address recorded at the time of purchase. Updating an address affects future invoices only. Subscription cancellation prevents the next renewal but does not immediately delete the workspace. Contact billing with the invoice identifier rather than sending payment card details.",
+        "Customers may request a refund within 14 days of the initial purchase. Renewal payments are not refundable. Refunds are sent to the original payment method after the billing team approves the request.",
+        "Invoices include the billing address recorded at the time of purchase. Updating an address affects future invoices only. Subscription cancellation prevents the next renewal but does not immediately delete the workspace. Contact billing with the invoice identifier rather than sending payment card details.",
+        "An unpaid invoice receives a seven-day grace period before the workspace becomes read-only. Existing documents remain available to read and export. Uploading new documents resumes after payment is confirmed."
+      ]
+    },
+    {
+      "id": "incident",
+      "heading": "Incident response",
+      "paragraphs": [
+        "The incident commander assigns a communications lead and a technical lead. Keep a timestamped decision log. After the incident, schedule a blameless review and assign owners to corrective actions. A postmortem is required even when recovery was automatic, because recurring alerts can reveal hidden capacity problems.",
+        "A severity-one incident requires the on-call engineer to acknowledge the alert within five minutes. Notify the incident commander and open a dedicated incident channel. Restore service before pursuing a complete root-cause analysis.",
+        "The incident commander assigns a communications lead and a technical lead. Keep a timestamped decision log. After the incident, schedule a blameless review and assign owners to corrective actions. A postmortem is required even when recovery was automatic, because recurring alerts can reveal hidden capacity problems.",
+        "Publish a customer status update every 30 minutes during a severity-one incident. Updates should describe user impact and current mitigation without exposing customer data. Publish a final update after recovery is verified."
+      ]
+    },
+    {
+      "id": "shipping",
+      "heading": "Hardware delivery",
+      "paragraphs": [
+        "Delivery addresses can be changed before dispatch. Once a parcel is with the carrier, contact logistics for redirection options. Returns must use the provided shipping label so equipment can be matched to its inventory record. Employees must not dispose of damaged equipment without written instructions.",
+        "Standard hardware deliveries arrive within five business days after dispatch. The tracking link becomes active when the carrier collects the parcel. Weekends and public holidays do not count toward the delivery estimate.",
+        "Delivery addresses can be changed before dispatch. Once a parcel is with the carrier, contact logistics for redirection options. Returns must use the provided shipping label so equipment can be matched to its inventory record. Employees must not dispose of damaged equipment without written instructions.",
+        "Damaged equipment must be reported within 48 hours of delivery. Include photographs of the packaging and the device serial number. The logistics team arranges collection and ships a replacement after reviewing the report."
+      ]
+    },
+    {
+      "id": "search",
+      "heading": "Document search behavior",
+      "paragraphs": [
+        "Each chunk retains its source identifier and location so search results can link to evidence. Workspace filters apply to both retrieval paths. Changing the embedding model requires re-embedding the documents before comparing their vectors with new questions. Search scores should not be interpreted as probabilities that an answer is correct.",
+        "Search combines BM25 keyword matching with nearest-neighbor vector retrieval using reciprocal rank fusion. Document headings receive extra keyword weight. The question and document chunks are embedded with the same local model.",
+        "Each chunk retains its source identifier and location so search results can link to evidence. Workspace filters apply to both retrieval paths. Changing the embedding model requires re-embedding the documents before comparing their vectors with new questions. Search scores should not be interpreted as probabilities that an answer is correct.",
+        "When query embedding generation fails, search falls back to BM25. During ingestion, an embedding failure aborts indexing of the chunk set. No external generative model is required to calculate embeddings."
+      ]
+    },
+    {
+      "id": "hr-de",
+      "heading": "Arbeitsort und Homeoffice",
+      "paragraphs": [
+        "An gemeinsamen Bürotagen finden Planung und persönliche Gespräche statt. Bei Kundenterminen kann Anwesenheit erforderlich sein. Vertrauliche Unterlagen müssen auch zu Hause sicher aufbewahrt werden. Die regulären Arbeitszeiten und die Pflicht zur Erreichbarkeit gelten unabhängig vom gewählten Arbeitsort.",
+        "Mitarbeitende dürfen an zwei Tagen pro Woche im Homeoffice arbeiten. Die gewünschten Tage müssen vorher mit der Teamleitung abgestimmt werden. Für neue Mitarbeitende gilt diese Regel nach dem ersten Monat.",
+        "An gemeinsamen Bürotagen finden Planung und persönliche Gespräche statt. Bei Kundenterminen kann Anwesenheit erforderlich sein. Vertrauliche Unterlagen müssen auch zu Hause sicher aufbewahrt werden. Die regulären Arbeitszeiten und die Pflicht zur Erreichbarkeit gelten unabhängig vom gewählten Arbeitsort.",
+        "Für die Einrichtung des häuslichen Arbeitsplatzes gibt es einen einmaligen Zuschuss von 300 Euro. Die Erstattung erfolgt gegen Rechnung. Internetverträge werden nicht durch diesen Zuschuss abgedeckt."
+      ]
+    },
+    {
+      "id": "support",
+      "heading": "Customer support coverage",
+      "paragraphs": [
+        "Support engineers cannot access document content without explicit customer authorization. Screenshots should omit credentials and personal data. Customers can track ticket progress through the support portal. Duplicate tickets may be merged to preserve one complete timeline for the investigation.",
+        "Priority support is available Monday through Friday from 08:00 to 18:00 UTC. Critical production outages can be reported to the emergency telephone line at any time. Routine feature requests are handled during business hours.",
+        "Support engineers cannot access document content without explicit customer authorization. Screenshots should omit credentials and personal data. Customers can track ticket progress through the support portal. Duplicate tickets may be merged to preserve one complete timeline for the investigation.",
+        "The target first response for priority support tickets is two business hours. This is an acknowledgement target, not a resolution guarantee. Include the workspace identifier and a concise description of the impact."
+      ]
+    },
+    {
+      "id": "contractor-travel",
+      "heading": "Contractor travel expenses",
+      "paragraphs": [
+        "External contractors must submit travel claims within 10 calendar days. Their hotel cap is 100 euros per night. These terms apply only to contractors, not employees."
+      ]
+    },
+    {
+      "id": "trial-support",
+      "heading": "Trial account support",
+      "paragraphs": [
+        "Trial accounts receive community support with a target response of two business days. This policy does not apply to priority support subscriptions."
+      ]
+    },
+    {
+      "id": "archive-backup",
+      "heading": "Historical archive snapshots",
+      "paragraphs": [
+        "Historical archives are exported at 04:00 UTC on Sundays and retained for 365 days. They do not provide PostgreSQL point-in-time recovery."
+      ]
+    },
+    {
+      "id": "sandbox-api",
+      "heading": "Sandbox API limits",
+      "paragraphs": [
+        "Sandbox API workspaces permit 30 requests per minute and uploads up to 5 megabytes. These restrictions do not apply to the public production API."
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "travel-tune",
+      "split": "tune",
+      "question": "How long after a business trip can I claim expenses?",
+      "sourceId": "travel",
+      "evidence": "within 30 calendar days"
+    },
+    {
+      "id": "travel-holdout",
+      "split": "holdout",
+      "question": "What is the maximum nightly hotel allowance?",
+      "sourceId": "travel",
+      "evidence": "180 euros per night"
+    },
+    {
+      "id": "leave-tune",
+      "split": "tune",
+      "question": "How many vacation days do full-time staff get?",
+      "sourceId": "leave",
+      "evidence": "25 days of paid annual leave"
+    },
+    {
+      "id": "leave-holdout",
+      "split": "holdout",
+      "question": "When do I need a doctor's note for illness?",
+      "sourceId": "leave",
+      "evidence": "after three consecutive working days"
+    },
+    {
+      "id": "backup-tune",
+      "split": "tune",
+      "question": "Can we recover database rows deleted by mistake yesterday?",
+      "sourceId": "backup",
+      "evidence": "select a timestamp before the transaction"
+    },
+    {
+      "id": "backup-holdout",
+      "split": "holdout",
+      "question": "At what time is the full database backup taken?",
+      "sourceId": "backup",
+      "evidence": "02:00 UTC"
+    },
+    {
+      "id": "retention-tune",
+      "split": "tune",
+      "question": "What happens if search cleanup fails during workspace removal?",
+      "sourceId": "retention",
+      "evidence": "workspace remains available for retry"
+    },
+    {
+      "id": "retention-holdout",
+      "split": "holdout",
+      "question": "How long are audit events kept after deleting a workspace?",
+      "sourceId": "retention",
+      "evidence": "90 days after workspace deletion"
+    },
+    {
+      "id": "api-tune",
+      "split": "tune",
+      "question": "Why is the API returning 429 and when should I retry?",
+      "sourceId": "api",
+      "evidence": "Retry-After header"
+    },
+    {
+      "id": "api-holdout",
+      "split": "holdout",
+      "question": "What is the largest document I can upload?",
+      "sourceId": "api",
+      "evidence": "20 megabytes"
+    },
+    {
+      "id": "security-tune",
+      "split": "tune",
+      "question": "How long does a password recovery link remain valid?",
+      "sourceId": "security",
+      "evidence": "expire after 15 minutes"
+    },
+    {
+      "id": "security-holdout",
+      "split": "holdout",
+      "question": "How frequently must API credentials be replaced?",
+      "sourceId": "security",
+      "evidence": "every 90 days"
+    },
+    {
+      "id": "billing-tune",
+      "split": "tune",
+      "question": "Can I get my first subscription payment back?",
+      "sourceId": "billing",
+      "evidence": "within 14 days of the initial purchase"
+    },
+    {
+      "id": "billing-holdout",
+      "split": "holdout",
+      "question": "Does an overdue invoice immediately block uploads?",
+      "sourceId": "billing",
+      "evidence": "seven-day grace period"
+    },
+    {
+      "id": "incident-tune",
+      "split": "tune",
+      "question": "How quickly must someone acknowledge a critical outage?",
+      "sourceId": "incident",
+      "evidence": "within five minutes"
+    },
+    {
+      "id": "incident-holdout",
+      "split": "holdout",
+      "question": "How often should customers receive outage updates?",
+      "sourceId": "incident",
+      "evidence": "every 30 minutes"
+    },
+    {
+      "id": "shipping-tune",
+      "split": "tune",
+      "question": "How long should ordinary equipment shipping take?",
+      "sourceId": "shipping",
+      "evidence": "five business days after dispatch"
+    },
+    {
+      "id": "shipping-holdout",
+      "split": "holdout",
+      "question": "What is the deadline for reporting broken delivered hardware?",
+      "sourceId": "shipping",
+      "evidence": "within 48 hours of delivery"
+    },
+    {
+      "id": "search-tune",
+      "split": "tune",
+      "question": "How are lexical and semantic search results combined?",
+      "sourceId": "search",
+      "evidence": "reciprocal rank fusion"
+    },
+    {
+      "id": "search-holdout",
+      "split": "holdout",
+      "question": "Can I still search if the query vector cannot be generated?",
+      "sourceId": "search",
+      "evidence": "search falls back to BM25"
+    },
+    {
+      "id": "hr-de-tune",
+      "split": "tune",
+      "question": "How many days a week may staff work from home?",
+      "sourceId": "hr-de",
+      "evidence": "zwei Tagen pro Woche"
+    },
+    {
+      "id": "hr-de-holdout",
+      "split": "holdout",
+      "question": "Wie hoch ist der Zuschuss für den Arbeitsplatz zu Hause?",
+      "sourceId": "hr-de",
+      "evidence": "300 Euro"
+    },
+    {
+      "id": "support-tune",
+      "split": "tune",
+      "question": "What hours does the priority help desk operate?",
+      "sourceId": "support",
+      "evidence": "08:00 to 18:00 UTC"
+    },
+    {
+      "id": "support-holdout",
+      "split": "holdout",
+      "question": "How soon should priority support acknowledge a ticket?",
+      "sourceId": "support",
+      "evidence": "two business hours"
+    }
+  ]
+}

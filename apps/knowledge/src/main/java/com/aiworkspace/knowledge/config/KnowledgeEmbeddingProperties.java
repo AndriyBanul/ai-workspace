@@ -12,14 +12,11 @@ public record KnowledgeEmbeddingProperties(
         Integer rrfRankConstant
 ) {
 
-    private static final String DEFAULT_MODEL = "gemini-embedding-001";
+    private static final String DEFAULT_MODEL = "intfloat/multilingual-e5-base";
 
     public KnowledgeEmbeddingProperties {
         enabled = enabled == null || enabled;
         model = model == null || model.isBlank() ? DEFAULT_MODEL : model.trim();
-        if (model.startsWith("models/")) {
-            model = model.substring("models/".length());
-        }
         dimensions = positive(dimensions, 768, "Embedding dimensions");
         batchSize = positive(batchSize, 32, "Embedding batch size");
         candidateLimit = positive(candidateLimit, 32, "Hybrid search candidate limit");

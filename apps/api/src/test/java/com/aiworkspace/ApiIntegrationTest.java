@@ -1,6 +1,7 @@
 package com.aiworkspace;
 
 import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
+import com.aiworkspace.knowledge.interfaces.TextEmbeddingProvider;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
@@ -186,7 +187,7 @@ class ApiIntegrationTest {
         TestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Chunked search").body())
                 .path("id").asText();
-        String content = "Revenue increased during the quarter. ".repeat(5);
+        String content = "Revenue increased during the quarter. ".repeat(6);
 
         HttpResponse<String> uploaded = uploadDocument(
                 owner,
@@ -205,7 +206,8 @@ class ApiIntegrationTest {
             assertEquals(sourceId, item.sourceId());
             assertEquals(sourceId + ":" + (index + 1), item.chunkId());
             assertEquals(index + 1, item.chunkSequence());
-            assertTrue(item.content().length() <= 64);
+            assertTrue(item.content().endsWith("."));
+            assertEquals("0", item.sectionId());
         }
     }
 
@@ -715,6 +717,45 @@ class ApiIntegrationTest {
         @Primary
         KnowledgeAnswerProvider knowledgeAnswerProvider() {
             return (question, context) -> "Test answer";
+        }
+
+        @Bean
+        @Primary
+        TextEmbeddingProvider textEmbeddingProvider() {
+            return new TextEmbeddingProvider() {
+                @Override
+                public boolean isConfigured() {
+                    return true;
+                }
+
+                @Override
+                public String model() {
+                    return "test-local-embedding";
+                }
+
+                @Override
+                public int dimensions() {
+                    return 768;
+                }
+
+                @Override
+                public List<List<Float>> embedDocuments(List<String> texts) {
+                    return texts.stream().map(ignored -> testEmbedding()).toList();
+                }
+
+                @Override
+                public List<Float> embedQuery(String text) {
+                    return testEmbedding();
+                }
+
+                private List<Float> testEmbedding() {
+                    List<Float> vector = new java.util.ArrayList<>(768);
+                    for (int index = 0; index < 768; index++) {
+                        vector.add(index == 0 ? 1.0f : 0.0f);
+                    }
+                    return List.copyOf(vector);
+                }
+            };
         }
     }
 

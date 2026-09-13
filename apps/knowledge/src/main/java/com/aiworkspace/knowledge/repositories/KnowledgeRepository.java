@@ -26,6 +26,19 @@ public interface KnowledgeRepository {
         return searchKnowledgeItems(workspaceId, query, limit);
     }
 
+    default List<KnowledgeItem> searchKnowledgeItemsByVector(
+            String workspaceId,
+            List<Float> queryEmbedding,
+            int limit,
+            int candidateLimit
+    ) throws IOException {
+        return searchKnowledgeItems(workspaceId, "", limit);
+    }
+
+    default List<KnowledgeItem> expandNeighbors(String workspaceId, List<KnowledgeItem> matches) throws IOException {
+        return matches;
+    }
+
     void addKnowledgeItem(KnowledgeItem item) throws IOException;
 
     default void addKnowledgeItems(List<KnowledgeItem> items) throws IOException {
