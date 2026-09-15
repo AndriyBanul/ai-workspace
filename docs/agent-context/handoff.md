@@ -44,9 +44,9 @@ or remote.
 
 ## Current Focus
 
-- Local in-process document and query embeddings with Spring AI are implemented
-  and verified. The changes are intentionally uncommitted until Andrii asks for
-  a commit.
+- Roadmap items 6, 7, and 8 are implemented. The working tree contains the HTTP
+  security baseline, durable source recovery/reconciliation, and the frontend
+  component/workflow-test refactor; all remain uncommitted.
 
 ## Completed
 
@@ -90,8 +90,45 @@ or remote.
 
 ## Next Steps
 
-- Review the local embedding diff with Andrii.
+- Review the combined item 6, item 7, and item 8 working-tree changes with
+  Andrii.
 - Commit and push only when requested.
+
+## Durable source recovery and reconciliation (2026-09-16)
+
+- Added PostgreSQL `source_recovery_tasks` through Flyway V7 with one durable
+  PROCESS/DELETE task per source, bounded attempts, next-attempt timestamps,
+  running leases, bounded errors, and explicit dead-letter state.
+- Source processing and deletion now record attempts and outcomes. Transient I/O
+  and upstream failures use bounded exponential backoff; permanent failures and
+  exhausted retries dead-letter. Recovery-recording failures no longer mask the
+  original workflow exception.
+- A scheduled orchestrator recovery worker retries due or lease-expired work and
+  periodically reconciles source metadata, file storage, and OpenSearch.
+  Replacement indexing and delete-if-present behavior keep retries idempotent.
+- Added an owner-scoped source recovery API and Library detail fields for status,
+  attempts, next check, and last error. Configuration is documented in
+  `.env.example`; ADR 0010 records the eventual-consistency decision.
+- Focused recovery tests, a clean full Gradle test suite and `:api:bootJar`,
+  frontend tests/build, OpenAPI YAML parsing, and `git diff --check` pass.
+
+## Frontend component and workflow-test refactor (2026-09-16)
+
+- Reduced `App.jsx` to authentication-state routing and moved login, workspace
+  shell/sidebar, workspace content routing, and persistent job state into
+  focused components.
+- Split Library ingestion, web import, source list/filtering, results, recovery
+  details, and deletion confirmation into workflow-oriented components under
+  `src/library`.
+- Split Studio generation, media analysis, YouTube import, transcript display,
+  and tool configuration into focused components under `src/studio`.
+- Enabled shared Testing Library setup and added workflow tests for workspace
+  creation/navigation/deletion; file and web ingestion; recovery visibility,
+  source filtering/reprocessing/deletion; grounded questions with timed source
+  evidence; audio analysis; and YouTube timed transcripts.
+- Frontend tests now contain 10 passing tests across five files; the production
+  Vite build and API bootJar asset bundling pass. Final diff verification also
+  passes.
 
 ## OpenSearch integration testing (2026-09-08)
 
@@ -425,3 +462,24 @@ or remote.
   and `git diff --check` pass. Docker's Linux engine remains unavailable, so the
   isolated real-OpenSearch integration suite was not rerun. Changes remain
   uncommitted.
+
+## HTTP security baseline (2026-09-15)
+
+- HTTP Basic authentication is explicitly stateless, uses configurable BCrypt
+  strength 12 for new passwords, and returns consistent JSON 401/403 responses.
+- Registration validates email structure and enforces passwords of at least 12
+  characters and at most 72 UTF-8 bytes, avoiding silent BCrypt truncation.
+- A configurable process-local fixed-window limiter protects API traffic and has
+  a tighter registration limit. Denials return JSON 429 responses and
+  `Retry-After`; multi-node deployment still requires a shared edge or distributed
+  limiter.
+- The `SECURITY_AUDIT` logger records sanitized authentication failures,
+  authorization-related resource rejection, mutations, and rate-limit denials.
+  Actor and direct-client identifiers are hashed and sensitive payloads are not
+  logged.
+- Optional HTTPS enforcement is available through `SECURITY_REQUIRE_HTTPS` once
+  production proxy forwarding is configured. Security integration tests cover
+  stateless unauthorized responses, ownership boundaries, password policy, and
+  rate limiting.
+- A clean full Gradle test suite and `:api:bootJar`, frontend tests/build, OpenAPI
+  YAML parsing, and `git diff --check` pass. Changes remain uncommitted.

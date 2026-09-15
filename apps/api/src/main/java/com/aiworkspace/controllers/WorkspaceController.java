@@ -4,6 +4,8 @@ import com.aiworkspace.users.services.UserAccountService;
 import com.aiworkspace.orchestrator.services.WorkspaceLifecycleService;
 import com.aiworkspace.orchestrator.services.OrchestratorService;
 import com.aiworkspace.orchestrator.models.OrchestrationSubmission;
+import com.aiworkspace.orchestrator.models.SourceRecoveryTask;
+import com.aiworkspace.orchestrator.services.SourceRecoveryTaskService;
 import com.aiworkspace.workspaces.models.CreateWorkspaceRequest;
 import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
@@ -31,17 +33,20 @@ public class WorkspaceController {
     private final UserAccountService userAccountService;
     private final WorkspaceLifecycleService workspaceLifecycleService;
     private final OrchestratorService orchestratorService;
+    private final SourceRecoveryTaskService sourceRecoveryTaskService;
 
     public WorkspaceController(
             WorkspaceService workspaceService,
             UserAccountService userAccountService,
             WorkspaceLifecycleService workspaceLifecycleService,
-            OrchestratorService orchestratorService
+            OrchestratorService orchestratorService,
+            SourceRecoveryTaskService sourceRecoveryTaskService
     ) {
         this.workspaceService = workspaceService;
         this.userAccountService = userAccountService;
         this.workspaceLifecycleService = workspaceLifecycleService;
         this.orchestratorService = orchestratorService;
+        this.sourceRecoveryTaskService = sourceRecoveryTaskService;
     }
 
     @PostMapping
@@ -113,5 +118,16 @@ public class WorkspaceController {
     ) throws IOException {
         return ResponseEntity.status(ACCEPTED).body(orchestratorService.reprocessSource(
                 userAccountService.currentUserId(authentication), workspaceId, fileId));
+    }
+
+    @GetMapping({"/{workspaceId}/files/{fileId}/recovery", "/{workspaceId}/sources/{fileId}/recovery"})
+    public ResponseEntity<SourceRecoveryTask> getSourceRecovery(
+            @PathVariable String workspaceId,
+            @PathVariable String fileId,
+            Authentication authentication
+    ) {
+        String ownerId = userAccountService.currentUserId(authentication);
+        WorkspaceFile source = workspaceService.getFile(ownerId, workspaceId, fileId);
+        return ResponseEntity.ok(sourceRecoveryTaskService.getTask(source.workspaceId(), source.id()));
     }
 }

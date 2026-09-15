@@ -39,6 +39,31 @@ running.
 open http://localhost:8080/
 ```
 
+## Security
+
+The API uses stateless HTTP Basic authentication. The browser keeps credentials
+in memory only, and the server does not create an HTTP session. Production must
+serve the application through TLS; set `SECURITY_REQUIRE_HTTPS=true` after the
+reverse proxy is configured to forward the original scheme correctly.
+
+New passwords must contain 12 or more characters and fit within BCrypt's
+72-byte UTF-8 input limit. BCrypt work factor defaults to 12 and can be changed
+with `SECURITY_BCRYPT_STRENGTH`.
+
+Per-client fixed-window API limits default to 300 requests per minute, with a
+separate limit of 10 registration requests per minute. Configure them through
+`SECURITY_RATE_LIMIT_REQUESTS_PER_MINUTE` and
+`SECURITY_REGISTRATION_RATE_LIMIT_REQUESTS_PER_MINUTE`; rejected requests return
+HTTP 429 with `Retry-After`. The current limiter is process-local, so multi-node
+deployments must enforce a shared limit at the gateway or replace it with a
+distributed implementation.
+
+Authentication failures, rejected authenticated resource access, mutations, and
+rate-limit events are written to the `SECURITY_AUDIT` logger. Actor and client
+identities are SHA-256 fingerprints; credentials, email addresses, request
+bodies, and query strings are not logged. Production deployments should route
+this logger to retained, access-controlled audit storage.
+
 ## Documents
 
 Document uploads support **TXT (plain text), PDF, DOC/DOCX, XLS/XLSX, and PPT/PPTX**.
@@ -128,6 +153,21 @@ use the same lifecycle: `UPLOADED` → `PROCESSING` → `PROCESSED` or `FAILED`.
 List sources with `GET /api/v1/workspaces/{workspaceId}/sources`, reprocess one
 with `POST /api/v1/workspaces/{workspaceId}/sources/{sourceId}/reprocess`, and
 delete it together with indexed knowledge using the corresponding `DELETE` path.
+
+Source processing and deletion are backed by a durable PostgreSQL recovery
+ledger. Transient provider, OpenSearch, and storage failures are retried with
+bounded exponential backoff; permanent failures and exhausted retries move to
+`DEAD_LETTER` with a bounded error code and message. Expired processing leases
+make interrupted work recoverable after restart. Completed sources are also
+reconciled periodically against file storage and OpenSearch: missing index data
+is reprocessed, missing stored bytes are surfaced as an integrity failure, and
+orphaned knowledge is removed. Inspect a source with
+`GET /api/v1/workspaces/{workspaceId}/sources/{sourceId}/recovery`; the Library
+source details show the same state, attempt count, next check, and last error.
+
+Recovery is enabled by default. Its retry count, backoff, lease, reconciliation,
+polling, and batch settings are configured through the `SOURCE_RECOVERY_*` and
+`SOURCE_RECONCILIATION_INTERVAL` variables documented in `.env.example`.
 
 ## Local Whisper
 

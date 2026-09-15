@@ -24,7 +24,7 @@ class UserAccountServiceTest {
         when(repository.save(any(UserAccountEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         UserAccountService service = newService(repository);
 
-        var user = service.register(" User@Example.COM ", "password123", " Test User ");
+        var user = service.register(" User@Example.COM ", "password1234", " Test User ");
 
         assertEquals("user@example.com", user.email());
         assertEquals("Test User", user.displayName());
@@ -38,7 +38,7 @@ class UserAccountServiceTest {
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> service.register("user@example.com", "password123", "User")
+                () -> service.register("user@example.com", "password1234", "User")
         );
 
         assertEquals("User email is already registered", exception.getMessage());
@@ -53,7 +53,31 @@ class UserAccountServiceTest {
                 () -> service.register("user@example.com", "short", "User")
         );
 
-        assertEquals("Password must be at least 8 characters", exception.getMessage());
+        assertEquals("Password must be at least 12 characters", exception.getMessage());
+    }
+
+    @Test
+    void rejectsExcessivelyLongPassword() {
+        UserAccountService service = newService(mock(UserAccountRepository.class));
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.register("user@example.com", "a".repeat(73), "User")
+        );
+
+        assertEquals("Password must not exceed 72 UTF-8 bytes", exception.getMessage());
+    }
+
+    @Test
+    void rejectsMalformedEmail() {
+        UserAccountService service = newService(mock(UserAccountRepository.class));
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.register("not-an-email", "password1234", "User")
+        );
+
+        assertEquals("Email must be a valid address", exception.getMessage());
     }
 
     @Test

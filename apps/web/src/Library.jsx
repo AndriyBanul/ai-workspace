@@ -1,32 +1,110 @@
 import React, { useEffect, useState } from 'react';
-import { formats, validateFiles } from './api.js';
-import { Badge, Empty, Icon, Notice, Submit, date, size, useAction } from './components.jsx';
+import { Icon, useAction, size } from './components.jsx';
+import DeleteSourceConfirmation from './library/DeleteSourceConfirmation.jsx';
+import SourceDetails from './library/SourceDetails.jsx';
+import SourceList from './library/SourceList.jsx';
+import SourceResult from './library/SourceResult.jsx';
+import SourceUploadPanel from './library/SourceUploadPanel.jsx';
+import WebPageImport from './library/WebPageImport.jsx';
 
 export default function Library({ api, workspace, addJob }) {
-  const [files, setFiles] = useState([]), [query, setQuery] = useState(''), [filter, setFilter] = useState('ALL');
-  const [upload, setUpload] = useState(false), [selectedFiles, setSelectedFiles] = useState({}), [mode, setMode] = useState('async'), [kind, setKind] = useState('document');
-  const [result, setResult] = useState(null), [detail, setDetail] = useState(null), [confirm, setConfirm] = useState(null);
-  const load = useAction(), action = useAction(), web = useAction();
+  const [files, setFiles] = useState([]);
+  const [showUpload, setShowUpload] = useState(false);
+  const [result, setResult] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [recovery, setRecovery] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const load = useAction();
+  const sourceAction = useAction();
+
   const refresh = () => load.run(async () => setFiles(await api(`/workspaces/${workspace.id}/sources`)));
-  useEffect(() => { const controller = new AbortController(); api(`/workspaces/${workspace.id}/sources`, { signal: controller.signal }).then(setFiles).catch(e => { if (e.name !== 'AbortError') load.run(() => { throw e; }); }); return () => controller.abort(); }, [api, workspace.id]);
-  async function submit(event) {
-    event.preventDefault(); const formElement = event.currentTarget;
-    await action.run(async () => {
-      const entries = validateFiles(mode === 'async' ? selectedFiles : { [kind]: selectedFiles[kind] });
-      const data = new FormData(); data.append('workspaceId', workspace.id);
-      for (const [type, file] of entries) data.append(mode === 'async' ? type : 'file', file);
-      const response = await api(mode === 'async' ? '/orchestrator/ingestions' : formats[kind].endpoint, { method: 'POST', body: data });
-      setResult(response); if (mode === 'async') addJob(response);
-      setSelectedFiles({}); formElement.reset(); await refresh();
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api(`/workspaces/${workspace.id}/sources`, { signal: controller.signal })
+      .then(setFiles)
+      .catch(error => {
+        if (error.name !== 'AbortError') load.run(() => { throw error; });
+      });
+    return () => controller.abort();
+  }, [api, workspace.id]);
+
+  async function processed(response) {
+    setResult(response);
+    await refresh();
+  }
+
+  function openSource(file) {
+    return sourceAction.run(async () => {
+      const [sourceDetail, recoveryDetail] = await Promise.all([
+        api(`/workspaces/${workspace.id}/sources/${file.id}`),
+        api(`/workspaces/${workspace.id}/sources/${file.id}/recovery`),
+      ]);
+      setDetail(sourceDetail);
+      setRecovery(recoveryDetail);
     });
   }
-  async function importWeb(event) { event.preventDefault(); const form = event.currentTarget; const url = new FormData(form).get('url'); await web.run(async () => { setResult(await api('/documents/web-page', { method: 'POST', json: { workspaceId: workspace.id, url } })); form.reset(); await refresh(); }); }
-  const shown = files.filter(f => (filter === 'ALL' || f.sourceType === filter) && f.originalFilename.toLowerCase().includes(query.toLowerCase()));
-  return <><section className="hero"><div><span className="tag">A GOOD PLACE TO START</span><h2>Give your ideas<br/>something to build on.</h2><p>Add documents, media, or a web page.<br/>Your workspace makes the connections.</p><button className="primary" onClick={() => setUpload(!upload)}><Icon name="plus" size={18}/>Add sources</button></div><div className="paper-stack" aria-hidden="true"><div className="paper back"/><div className="paper"><span className="paper-kicker">YOUR KNOWLEDGE</span><Icon name="file" size={35}/><div className="paper-lines"><i/><i/><i/></div><span className="paper-label">Everything, in context.</span></div><span className="floating-star"><Icon name="studio" size={32}/></span></div></section><div className="stats"><div><span>Sources</span><strong>{files.length.toString().padStart(2, '0')}</strong></div><div><span>Ready to explore</span><strong>{files.filter(f => f.status === 'PROCESSED').length.toString().padStart(2, '0')}</strong></div><div><span>Needs attention</span><strong>{files.filter(f => f.status === 'FAILED').length.toString().padStart(2, '0')}</strong></div><div><span>Space used</span><strong>{size(files.reduce((n, f) => n + f.sizeBytes, 0))}</strong></div></div>
-  {upload && <section className="card"><h2>Add sources</h2><p>Less than 25 MB per submission. Scanned PDF pages use automatic OCR when enabled on the server.</p><form onSubmit={submit}><fieldset disabled={action.busy}><div className="form-row"><label>Processing<select value={mode} onChange={e => setMode(e.target.value)}><option value="async">Background job · multiple media types</option><option value="direct">Process one file now</option></select></label>{mode === 'direct' && <label>Source type<select value={kind} onChange={e => setKind(e.target.value)}>{Object.entries(formats).map(([key, v]) => <option key={key} value={key}>{v.title}</option>)}</select></label>}</div><div className="upload-grid">{Object.entries(formats).filter(([key]) => mode === 'async' || kind === key).map(([key, format]) => <label className="dropzone" key={key}><Icon name="upload"/><strong>{format.title}</strong><small>{format.hint}</small><input type="file" aria-label={`${format.title} file`} accept={format.accept} onChange={e => setSelectedFiles(prev => ({ ...prev, [key]: e.target.files[0] }))}/></label>)}</div><Notice error={action.error}/><Submit busy={action.busy}>Upload & process<Icon name="arrow" size={18}/></Submit></fieldset></form></section>}
-  <section className="card web-import"><div><h3>Bring the web into your workspace</h3><p>Import an article or text page by URL. It will appear below with the same lifecycle as uploaded media.</p></div><form onSubmit={importWeb}><label className="sr-only" htmlFor="web-url">Web page URL</label><input id="web-url" name="url" type="url" pattern="https?://.*" placeholder="https://example.com/article" required disabled={web.busy}/><Submit busy={web.busy}>Import</Submit></form><Notice error={web.error}/></section>
-  {result && <section className="card result" role="status"><div className="section-heading"><h3>{result.jobId ? 'Upload submitted' : 'Source processed'}</h3><button className="text-button" onClick={() => setResult(null)}>Dismiss</button></div>{result.jobId ? <p>Follow this job in Activity: <code>{result.jobId}</code></p> : <><p>{result.text || result.description || `${result.characterCount ?? ''} characters extracted${result.blockCount ? ` into ${result.blockCount} blocks` : ''}.`}</p><details><summary>Extraction details</summary><pre>{JSON.stringify(result, null, 2)}</pre></details></>}</section>}
-  <section className="card"><div className="section-heading"><h2>Your sources <span className="count">{files.length}</span></h2><button className="text-button" onClick={refresh} disabled={load.busy}>Refresh sources</button></div><div className="toolbar"><label className="search"><Icon name="search"/><input aria-label="Search sources" placeholder="Find a source…" value={query} onChange={e => setQuery(e.target.value)}/></label><select aria-label="Filter sources" value={filter} onChange={e => setFilter(e.target.value)}><option value="ALL">All types</option>{Object.keys(formats).map(type => <option key={type} value={type.toUpperCase()}>{formats[type].title}</option>)}<option value="WEB_PAGE">Web page</option><option value="YOUTUBE">YouTube</option></select></div><Notice error={load.error}/>{!shown.length ? <Empty title={files.length ? 'No matching sources' : 'Your library is ready for its first source'}>Upload a file or import a web page to start exploring.</Empty> : <div className="table-scroll"><table><thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Status</th><th>Actions</th></tr></thead><tbody>{shown.map(file => <tr key={file.id}><td><button className="file-name" onClick={() => action.run(async () => setDetail(await api(`/workspaces/${workspace.id}/sources/${file.id}`)))}><span className="file-icon"><Icon name="file"/></span><span>{file.originalFilename}<small>{new Date(file.createdAt).toLocaleDateString()}</small></span></button></td><td>{file.sourceType.toLowerCase().replace('_', ' ')}</td><td>{file.sourceUrl ? 'Remote' : size(file.sizeBytes)}</td><td><Badge status={file.status}/></td><td><button className="text-button" disabled={action.busy || file.status === 'PROCESSING'} onClick={() => action.run(async () => { const job = await api(`/workspaces/${workspace.id}/sources/${file.id}/reprocess`, { method: 'POST' }); addJob(job); await refresh(); })}>Reprocess</button> <button className="text-button danger" onClick={() => setConfirm(file)}>Delete</button></td></tr>)}</tbody></table></div>}</section>
-  {confirm && <div className="confirmation" role="alert"><h3>Delete {confirm.originalFilename}?</h3><p>This removes the source, its linked knowledge, and stored bytes when present.</p><button onClick={() => setConfirm(null)}>Cancel</button><button className="danger" disabled={action.busy} onClick={() => action.run(async () => { await api(`/workspaces/${workspace.id}/sources/${confirm.id}`, { method: 'DELETE' }); setConfirm(null); setDetail(null); await refresh(); })}>Delete source</button><Notice error={action.error}/></div>}
-  {detail && <section className="card"><div className="section-heading"><h3>{detail.originalFilename}</h3><button className="text-button" onClick={() => setDetail(null)}>Close</button></div><dl>{[['Status', detail.status], ['Created', date(detail.createdAt)], ['Updated', date(detail.updatedAt)], ['Content type', detail.contentType], ['Source URL', detail.sourceUrl], ['SHA-256', detail.checksumSha256], ['Source ID', detail.id]].filter(([, value]) => value).map(([key, value]) => <React.Fragment key={key}><dt>{key}</dt><dd>{value}</dd></React.Fragment>)}</dl></section>}</>;
+
+  function reprocessSource(file) {
+    return sourceAction.run(async () => {
+      const job = await api(`/workspaces/${workspace.id}/sources/${file.id}/reprocess`, { method: 'POST' });
+      addJob(job);
+      await refresh();
+    });
+  }
+
+  function deleteSource() {
+    return sourceAction.run(async () => {
+      await api(`/workspaces/${workspace.id}/sources/${confirm.id}`, { method: 'DELETE' });
+      setConfirm(null);
+      setDetail(null);
+      setRecovery(null);
+      await refresh();
+    });
+  }
+
+  function closeDetails() {
+    setDetail(null);
+    setRecovery(null);
+  }
+
+  return <>
+    <section className="hero">
+      <div>
+        <span className="tag">A GOOD PLACE TO START</span>
+        <h2>Give your ideas<br/>something to build on.</h2>
+        <p>Add documents, media, or a web page.<br/>Your workspace makes the connections.</p>
+        <button className="primary" onClick={() => setShowUpload(current => !current)}><Icon name="plus" size={18}/>Add sources</button>
+      </div>
+      <div className="paper-stack" aria-hidden="true">
+        <div className="paper back"/><div className="paper"><span className="paper-kicker">YOUR KNOWLEDGE</span><Icon name="file" size={35}/><div className="paper-lines"><i/><i/><i/></div><span className="paper-label">Everything, in context.</span></div><span className="floating-star"><Icon name="studio" size={32}/></span>
+      </div>
+    </section>
+    <div className="stats">
+      <div><span>Sources</span><strong>{files.length.toString().padStart(2, '0')}</strong></div>
+      <div><span>Ready to explore</span><strong>{files.filter(file => file.status === 'PROCESSED').length.toString().padStart(2, '0')}</strong></div>
+      <div><span>Needs attention</span><strong>{files.filter(file => file.status === 'FAILED').length.toString().padStart(2, '0')}</strong></div>
+      <div><span>Space used</span><strong>{size(files.reduce((total, file) => total + file.sizeBytes, 0))}</strong></div>
+    </div>
+    {showUpload && <SourceUploadPanel api={api} workspaceId={workspace.id} addJob={addJob} onProcessed={processed}/>}
+    <WebPageImport api={api} workspaceId={workspace.id} onProcessed={processed}/>
+    <SourceResult result={result} onDismiss={() => setResult(null)}/>
+    <SourceList
+      files={files}
+      busy={load.busy || sourceAction.busy}
+      error={load.error || sourceAction.error}
+      onRefresh={refresh}
+      onOpen={openSource}
+      onReprocess={reprocessSource}
+      onDelete={setConfirm}
+    />
+    <DeleteSourceConfirmation
+      source={confirm}
+      busy={sourceAction.busy}
+      error={sourceAction.error}
+      onCancel={() => setConfirm(null)}
+      onConfirm={deleteSource}
+    />
+    <SourceDetails source={detail} recovery={recovery} onClose={closeDetails}/>
+  </>;
 }

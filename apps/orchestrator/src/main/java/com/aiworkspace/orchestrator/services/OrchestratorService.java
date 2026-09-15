@@ -21,6 +21,7 @@ import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
 import com.aiworkspace.workspaces.models.CreateWorkspaceUrlSourceRequest;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
+import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
 import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.ByteArrayInputStream;
@@ -285,6 +286,28 @@ public class OrchestratorService {
                 Map.of(contentType.apiName(), source.id()));
     }
 
+    public void recoverSource(String workspaceId, String sourceId) throws IOException {
+        WorkspaceFile source = workspaceFileService.getFile(workspaceId, sourceId);
+        if (source.status() == WorkspaceFileStatus.PROCESSING) {
+            source = workspaceFileService.markFailed(workspaceId, sourceId);
+        }
+        lifecycleCoordinator.startRecoveryAttempt(source);
+        try {
+            IngestionContentType contentType = contentType(source.sourceType());
+            SubmittedContent submitted = new SubmittedContent(
+                    contentType, source, source.urlBacked() ? null : readOriginal(source));
+            IngestionJobDetails job = singleSourceJob(source.workspaceId(), contentType);
+            submitRecovered(job, submitted);
+        } catch (RuntimeException exception) {
+            try {
+                lifecycleCoordinator.failRecoveryAttempt(source, exception);
+            } catch (RuntimeException recoveryException) {
+                exception.addSuppressed(recoveryException);
+            }
+            throw exception;
+        }
+    }
+
     private Object processSynchronously(SubmittedContent submitted) throws IOException, InterruptedException {
         IngestionJobDetails job = singleSourceJob(submitted.file().workspaceId(), submitted.contentType());
         try {
@@ -363,6 +386,10 @@ public class OrchestratorService {
         CompletableFuture.runAsync(() -> runTask(job, content), executor);
     }
 
+    private void submitRecovered(IngestionJobDetails job, SubmittedContent content) {
+        CompletableFuture.runAsync(() -> runRecoveredTask(job, content), executor);
+    }
+
     private void runTask(IngestionJobDetails job, SubmittedContent content) {
         try {
             lifecycleCoordinator.process(
@@ -372,6 +399,18 @@ public class OrchestratorService {
             log.warn("Interrupted while running {} orchestration task", content.contentType().apiName(), exception);
         } catch (Exception exception) {
             log.warn("Failed to run {} orchestration task", content.contentType().apiName(), exception);
+        }
+    }
+
+    private void runRecoveredTask(IngestionJobDetails job, SubmittedContent content) {
+        try {
+            lifecycleCoordinator.processClaimedRecovery(
+                    job, content.contentType(), content.file(), () -> processSource(job, content));
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while recovering {} orchestration task", content.contentType().apiName(), exception);
+        } catch (Exception exception) {
+            log.warn("Failed to recover {} orchestration task", content.contentType().apiName(), exception);
         }
     }
 

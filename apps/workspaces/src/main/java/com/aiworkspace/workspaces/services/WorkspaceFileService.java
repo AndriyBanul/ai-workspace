@@ -131,6 +131,13 @@ public class WorkspaceFileService {
         return fileStorage.read(entity.getStorageKey());
     }
 
+    @Transactional(readOnly = true)
+    public boolean contentExists(String workspaceId, String fileId) {
+        WorkspaceFileEntity entity = findActiveEntity(workspaceId, fileId);
+        return entity.getStorageKey() == null || entity.getStorageKey().isBlank()
+                || fileStorage.exists(entity.getStorageKey());
+    }
+
     @Transactional
     public WorkspaceFile markProcessing(String workspaceId, String fileId) {
         return updateStatus(

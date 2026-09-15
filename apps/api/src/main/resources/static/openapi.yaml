@@ -2,7 +2,10 @@ openapi: 3.1.0
 info:
   title: AI Workspace API
   version: 0.1.0
-  description: Workspace-scoped multimodal ingestion, knowledge retrieval, and generation API.
+  description: >-
+    Workspace-scoped multimodal ingestion, knowledge retrieval, and generation API.
+    Authenticated endpoints use stateless HTTP Basic authentication and can return
+    a structured 429 response when the configured per-client rate limit is exceeded.
 servers:
   - url: /
 security:
@@ -459,6 +462,8 @@ paths:
                 $ref: "#/components/schemas/YouTubeVideoIngestionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
         "404":
           $ref: "#/components/responses/NotFound"
         "502":
@@ -520,6 +525,22 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           description: Source is already processing or cannot be reprocessed.
+  /api/v1/workspaces/{workspaceId}/sources/{fileId}/recovery:
+    get:
+      summary: Get durable recovery state for a workspace source
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: Current retry, lease, reconciliation, or dead-letter state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRecoveryTask"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/videos/generations:
     post:
       summary: Generate video
@@ -577,6 +598,17 @@ components:
             $ref: "#/components/schemas/ApiErrorResponse"
     BadGateway:
       description: Upstream or storage dependency failed.
+      content:
+        application/json:
+          schema:
+              $ref: "#/components/schemas/ApiErrorResponse"
+    TooManyRequests:
+      description: The per-client request limit was exceeded. Retry-After contains the remaining window duration.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds until the current rate-limit window expires.
       content:
         application/json:
           schema:
@@ -867,6 +899,43 @@ components:
         sheetName:
           type: string
           nullable: true
+    SourceRecoveryTask:
+      type: object
+      required: [sourceId, workspaceId, operationType, status, attemptCount, createdAt, updatedAt]
+      properties:
+        sourceId:
+          type: string
+        workspaceId:
+          type: string
+        operationType:
+          type: string
+          enum: [PROCESS, DELETE]
+        status:
+          type: string
+          enum: [SCHEDULED, RUNNING, COMPLETED, DEAD_LETTER]
+        attemptCount:
+          type: integer
+          minimum: 0
+        nextAttemptAt:
+          type: string
+          format: date-time
+          nullable: true
+        leaseExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastErrorCode:
+          type: string
+          nullable: true
+        lastErrorMessage:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
         startMilliseconds:
           type: integer
           format: int64
@@ -894,6 +963,9 @@ components:
         password:
           type: string
           format: password
+          minLength: 12
+          maxLength: 72
+          description: Must be at least 12 characters and no more than 72 UTF-8 bytes.
         displayName:
           type: string
           nullable: true

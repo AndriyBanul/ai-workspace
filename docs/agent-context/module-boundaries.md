@@ -16,6 +16,10 @@
 - Cross-media ingestion sequencing belongs in `apps/orchestrator`; media modules
   extract or generate content, while the orchestrator coordinates source
   creation, processing, knowledge indexing, completion/failure, and reprocessing.
+- Durable source retry, lease, dead-letter, and cross-storage reconciliation
+  state belongs in `apps/orchestrator`; storage existence checks stay in
+  `apps/workspaces` and indexed-knowledge existence checks stay in
+  `apps/knowledge`.
 - AI provider integrations should be exposed to services through capability-oriented interfaces in the owning module's `interfaces` package.
 - Avoid broad generic AI provider abstractions; prefer focused ports such as speech-to-text, text-to-speech, image understanding, image generation, video understanding, and video generation.
 - Cross-module communication should happen through interfaces or application services.

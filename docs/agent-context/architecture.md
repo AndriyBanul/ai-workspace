@@ -50,6 +50,15 @@ source lifecycle coordinator: create, process, index, complete/fail, then
 optional reprocess or delete. A stable workspace source ID is also the
 OpenSearch source ID, making replacement and deletion idempotent across media.
 
+`apps/orchestrator` also owns a PostgreSQL-backed source recovery ledger. It
+records processing and deletion attempts independently from source metadata,
+leases in-flight work, retries transient failures with bounded backoff, and
+dead-letters permanent or exhausted failures. A scheduled reconciler compares
+completed sources with raw file storage and OpenSearch, then reprocesses missing
+knowledge, reports missing source bytes, or removes orphaned knowledge. Source
+processing uses replacement indexing and deletion is delete-if-present, so both
+recovery paths are idempotent.
+
 `apps/workspaces` owns workspace metadata persisted in PostgreSQL. Business
 flows that attach knowledge to a workspace should use a real `workspaceId`
 instead of hardcoded workspace identifiers.
@@ -67,6 +76,14 @@ objects. OpenSearch keeps the existing flat document field names as its storage
 schema, so this domain refactor does not require reindexing existing content.
 
 The initial API package is `com.aiworkspace`.
+
+The React frontend is organized by user workflow. `App` only selects the
+authenticated or unauthenticated application. Workspace shell/navigation,
+workspace content routing, Library source workflows, and Studio media workflows
+use focused components. Feature-specific components live under `src/library`
+and `src/studio`; shared visual primitives and action state remain in
+`components.jsx`. Keep API calls at workflow-container boundaries so child
+components remain testable without duplicating backend behavior.
 
 Initial package areas inside `apps/api` are intentionally small:
 

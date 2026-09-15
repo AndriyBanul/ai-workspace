@@ -106,8 +106,42 @@ class ApiIntegrationTest {
         HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/workspaces"))
                 .GET()
                 .build());
+        JsonNode error = OBJECT_MAPPER.readTree(response.body());
 
         assertEquals(HttpStatus.UNAUTHORIZED.value(), response.statusCode());
+        assertEquals("AUTHENTICATION_REQUIRED", error.path("code").asText());
+        assertEquals("/api/v1/workspaces", error.path("path").asText());
+        assertEquals("no-store", response.headers().firstValue("Cache-Control").orElseThrow());
+        assertTrue(response.headers().firstValue("WWW-Authenticate").orElseThrow()
+                .startsWith("Basic realm=\"ai-workspace\""));
+    }
+
+    @Test
+    void rejectsInvalidCredentialsWithoutCreatingSession() throws IOException, InterruptedException {
+        String credentials = Base64.getEncoder().encodeToString(
+                "missing@example.com:incorrect-password".getBytes(StandardCharsets.UTF_8));
+        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/workspaces"))
+                .header("Authorization", "Basic " + credentials)
+                .GET()
+                .build());
+
+        assertEquals(HttpStatus.UNAUTHORIZED.value(), response.statusCode());
+        assertEquals("AUTHENTICATION_REQUIRED", OBJECT_MAPPER.readTree(response.body()).path("code").asText());
+        assertTrue(response.headers().allValues("Set-Cookie").isEmpty());
+    }
+
+    @Test
+    void authenticatesWithoutCreatingServerSession() throws IOException, InterruptedException {
+        TestUser user = registerUser();
+
+        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/auth/me"))
+                .header("Authorization", user.basicAuthHeader())
+                .GET()
+                .build());
+
+        assertEquals(HttpStatus.OK.value(), response.statusCode());
+        assertEquals(user.id(), OBJECT_MAPPER.readTree(response.body()).path("id").asText());
+        assertTrue(response.headers().allValues("Set-Cookie").isEmpty());
     }
 
     @Test
@@ -163,6 +197,17 @@ class ApiIntegrationTest {
                 .build());
         JsonNode file = OBJECT_MAPPER.readTree(files.body()).path(0);
         JsonNode uploadResponse = OBJECT_MAPPER.readTree(uploaded.body());
+        String recoveryPath = "/api/v1/workspaces/" + workspaceId + "/sources/"
+                + file.path("id").asText() + "/recovery";
+        HttpResponse<String> recovery = send(HttpRequest.newBuilder(uri(recoveryPath))
+                .header("Authorization", owner.basicAuthHeader())
+                .GET()
+                .build());
+        HttpResponse<String> otherUserRecovery = send(HttpRequest.newBuilder(uri(recoveryPath))
+                .header("Authorization", otherUser.basicAuthHeader())
+                .GET()
+                .build());
+        JsonNode recoveryTask = OBJECT_MAPPER.readTree(recovery.body());
 
         assertEquals(HttpStatus.OK.value(), uploaded.statusCode());
         assertEquals(file.path("id").asText(), uploadResponse.path("sourceId").asText());
@@ -184,6 +229,12 @@ class ApiIntegrationTest {
         KnowledgeItem knowledgeItem = knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).get(0);
         assertEquals(file.path("id").asText(), knowledgeItem.sourceId());
         assertEquals(uploadResponse.path("extractedAt").asText(), knowledgeItem.extractedAt().toString());
+        assertEquals(HttpStatus.OK.value(), recovery.statusCode(), recovery.body());
+        assertEquals("PROCESS", recoveryTask.path("operationType").asText());
+        assertEquals("COMPLETED", recoveryTask.path("status").asText());
+        assertEquals(1, recoveryTask.path("attemptCount").asInt());
+        assertFalse(recoveryTask.path("nextAttemptAt").asText().isBlank());
+        assertEquals(HttpStatus.NOT_FOUND.value(), otherUserRecovery.statusCode());
     }
 
     @Test
@@ -624,7 +675,7 @@ class ApiIntegrationTest {
 
     private TestUser registerUser() throws IOException, InterruptedException {
         String email = UUID.randomUUID() + "@example.com";
-        String password = "password123";
+        String password = "password1234";
         HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/auth/register"))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("""

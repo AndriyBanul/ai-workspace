@@ -180,6 +180,15 @@ public class KnowledgeService {
         indexingService.deleteWorkspace(workspaceId);
     }
 
+    public boolean hasSourceKnowledge(String workspaceId, String sourceId) throws IOException {
+        knowledgeValidator.validateWorkspaceId(workspaceId);
+        if (sourceId == null || sourceId.isBlank()) {
+            throw new IllegalArgumentException("Source ID must not be blank");
+        }
+        return knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId.trim()).stream()
+                .anyMatch(item -> sourceId.trim().equals(item.sourceId()));
+    }
+
     public WorkspaceKnowledgeAnswer answerWorkspaceQuestion(String workspaceId, String question) throws IOException {
         knowledgeValidator.validateWorkspaceId(workspaceId);
         knowledgeValidator.validateQuestion(question);
