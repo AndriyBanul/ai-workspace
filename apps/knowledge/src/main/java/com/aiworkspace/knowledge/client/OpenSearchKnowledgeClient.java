@@ -7,6 +7,7 @@ import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
+import com.aiworkspace.knowledge.services.ReciprocalRankFusion;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -129,7 +130,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         bool.put("filter", List.of(Map.of("term", Map.of("workspaceId", workspaceId))));
         bool.put("must", List.of(Map.of("multi_match", Map.of(
                 "query", query,
-                "fields", List.of("content", "heading^" + headingWeight)
+                "fields", List.of("content", "heading^" + headingWeight, "speaker^2")
         ))));
 
         Map<String, Object> request = new LinkedHashMap<>();
@@ -157,7 +158,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         List<KnowledgeItem> vectorResults = searchVectorCandidates(
                 workspaceId, queryEmbedding, effectiveCandidateLimit, effectiveCandidateLimit);
 
-        return reciprocalRankFusion(lexicalResults, vectorResults, limit, rrfRankConstant);
+        return ReciprocalRankFusion.fuse(List.of(lexicalResults, vectorResults), limit, rrfRankConstant);
     }
 
     @Override
@@ -205,7 +206,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         for (var match : matches) {
             if (!workspaceId.equals(match.workspaceId())) throw new IllegalArgumentException("Workspace mismatch");
             result.put(match.id(), match);
-            // Legacy/non-document items have no trustworthy section boundaries.
+            // Legacy items without source and section metadata have no trustworthy boundaries.
             if (match.sourceId() == null || match.sectionId() == null || match.chunkSequence() == null) continue;
             clauses.add(Map.of("bool", Map.of("filter", List.of(
                     Map.of("term", Map.of("sourceId", match.sourceId())),
@@ -377,6 +378,9 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         document.put("pageNumber", item.pageNumber());
         document.put("slideNumber", item.slideNumber());
         document.put("sheetName", item.sheetName());
+        document.put("startMilliseconds", item.startMilliseconds());
+        document.put("endMilliseconds", item.endMilliseconds());
+        document.put("speaker", item.speaker());
         document.put("embedding", item.embedding());
         document.put("embeddingModel", item.embeddingModel());
         document.put("embeddingDimensions", item.embeddingDimensions());
@@ -479,6 +483,9 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         properties.put("pageNumber", Map.of("type", "integer"));
         properties.put("slideNumber", Map.of("type", "integer"));
         properties.put("sheetName", Map.of("type", "keyword"));
+        properties.put("startMilliseconds", Map.of("type", "long"));
+        properties.put("endMilliseconds", Map.of("type", "long"));
+        properties.put("speaker", Map.of("type", "keyword"));
         properties.put("embedding", Map.of(
                 "type", "knn_vector",
                 "dimension", embeddingProperties.dimensions(),
@@ -593,7 +600,10 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
                 integerValue(source, "embeddingDimensions"),
                 textValue(source, "contentHash", null),
                 Instant.parse(textValue(source, "createdAt", Instant.EPOCH.toString())),
-                textValue(source, "sectionId", null)
+                textValue(source, "sectionId", null),
+                longValue(source, "startMilliseconds"),
+                longValue(source, "endMilliseconds"),
+                textValue(source, "speaker", null)
         );
     }
 
@@ -644,6 +654,11 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         return value.isMissingNode() || value.isNull() ? null : value.asInt();
     }
 
+    private Long longValue(JsonNode source, String field) {
+        JsonNode value = source.path(field);
+        return value.isMissingNode() || value.isNull() ? null : value.asLong();
+    }
+
     private List<Float> floatListValue(JsonNode source, String field) {
         JsonNode values = source.path(field);
         if (!values.isArray()) {
@@ -659,35 +674,6 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
             throw new IllegalArgumentException(
                     "Query embedding must contain " + embeddingProperties.dimensions() + " dimensions"
             );
-        }
-    }
-
-    private List<KnowledgeItem> reciprocalRankFusion(
-            List<KnowledgeItem> lexicalResults,
-            List<KnowledgeItem> vectorResults,
-            int limit,
-            int rankConstant
-    ) {
-        Map<String, KnowledgeItem> items = new LinkedHashMap<>();
-        Map<String, Double> scores = new LinkedHashMap<>();
-        addRanks(lexicalResults, items, scores, rankConstant);
-        addRanks(vectorResults, items, scores, rankConstant);
-        return items.values().stream()
-                .sorted((left, right) -> Double.compare(scores.get(right.id()), scores.get(left.id())))
-                .limit(limit)
-                .toList();
-    }
-
-    private void addRanks(
-            List<KnowledgeItem> rankedItems,
-            Map<String, KnowledgeItem> items,
-            Map<String, Double> scores,
-            int rankConstant
-    ) {
-        for (int index = 0; index < rankedItems.size(); index++) {
-            KnowledgeItem item = rankedItems.get(index);
-            items.putIfAbsent(item.id(), item);
-            scores.merge(item.id(), 1.0 / (rankConstant + index + 1), Double::sum);
         }
     }
 

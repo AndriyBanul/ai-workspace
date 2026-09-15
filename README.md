@@ -41,9 +41,9 @@ open http://localhost:8080/
 
 ## Documents
 
-Document uploads support **TXT (plain text), PDF, DOCX, XLSX, and PPTX**.
+Document uploads support **TXT (plain text), PDF, DOC/DOCX, XLS/XLSX, and PPT/PPTX**.
 The server detects the format from file contents; a filename or declared MIME
-type does not grant support. Legacy DOC/XLS/PPT, macro-enabled Office files,
+type does not grant support. Macro-enabled OOXML files,
 images, HTML uploads, and generic archives are not supported document formats.
 Web-page imports remain available through `/api/v1/documents/web-page`. They
 respect the charset declared by the origin server and HTML metadata, handle
@@ -76,8 +76,20 @@ with an additional stable `code` for document failures:
 | `EXTRACTION_LIMIT_EXCEEDED` | 422 | Split the document into smaller files. |
 | `NO_EXTRACTABLE_TEXT` | 422 | Supply a document containing selectable text. |
 
-Automatic OCR is disabled. A scanned or image-only PDF may need OCR before
-upload; a textless result alone does not prove that a document is scanned.
+PDF pages without readable text are rendered by `documents` and transcribed
+through the dedicated `ImageOcrProvider` interface in `images`. The current
+provider uses Gemini and requires `GEMINI_API_KEY`. Existing text pages are
+preserved; OCR text is merged in page order before chunking. Pages with even a
+partial readable text layer are currently left unchanged.
+
+OCR is enabled by default (`DOCUMENT_OCR_ENABLED`). Limits default to 50 OCR
+pages per document (`DOCUMENT_OCR_MAX_PAGES`), 150 DPI (`DOCUMENT_OCR_DPI`), and
+4 million pixels per rendered page (`DOCUMENT_OCR_MAX_PIXELS`). The model is
+configured by `IMAGE_OCR_MODEL`. Existing character and block limits also apply.
+Provider errors or truncated responses fail ingestion rather than index partial
+results. Blank OCR output is allowed; a completely textless document still fails.
+The OCR contract allows optional region confidence and normalized coordinates;
+the current Gemini adapter returns neither, rather than inventing them.
 Nonempty files that fail extraction remain visible with status `FAILED`, and
 their content is not added to workspace knowledge. Async ingestion steps expose
 the same failure code in `errorCode` alongside a readable `errorMessage`.
@@ -121,6 +133,14 @@ docker compose -f infra/docker/whisper/compose.yml up -d
 ```
 
 The service listens on `http://localhost:9000` by default.
+Audio transcription requests ask Whisper for detailed JSON and word timestamps.
+Responses expose a full transcript, detected language, and timed segments. Speaker
+labels remain empty with the default `faster_whisper` engine; they are populated
+only when a configured provider performs diarization.
+Workspace ingestion indexes each non-empty transcript segment as an independently
+searchable knowledge chunk. Each chunk keeps its source file ID, sequence, start
+and end time, and optional speaker so answer evidence can identify the matching
+audio passage. Provider responses without segments fall back to one untimed chunk.
 
 ## Local Piper
 
@@ -171,13 +191,29 @@ Each chunk receives one normalized, 768-dimensional embedding generated inside
 the application by Spring AI and the pinned `intfloat/multilingual-e5-base`
 ONNX model. Document chunks use the model's `passage:` prefix and questions use
 its `query:` prefix. By default, search combines BM25 matches over chunk content and headings with
-OpenSearch kNN results using reciprocal rank fusion. Set `KNOWLEDGE_SEARCH_MODE=VECTOR`
-to use only the kNN results. In either mode, the twelve highest-ranked
+OpenSearch kNN results using reciprocal rank fusion. Query expansion is enabled by
+default: the original question and up to two rewrites are searched. Rewrites focus
+on the named entity and requested attribute, preserve disambiguating qualifiers in
+a second formulation, and are instructed not to guess answer values. All result
+lists are deduplicated and combined using reciprocal rank fusion before selection.
+`KNOWLEDGE_SEARCH_CANDIDATE_LIMIT` defaults to 100 candidates per retrieval stream,
+independently of the final context limit and whether reranking is enabled.
+`KNOWLEDGE_SEARCH_RRF_RANK_CONSTANT` defaults to 30, giving top positions more
+weight than the previous value of 60 when combining these deeper result lists.
+Set `KNOWLEDGE_SEARCH_MODE=VECTOR` to use only the kNN result lists.
+In either mode, the twelve highest-ranked
 chunks are selected, then the next chunk is fetched within the same
 source and section. Overlapping windows are deduplicated while preserving search
 rank, with each following chunk placed after its seed, producing at most 24 evidence chunks. Search falls back to BM25 when
 query embedding generation is unavailable. Document ingestion fails before
 indexing when the required local embedding model cannot generate every vector.
+
+`KNOWLEDGE_QUERY_EXPANSION_ENABLED=false` searches only the original question.
+`KNOWLEDGE_QUERY_EXPANSION_LIMIT` controls the number of rewrites (default 2).
+Optional reranking remains disabled by default. When enabled, its candidate limit
+controls how many fused results are scored; each search retrieves at least that
+many candidates. A larger retrieval pool increases search work and response bytes,
+while the answer context remains bounded at 24 chunks including following chunks.
 
 Reprocessing the same document source replaces its complete chunk set. Obsolete
 chunk IDs are pruned only after OpenSearch accepts the replacement bulk request,
@@ -200,8 +236,13 @@ cache. This embedding change uses the `knowledge-items-v3` index because an
 existing OpenSearch vector field cannot change from 384 to 768 dimensions.
 Gemini is used for answer generation and does not create embeddings.
 
-Text produced by document parsing/web extraction, audio transcription, image
-description, and video description is attached to the selected workspace.
+Text produced by document parsing/web extraction, timed audio transcription,
+image description, and structured video analysis is attached to the selected
+workspace. Video knowledge keeps the visual summary separate from spoken content
+and includes timestamps and provider-supplied speaker labels when available.
+Newly ingested audio is searchable by transcript passage and returns timing and
+speaker metadata in answer sources. Existing audio sources require re-ingestion
+to receive the chunked representation.
 
 ```bash
 curl http://localhost:8080/api/v1/knowledge/workspaces/{workspaceId}
@@ -254,16 +295,36 @@ curl -X POST http://localhost:8080/api/v1/images/generations \
   --output generated-image.png
 ```
 
-## Video Descriptions
+## Video Analysis
 
-The `videos` module can describe uploaded videos through Gemini. Configure
-`GEMINI_API_KEY` before starting the API.
+The `videos` module returns a visual summary, detected spoken language, verbatim
+transcript, and timed transcript segments through Gemini. Videos without speech
+return an empty transcript and segment list. Configure `GEMINI_API_KEY` before
+starting the API.
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/videos/descriptions \
   -F "workspaceId={workspaceId}" \
   -F "file=@/path/to/video.mp4"
 ```
+
+Public YouTube videos can be imported directly without downloading or storing
+their source bytes. Standard watch, share, Shorts, embed, and live URLs are
+canonicalized to one video URL before being sent to Gemini. Private, unlisted,
+playlist-only, non-YouTube, and non-HTTPS URLs are rejected.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/videos/youtube \
+  -H 'Content-Type: application/json' \
+  -d '{"workspaceId":"{workspaceId}","url":"https://www.youtube.com/watch?v=9hE5-98ZeCg"}'
+```
+
+The response includes a durable `sourceId`; the canonical YouTube URL is retained
+as source metadata for workspace citations. Gemini's direct YouTube input is a
+preview capability and currently supports public videos only. This first version
+processes the URL synchronously and uses the shared outbound HTTP read timeout;
+long videos may require a larger `ai-workspace.http.read-timeout` or a future
+asynchronous provider workflow.
 
 The `videos` module can also generate videos through Google Veo. Configure
 `GEMINI_API_KEY` before starting the API.

@@ -2,6 +2,8 @@ package com.aiworkspace.controllers;
 
 import com.aiworkspace.videos.models.VideoDescriptionResponse;
 import com.aiworkspace.videos.models.VideoGenerationRequest;
+import com.aiworkspace.videos.models.YouTubeVideoIngestionRequest;
+import com.aiworkspace.videos.models.YouTubeVideoIngestionResponse;
 import com.aiworkspace.users.services.UserAccountService;
 import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.services.VideoService;
@@ -61,5 +63,16 @@ public class VideoController {
                                 .toString()
                 )
                 .body(video.content());
+    }
+
+    @PostMapping(path = "/youtube", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<YouTubeVideoIngestionResponse> ingestYouTube(
+            @RequestBody YouTubeVideoIngestionRequest request,
+            Authentication authentication
+    ) throws IOException, InterruptedException {
+        return ResponseEntity.ok(videoService.ingestYouTube(
+                userAccountService.currentUserId(authentication),
+                request
+        ));
     }
 }

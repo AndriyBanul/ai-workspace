@@ -7,6 +7,9 @@ import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
+import com.aiworkspace.shared.media.TranscriptSegment;
+import com.aiworkspace.videos.interfaces.YouTubeVideoUnderstandingProvider;
+import com.aiworkspace.videos.models.VideoAnalysis;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -555,6 +558,35 @@ class ApiIntegrationTest {
         assertTrue(openApi.body().contains("AI Workspace API"));
     }
 
+    @Test
+    void ingestsPublicYouTubeVideoIntoWorkspaceKnowledge() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "YouTube workspace").body())
+                .path("id").asText();
+
+        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/videos/youtube"))
+                .header("Authorization", owner.basicAuthHeader())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("""
+                        {"workspaceId":"%s","url":"https://youtu.be/9hE5-98ZeCg?t=10"}
+                        """.formatted(workspaceId)))
+                .build());
+        JsonNode body = OBJECT_MAPPER.readTree(response.body());
+
+        assertEquals(HttpStatus.OK.value(), response.statusCode(), response.body());
+        assertEquals("9hE5-98ZeCg", body.path("videoId").asText());
+        assertEquals("https://www.youtube.com/watch?v=9hE5-98ZeCg", body.path("url").asText());
+        assertEquals("A presenter explains workspace search.", body.path("description").asText());
+        assertEquals(1, body.path("segments").size());
+
+        List<KnowledgeItem> items = knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId);
+        assertEquals(1, items.size());
+        assertEquals(KnowledgeSourceType.VIDEO, items.getFirst().sourceType());
+        assertEquals(body.path("sourceId").asText(), items.getFirst().sourceId());
+        assertEquals(body.path("url").asText(), items.getFirst().sourceUrl());
+        assertTrue(items.getFirst().content().contains("[00:00:01.000 - 00:00:03.000] Presenter:"));
+    }
+
     private HttpResponse<String> send(HttpRequest request) throws IOException, InterruptedException {
         return HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
     }
@@ -756,6 +788,22 @@ class ApiIntegrationTest {
                     return List.copyOf(vector);
                 }
             };
+        }
+
+        @Bean
+        @Primary
+        YouTubeVideoUnderstandingProvider youTubeVideoUnderstandingProvider() {
+            return (url, prompt) -> new VideoAnalysis(
+                    "A presenter explains workspace search.",
+                    "Search finds relevant workspace evidence.",
+                    "en",
+                    List.of(new TranscriptSegment(
+                            1_000,
+                            3_000,
+                            "Presenter",
+                            "Search finds relevant workspace evidence."
+                    ))
+            );
         }
     }
 

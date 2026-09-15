@@ -28,7 +28,10 @@ public record KnowledgeItem(
         Integer embeddingDimensions,
         String contentHash,
         Instant createdAt,
-        String sectionId
+        String sectionId,
+        Long startMilliseconds,
+        Long endMilliseconds,
+        String speaker
 ) {
 
     public KnowledgeItem(
@@ -107,5 +110,35 @@ public record KnowledgeItem(
             Instant createdAt
     ) {
         this(id, workspaceId, sourceType, sourceName, jobId, null, null, content, null, null, createdAt);
+    }
+
+    public KnowledgeItem(
+            String id,
+            String workspaceId,
+            KnowledgeSourceType sourceType,
+            String sourceName,
+            String jobId,
+            String sourceId,
+            String sourceUrl,
+            String content,
+            Instant extractedAt,
+            String parserVersion,
+            String chunkId,
+            Integer chunkSequence,
+            String heading,
+            Integer pageNumber,
+            Integer slideNumber,
+            String sheetName,
+            List<Float> embedding,
+            String embeddingModel,
+            Integer embeddingDimensions,
+            String contentHash,
+            Instant createdAt,
+            String sectionId
+    ) {
+        this(id, workspaceId, sourceType, sourceName, jobId, sourceId, sourceUrl, content, extractedAt,
+                parserVersion, chunkId, chunkSequence, heading, pageNumber, slideNumber, sheetName,
+                embedding, embeddingModel, embeddingDimensions, contentHash, createdAt, sectionId,
+                null, null, null);
     }
 }

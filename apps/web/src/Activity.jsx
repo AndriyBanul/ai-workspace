@@ -1,0 +1,16 @@
+import React, { useEffect, useState } from 'react';
+import { terminal } from './api.js';
+import { Badge, Empty, Notice, Submit, date, useAction } from './components.jsx';
+
+export default function Activity({ api, workspace, jobs, addJob }) {
+  const [selected, setSelected] = useState(jobs[0]?.jobId || ''), [job, setJob] = useState(null), [error, setError] = useState(null), [refresh, setRefresh] = useState(0);
+  const action = useAction();
+  useEffect(() => {
+    if (!selected) return;
+    const controller = new AbortController(); let timer; setJob(null); setError(null);
+    async function poll() { try { const value = await api(`/orchestrator/jobs/${encodeURIComponent(selected)}`, { signal: controller.signal }); if (value.workspaceId !== workspace.id) throw new Error('This job belongs to another workspace.'); setJob(value); if (!terminal.has(value.status)) timer = setTimeout(poll, 2000); } catch (e) { if (e.name !== 'AbortError') setError(e); } }
+    poll(); return () => { controller.abort(); clearTimeout(timer); };
+  }, [selected, api, workspace.id, refresh]);
+  async function lookup(event) { event.preventDefault(); const id = new FormData(event.currentTarget).get('jobId').trim(); await action.run(async () => { const value = await api(`/orchestrator/jobs/${encodeURIComponent(id)}`); if (value.workspaceId !== workspace.id) throw new Error('This job belongs to another workspace.'); addJob(value); setSelected(id); setRefresh(n => n + 1); }); }
+  return <><section className="card"><h2>Processing activity</h2><p>Recent jobs submitted from this browser. You can also look up an existing job by ID.</p><form className="inline-form" onSubmit={lookup}><label className="sr-only" htmlFor="job-id">Job ID</label><input id="job-id" name="jobId" placeholder="Paste an ingestion job ID" required/><Submit busy={action.busy}>Look up job</Submit></form><Notice error={action.error}/></section><div className="activity-layout"><section className="card"><h3>Recent submissions</h3>{jobs.length ? jobs.map(j => <button className={`job-item ${selected === j.jobId ? 'selected' : ''}`} key={j.jobId} onClick={() => setSelected(j.jobId)}><strong>{j.submitted?.join(', ') || 'Ingestion job'}</strong><small>{date(j.createdAt)}</small><code>{j.jobId}</code></button>) : <Empty title="Nothing in the queue">Background uploads will appear here.</Empty>}</section><section className="card"><div className="section-heading"><h3>Job details</h3>{selected && <button className="text-button" onClick={() => setRefresh(n => n + 1)}>Refresh status</button>}</div><Notice error={error}/>{job ? <><Badge status={job.status}/><p><code>{job.jobId}</code></p><dl><dt>Created</dt><dd>{date(job.createdAt)}</dd><dt>Completed</dt><dd>{date(job.completedAt)}</dd></dl><div className="steps">{job.steps?.map(step => <div className="step" key={step.type}><div><strong>{step.type}</strong><Badge status={step.status}/></div>{step.errorMessage && <p className="danger">{step.errorMessage}</p>}{step.errorCode && <code>{step.errorCode}</code>}<small>{date(step.startedAt)} → {date(step.completedAt)}</small></div>)}</div></> : <p className="muted">{selected && !error ? 'Loading job…' : 'Select a job to inspect each processing step.'}</p>}</section></div></>;
+}

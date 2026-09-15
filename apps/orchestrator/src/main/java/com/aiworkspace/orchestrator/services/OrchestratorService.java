@@ -276,7 +276,13 @@ public class OrchestratorService {
     private void processAudio(IngestionJobDetails job, SubmittedContent content) throws Exception {
         byte[] bytes = readContent(job.workspaceId(), content.file().id());
         AudioTranscription transcription = audioService.transcribe(content.original().filename(), bytes);
-        knowledgeService.recordAudioInfo(job.workspaceId(), content.original().filename(), job.jobId(), transcription.text());
+        knowledgeService.recordAudioInfo(
+                job.workspaceId(),
+                content.original().filename(),
+                job.jobId(),
+                audioService.chunksForKnowledge(transcription),
+                audioService.knowledgeSourceMetadata(content.file().id())
+        );
     }
 
     private void processImage(IngestionJobDetails job, SubmittedContent content) throws Exception {
@@ -305,7 +311,7 @@ public class OrchestratorService {
                 job.workspaceId(),
                 content.original().filename(),
                 job.jobId(),
-                description.description()
+                videoService.knowledgeText(description)
         );
     }
 

@@ -212,6 +212,51 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    void recordsAudioChunksWithStableSourceAndTimingMetadata() throws IOException {
+        CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
+        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        Instant extractedAt = Instant.parse("2026-09-15T12:00:00Z");
+
+        service.recordAudioInfo(
+                "workspace-1",
+                "meeting.mp3",
+                "job-1",
+                List.of(
+                        KnowledgeChunk.builder()
+                                .sequence(1)
+                                .content("First point")
+                                .heading("Audio transcript")
+                                .sectionId("transcript")
+                                .startMilliseconds(1_250L)
+                                .endMilliseconds(3_500L)
+                                .speaker("Speaker 1")
+                                .build(),
+                        KnowledgeChunk.builder()
+                                .sequence(2)
+                                .content("Second point")
+                                .heading("Audio transcript")
+                                .sectionId("transcript")
+                                .startMilliseconds(3_500L)
+                                .endMilliseconds(5_750L)
+                                .build()
+                ),
+                new KnowledgeSourceMetadata("file-42", null, extractedAt, "audio-parser-1")
+        );
+
+        assertEquals(2, repository.items.size());
+        KnowledgeItem first = repository.items.getFirst();
+        assertEquals("file-42:1", first.id());
+        assertEquals("file-42", first.sourceId());
+        assertEquals(KnowledgeSourceType.AUDIO, first.sourceType());
+        assertEquals("transcript", first.sectionId());
+        assertEquals(1_250L, first.startMilliseconds());
+        assertEquals(3_500L, first.endMilliseconds());
+        assertEquals("Speaker 1", first.speaker());
+        assertEquals(extractedAt, first.extractedAt());
+        assertEquals("file-42:2", repository.items.get(1).id());
+    }
+
+    @Test
     void recordsVideoInfoForWorkspace() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
         KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
@@ -221,6 +266,32 @@ class KnowledgeServiceTest {
         assertEquals("workspace-1", repository.workspaceId);
         assertEquals(KnowledgeSourceType.VIDEO, repository.items.get(0).sourceType());
         assertEquals("Video description", repository.items.get(0).content());
+    }
+
+    @Test
+    void recordsVideoUrlSourceMetadata() throws IOException {
+        CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
+        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        Instant extractedAt = Instant.parse("2026-09-15T00:00:00Z");
+
+        service.recordVideoInfo(
+                "workspace-1",
+                "YouTube video 9hE5-98ZeCg",
+                null,
+                "Video analysis",
+                new KnowledgeSourceMetadata(
+                        "youtube-source-1",
+                        "https://www.youtube.com/watch?v=9hE5-98ZeCg",
+                        extractedAt,
+                        "youtube-parser-v1"
+                )
+        );
+
+        KnowledgeItem item = repository.items.getFirst();
+        assertEquals("youtube-source-1", item.sourceId());
+        assertEquals("https://www.youtube.com/watch?v=9hE5-98ZeCg", item.sourceUrl());
+        assertEquals(extractedAt, item.extractedAt());
+        assertEquals("youtube-parser-v1", item.parserVersion());
     }
 
     @Test
@@ -293,15 +364,18 @@ class KnowledgeServiceTest {
                         .pageNumber(2)
                         .createdAt(Instant.parse("2026-07-02T00:00:00Z"))
                         .build(),
-                new KnowledgeItem(
-                        "item-2",
-                        "workspace-1",
-                        KnowledgeSourceType.AUDIO,
-                        "meeting.mp3",
-                        "job-1",
-                        "Audio context",
-                        Instant.parse("2026-07-02T00:00:01Z")
-                )
+                KnowledgeItem.builder()
+                        .id("item-2")
+                        .workspaceId("workspace-1")
+                        .sourceType(KnowledgeSourceType.AUDIO)
+                        .sourceName("meeting.mp3")
+                        .jobId("job-1")
+                        .content("Audio context")
+                        .startMilliseconds(1_250L)
+                        .endMilliseconds(3_500L)
+                        .speaker("Speaker 1")
+                        .createdAt(Instant.parse("2026-07-02T00:00:01Z"))
+                        .build()
         );
         CapturingKnowledgeAnswerProvider answerProvider = new CapturingKnowledgeAnswerProvider();
         KnowledgeService service = new KnowledgeService(repository, answerProvider);
@@ -325,11 +399,18 @@ class KnowledgeServiceTest {
         assertEquals("file-42", answer.sources().get(0).sourceId());
         assertEquals("file-42:1", answer.sources().get(0).chunkId());
         assertEquals(2, answer.sources().get(0).pageNumber());
+        assertEquals(1_250L, answer.sources().get(1).startMilliseconds());
+        assertEquals(3_500L, answer.sources().get(1).endMilliseconds());
+        assertEquals("Speaker 1", answer.sources().get(1).speaker());
         assertEquals("What do we know?", answerProvider.question);
         org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Document context"));
         org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Audio context"));
         org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Source file: document.txt"));
         org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Location: page 2"));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                answerProvider.context.contains("Location: 00:00:01.250 - 00:00:03.500")
+        );
+        org.junit.jupiter.api.Assertions.assertTrue(answerProvider.context.contains("Speaker: Speaker 1"));
     }
 
     @Test
@@ -409,7 +490,7 @@ class KnowledgeServiceTest {
     }
 
     @Test
-    void interleavesOriginalAndExpandedHybridQueries() throws IOException {
+    void fusesOriginalAndExpandedHybridQueries() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
         repository.searchResults = List.of(item("original", "Original candidate"));
         repository.expandedSearchResults = List.of(item("expanded", "Expanded lexical candidate"));
@@ -443,6 +524,61 @@ class KnowledgeServiceTest {
         assertEquals(List.of("Original question", "expanded query"), repository.lexicalQueries);
         assertEquals(2, repository.vectorCalls);
         assertEquals(List.of("original", "expanded"), answer.sources().stream().map(source -> source.id()).toList());
+    }
+
+    @Test
+    void expandedQueriesRetainEvidenceBelowTwelveWithoutReranking() throws IOException {
+        var repository = new CapturingKnowledgeRepository();
+        var evidence = item("evidence", "The requested fact is explicitly documented here.");
+        repository.searchResults = candidatesWithEvidence("original-lexical", evidence);
+        repository.expandedSearchResults = candidatesWithEvidence("expanded-lexical", evidence);
+        repository.vectorRankings = List.of(
+                candidatesWithEvidence("original-vector", evidence),
+                candidatesWithEvidence("expanded-vector", evidence));
+        SearchQueryProvider queries = new SearchQueryProvider() {
+            @Override public boolean isConfigured() { return true; }
+            @Override public List<String> expand(String question, int limit) { return List.of("expanded query"); }
+        };
+        var service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider(), null,
+                new KnowledgeValidator(), new FixedTextEmbeddingProvider(),
+                new KnowledgeEmbeddingProperties(true, "test-model", 3, 32, null, 60),
+                new KnowledgeSearchProperties(KnowledgeSearchProperties.HYBRID),
+                TextReranker.NONE, KnowledgeRerankingProperties.disabled(), queries,
+                new KnowledgeQueryExpansionProperties(true, 2));
+
+        var answer = service.answerWorkspaceQuestion("workspace-1", "Original question");
+
+        assertEquals(List.of(100, 100), repository.lexicalLimits);
+        assertEquals(100, repository.vectorResultLimit);
+        assertEquals(100, repository.vectorCandidateLimit);
+        assertEquals("evidence", answer.sources().getFirst().id());
+        assertEquals(12, answer.sources().size());
+        assertEquals("workspace-1", repository.workspaceId);
+    }
+
+    @Test
+    void widerSingleQueryRetrievalKeepsTheFinalContextBounded() throws IOException {
+        var repository = new CapturingKnowledgeRepository();
+        repository.searchResults = candidatesWithEvidence("candidate", item("evidence", "Fact"));
+        var service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider(), null,
+                new KnowledgeValidator(), new FixedTextEmbeddingProvider(),
+                new KnowledgeEmbeddingProperties(true, "test-model", 3, 32, 75, 60),
+                new KnowledgeSearchProperties(KnowledgeSearchProperties.VECTOR));
+
+        var answer = service.answerWorkspaceQuestion("workspace-1", "Question");
+
+        assertEquals(75, repository.vectorResultLimit);
+        assertEquals(75, repository.vectorCandidateLimit);
+        assertEquals(12, answer.sources().size());
+    }
+
+    private List<KnowledgeItem> candidatesWithEvidence(String prefix, KnowledgeItem evidence) {
+        var candidates = new ArrayList<KnowledgeItem>();
+        for (int index = 0; index < 15; index++) {
+            candidates.add(item(prefix + index, "Topically related passage " + index));
+        }
+        candidates.add(evidence);
+        return List.copyOf(candidates);
     }
 
     private KnowledgeItem item(String id, String content) {
@@ -532,6 +668,8 @@ class KnowledgeServiceTest {
         private List<KnowledgeItem> searchResults = List.of();
         private List<KnowledgeItem> expandedSearchResults = List.of();
         private final List<String> lexicalQueries = new ArrayList<>();
+        private final List<Integer> lexicalLimits = new ArrayList<>();
+        private List<List<KnowledgeItem>> vectorRankings = List.of();
         private int vectorCalls;
         private Optional<WorkspaceKnowledge> knowledge = Optional.empty();
         private List<Float> queryEmbedding;
@@ -557,10 +695,11 @@ class KnowledgeServiceTest {
         public List<KnowledgeItem> searchKnowledgeItems(String workspaceId, String query, int limit) {
             this.workspaceId = workspaceId;
             lexicalQueries.add(query);
+            lexicalLimits.add(limit);
             if (query.equals("expanded query")) {
-                return expandedSearchResults;
+                return expandedSearchResults.stream().limit(limit).toList();
             }
-            return searchResults;
+            return searchResults.stream().limit(limit).toList();
         }
 
         @Override
@@ -589,7 +728,8 @@ class KnowledgeServiceTest {
             this.vectorCalls++;
             this.vectorResultLimit = limit;
             this.vectorCandidateLimit = candidateLimit;
-            return searchResults;
+            return (vectorRankings.isEmpty() ? searchResults : vectorRankings.get(vectorCalls - 1))
+                    .stream().limit(limit).toList();
         }
 
         @Override

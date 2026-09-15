@@ -42,6 +42,9 @@ class OpenSearchIntegrationTest {
         assertEquals(3, mapping.path("embedding").path("dimension").asInt());
         assertEquals("lucene", mapping.path("embedding").path("method").path("engine").asText());
         assertEquals("keyword", mapping.path("workspaceId").path("type").asText());
+        assertEquals("long", mapping.path("startMilliseconds").path("type").asText());
+        assertEquals("long", mapping.path("endMilliseconds").path("type").asText());
+        assertEquals("keyword", mapping.path("speaker").path("type").asText());
         var settings = json.readTree(http.get().uri(INDEX + "/_settings").retrieve().body(String.class));
         assertTrue(settings.path("knowledge-items-v3").path("settings").path("index").path("knn").asBoolean());
         var results = client.findKnowledgeItemsByWorkspaceId("a");
@@ -49,6 +52,9 @@ class OpenSearchIntegrationTest {
         assertEquals("one", results.getFirst().chunkId());
         assertEquals("Zuschuss für Mitarbeitende — Привіт", results.getFirst().content());
         assertEquals(2, results.getFirst().pageNumber());
+        assertEquals(1_250L, results.getFirst().startMilliseconds());
+        assertEquals(3_500L, results.getFirst().endMilliseconds());
+        assertEquals("Speaker 1", results.getFirst().speaker());
     }
 
     @Test
@@ -138,6 +144,7 @@ class OpenSearchIntegrationTest {
         return KnowledgeItem.builder().id(id).workspaceId(workspace).sourceId(source)
                 .sourceType(KnowledgeSourceType.DOCUMENT).sourceName("test.txt").content(content)
                 .chunkId(id).chunkSequence(1).pageNumber(2).embedding(vector).embeddingDimensions(3)
+                .startMilliseconds(1_250L).endMilliseconds(3_500L).speaker("Speaker 1")
                 .embeddingModel("test").createdAt(Instant.parse("2026-01-01T00:00:00Z")).build();
     }
 }

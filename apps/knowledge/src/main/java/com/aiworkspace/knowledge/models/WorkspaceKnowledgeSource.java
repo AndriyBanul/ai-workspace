@@ -19,6 +19,9 @@ public record WorkspaceKnowledgeSource(
         Integer pageNumber,
         Integer slideNumber,
         String sheetName,
+        Long startMilliseconds,
+        Long endMilliseconds,
+        String speaker,
         String snippet,
         String sourceFileKey
 ) {

@@ -38,3 +38,12 @@ logs/
 data/exports/*
 !data/exports/.gitkeep
 **/data/models/
+apps/api/data/
+data/audio-demo/
+data/demo-documents/
+data/microsoft-demo/
+data/test-books/
+
+# React/Vite frontend outputs
+apps/web/node_modules/
+apps/web/dist/

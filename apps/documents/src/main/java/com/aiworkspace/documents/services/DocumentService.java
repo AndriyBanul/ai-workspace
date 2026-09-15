@@ -63,6 +63,7 @@ public class DocumentService {
     private final DocxStructureExtractor docxStructureExtractor;
     private final WebPageContentExtractor webPageContentExtractor;
     private final DocumentChunker documentChunker;
+    private final PdfOcrFallback pdfOcrFallback;
     private final AutoDetectParser parser = new AutoDetectParser();
 
     public DocumentService(GenericRestClient restClient) {
@@ -105,7 +106,6 @@ public class DocumentService {
         );
     }
 
-    @Autowired
     public DocumentService(
             GenericRestClient restClient,
             WorkspaceFileService workspaceFileService,
@@ -117,6 +117,23 @@ public class DocumentService {
             WebPageContentExtractor webPageContentExtractor,
             DocumentChunker documentChunker
     ) {
+        this(restClient, workspaceFileService, knowledgeService, workspaceService, documentValidator,
+                extractionProperties, docxStructureExtractor, webPageContentExtractor, documentChunker, null);
+    }
+
+    @Autowired
+    public DocumentService(
+            GenericRestClient restClient,
+            WorkspaceFileService workspaceFileService,
+            KnowledgeService knowledgeService,
+            WorkspaceService workspaceService,
+            DocumentValidator documentValidator,
+            DocumentExtractionProperties extractionProperties,
+            DocxStructureExtractor docxStructureExtractor,
+            WebPageContentExtractor webPageContentExtractor,
+            DocumentChunker documentChunker,
+            PdfOcrFallback pdfOcrFallback
+    ) {
         this.restClient = restClient;
         this.workspaceFileService = workspaceFileService;
         this.knowledgeService = knowledgeService;
@@ -126,6 +143,7 @@ public class DocumentService {
         this.docxStructureExtractor = docxStructureExtractor;
         this.webPageContentExtractor = webPageContentExtractor;
         this.documentChunker = documentChunker;
+        this.pdfOcrFallback = pdfOcrFallback;
     }
 
     public ParsedTextDocument parseTextDocument(String filename, byte[] bytes) throws IOException {
@@ -172,16 +190,23 @@ public class DocumentService {
             throw documentFailure(exception);
         }
 
-        String content = structureHandler.structuredText(extractionProperties.maxExtractedCharacters());
+        var blocks = structureHandler.blocks();
+        boolean ocrApplied = false;
+        if ("application/pdf".equals(detectedContentType) && pdfOcrFallback != null) {
+            var expanded = pdfOcrFallback.apply(bytes, blocks);
+            ocrApplied = expanded != blocks;
+            blocks = expanded;
+        }
+        String content = DocumentStructuredTextRenderer.render(blocks, extractionProperties.maxExtractedCharacters());
         documentValidator.validateExtractedText(content);
         return new ParsedTextDocument(
                 filename,
                 detectedContentType,
                 normalizedOptionalValue(metadata.get(TikaCoreProperties.TITLE)),
                 content,
-                structureHandler.blocks(),
+                blocks,
                 Instant.now(),
-                TIKA_PARSER_VERSION
+                TIKA_PARSER_VERSION + (ocrApplied ? "/image-ocr-v1" : "")
         );
     }
 

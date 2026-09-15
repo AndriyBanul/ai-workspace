@@ -33,7 +33,8 @@ final class DocumentStructureContentHandler extends DefaultHandler {
     }
 
     void detectedContentType(String contentType) {
-        spreadsheet = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".equals(contentType);
+        spreadsheet = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".equals(contentType)
+                || "application/vnd.ms-excel".equals(contentType);
     }
 
     @Override
@@ -42,10 +43,10 @@ final class DocumentStructureContentHandler extends DefaultHandler {
         String element = elementName(localName, qualifiedName);
         String className = normalizedAttribute(attributes, "class");
 
-        if (hasClass(className, "page")) {
+        if (!spreadsheet && hasClass(className, "page")) {
             pageNumber = ++pageCount;
         }
-        if (hasClass(className, "slide-content") || hasClass(className, "slide")) {
+        if (slideNumber == null && (hasClass(className, "slide-content") || hasClass(className, "slide"))) {
             slideNumber = ++slideCount;
         }
         if ("table".equals(element)) {

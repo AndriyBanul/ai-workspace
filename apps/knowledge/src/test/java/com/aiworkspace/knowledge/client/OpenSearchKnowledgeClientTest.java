@@ -66,6 +66,9 @@ class OpenSearchKnowledgeClientTest {
                 .andExpect(content().contentType(MediaType.parseMediaType("application/x-ndjson")))
                 .andExpect(content().string(containsString("\"chunkId\":\"file-1:1\"")))
                 .andExpect(content().string(containsString("\"pageNumber\":4")))
+                .andExpect(content().string(containsString("\"startMilliseconds\":1250")))
+                .andExpect(content().string(containsString("\"endMilliseconds\":3500")))
+                .andExpect(content().string(containsString("\"speaker\":\"Speaker 1\"")))
                 .andExpect(content().string(containsString("\"_index\":\"knowledge-items-v3\"")))
                 .andRespond(withSuccess("{\"errors\":false,\"items\":[]}", MediaType.APPLICATION_JSON));
         OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
@@ -85,6 +88,9 @@ class OpenSearchKnowledgeClientTest {
                 .chunkSequence(1)
                 .heading("Revenue")
                 .pageNumber(4)
+                .startMilliseconds(1_250L)
+                .endMilliseconds(3_500L)
+                .speaker("Speaker 1")
                 .createdAt(Instant.parse("2026-09-08T09:00:00Z"))
                 .build()));
 
@@ -175,12 +181,14 @@ class OpenSearchKnowledgeClientTest {
         server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
                 .andExpect(content().string(containsString("\"multi_match\"")))
                 .andExpect(content().string(containsString("\"heading^2\"")))
+                .andExpect(content().string(containsString("\"speaker^2\"")))
                 .andExpect(content().string(containsString("\"embedding\"")))
                 .andRespond(withSuccess("""
                         {"hits":{"hits":[{"_id":"item-1","_source":{
                           "id":"item-1","workspaceId":"workspace-1","sourceType":"documents",
                           "sourceName":"report.pdf","sourceId":"file-1","content":"Revenue increased",
                           "chunkId":"file-1:1","chunkSequence":1,"heading":"Revenue","pageNumber":4,
+                          "startMilliseconds":1250,"endMilliseconds":3500,"speaker":"Speaker 1",
                           "createdAt":"2026-09-08T09:00:00Z"
                         }}]}}
                         """, MediaType.APPLICATION_JSON));
@@ -195,6 +203,9 @@ class OpenSearchKnowledgeClientTest {
         assertEquals(1, results.size());
         assertEquals("file-1:1", results.get(0).chunkId());
         assertEquals(4, results.get(0).pageNumber());
+        assertEquals(1_250L, results.get(0).startMilliseconds());
+        assertEquals(3_500L, results.get(0).endMilliseconds());
+        assertEquals("Speaker 1", results.get(0).speaker());
         server.verify();
     }
 

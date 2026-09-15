@@ -52,6 +52,90 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DocumentServiceTest {
 
     @Test
+    void sendsOnlyScannedPdfPagesToImagesOcrAndPreservesPageOrder() throws IOException {
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var limits = new DocumentExtractionProperties(null, null, null, null, null);
+        var fallback = new PdfOcrFallback((image, mime) -> {
+            calls.incrementAndGet();
+            return new com.aiworkspace.images.models.OcrResult(List.of(
+                    new com.aiworkspace.images.models.OcrRegion("Recovered scan text", null, null)));
+        }, new com.aiworkspace.documents.config.PdfOcrProperties(true, null, null, null), limits);
+        var service = new DocumentService(new TestRestClient(), null, null, null, new DocumentValidator(),
+                limits, new DocxStructureExtractor(), new WebPageContentExtractor(), new DocumentChunker(), fallback);
+        try (var pdf = Loader.loadPDF(pdfWithText("Original text page")); var output = new ByteArrayOutputStream()) {
+            var page = new PDPage();
+            pdf.addPage(page);
+            var image = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
+            try (var stream = new PDPageContentStream(pdf, page)) {
+                stream.drawImage(LosslessFactory.createFromImage(pdf, image), 0, 0, 100, 100);
+            }
+            pdf.save(output);
+            var result = service.extractDocumentText("mixed.pdf", "application/pdf", output.toByteArray());
+            assertEquals(1, calls.get());
+            assertTrue(result.content().contains("[Page 1]"));
+            assertTrue(result.content().contains("[Page 2]"));
+            assertTrue(result.content().indexOf("Original text page") < result.content().indexOf("Recovered scan text"));
+            assertTrue(result.parserVersion().endsWith("/image-ocr-v1"));
+            assertTrue(service.chunkForKnowledge(result).stream().anyMatch(chunk -> Integer.valueOf(2).equals(chunk.pageNumber())
+                    && chunk.content().contains("Recovered scan text")));
+        }
+    }
+
+    @Test
+    void extractsLegacyDocFromContentDespiteMisleadingFilename() throws IOException {
+        var service = new DocumentService(new TestRestClient());
+        try (var input = getClass().getResourceAsStream("/documents/simple.doc")) {
+            var document = service.extractDocumentText("disguised.txt", "text/plain", input.readAllBytes());
+            assertEquals("application/msword", document.detectedContentType());
+            assertTrue(document.content().contains("This is a simple file"), document.content());
+            assertTrue(!service.chunkForKnowledge(document).isEmpty());
+        }
+    }
+
+    @Test
+    void extractsLegacyXlsWithSheetLocationsAndTableRows() throws IOException {
+        var service = new DocumentService(new TestRestClient());
+        try (var workbook = new org.apache.poi.hssf.usermodel.HSSFWorkbook();
+                var output = new ByteArrayOutputStream()) {
+            for (String name : List.of("North", "South")) {
+                var row = workbook.createSheet(name).createRow(0);
+                row.createCell(0).setCellValue(name + " revenue");
+                row.createCell(1).setCellValue(42);
+            }
+            workbook.write(output);
+            var document = service.extractDocumentText("metrics.xls", "application/octet-stream", output.toByteArray());
+            assertEquals("application/vnd.ms-excel", document.detectedContentType());
+            assertEquals(List.of("North", "South"), document.blocks().stream()
+                    .map(block -> block.sheetName()).filter(value -> value != null).distinct().toList());
+            assertTrue(document.content().contains("North revenue | 42"), document.content());
+            assertTrue(service.chunkForKnowledge(document).stream().anyMatch(chunk -> "South".equals(chunk.sheetName())));
+        }
+    }
+
+    @Test
+    void extractsLegacyPptWithSlideLocations() throws IOException {
+        var service = new DocumentService(new TestRestClient());
+        try (var presentation = new org.apache.poi.hslf.usermodel.HSLFSlideShow();
+                var output = new ByteArrayOutputStream()) {
+            for (String text : List.of("First legacy slide", "Second legacy slide")) {
+                var slide = presentation.createSlide();
+                var textBox = new org.apache.poi.hslf.usermodel.HSLFTextBox();
+                textBox.setAnchor(new Rectangle(50, 50, 400, 100));
+                textBox.setText(text);
+                slide.addShape(textBox);
+            }
+            presentation.write(output);
+            var document = service.extractDocumentText("slides.ppt", "application/octet-stream", output.toByteArray());
+            assertEquals("application/vnd.ms-powerpoint", document.detectedContentType());
+            assertTrue(document.content().contains("First legacy slide"), document.content());
+            assertTrue(document.content().contains("Second legacy slide"), document.content());
+            assertEquals(List.of(1, 2), document.blocks().stream()
+                    .map(block -> block.slideNumber()).filter(value -> value != null).distinct().toList());
+            assertTrue(service.chunkForKnowledge(document).stream().anyMatch(chunk -> Integer.valueOf(2).equals(chunk.slideNumber())));
+        }
+    }
+
+    @Test
     void preservesPlainTextParagraphsAndChaptersBeforeChunking() throws IOException {
         var service = new DocumentService(new TestRestClient());
         var document = service.parseTextDocument("book.txt",

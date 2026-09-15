@@ -45,6 +45,37 @@ tasks.named('test') {
 	useJUnitPlatform { excludeTags 'retrieval-evaluation' }
 }
 
+// The API owns the production static bundle so one Spring Boot process serves the complete app.
+def frontendDir = file('../web')
+def frontendDist = file('../web/dist')
+def npmExecutable = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'npm.cmd' : 'npm'
+
+tasks.register('frontendInstall', Exec) {
+	workingDir frontendDir
+	commandLine npmExecutable, 'ci'
+	inputs.file file('../web/package-lock.json')
+	outputs.dir file('../web/node_modules')
+}
+
+tasks.register('frontendBuild', Exec) {
+	dependsOn 'frontendInstall'
+	workingDir frontendDir
+	commandLine npmExecutable, 'run', 'build'
+	inputs.dir file('../web/src')
+	inputs.files file('../web/index.html'), file('../web/package.json'), file('../web/package-lock.json'), file('../web/vite.config.js')
+	outputs.dir frontendDist
+}
+
+tasks.named('processResources') {
+	dependsOn 'frontendBuild'
+	doLast { resourceTask ->
+		copy {
+			from frontendDist
+			into new File(resourceTask.destinationDir, 'static')
+		}
+	}
+}
+
 
 tasks.register('retrievalEvaluation', Test) {
     description = 'Evaluates real chunking, local embeddings and OpenSearch retrieval.'

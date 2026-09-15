@@ -3,6 +3,7 @@ package com.aiworkspace.audio.client;
 import com.aiworkspace.audio.models.TranscriptionResponse;
 import com.aiworkspace.audio.interfaces.SpeechToTextProvider;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
+import com.aiworkspace.shared.media.TranscriptSegment;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
@@ -13,6 +14,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -78,14 +81,11 @@ public class WhisperClient implements SpeechToTextProvider {
             throw new UpstreamServiceException("Whisper", "Whisper returned an invalid response", exception);
         }
 
-        return new TranscriptionResponse(
-                textValue(responseJson, "text"),
-                textValue(responseJson, "language")
-        );
+        return transcriptionFrom(responseJson);
     }
 
     private URI transcriptionUri() {
-        return URI.create(baseUri + "/asr?task=transcribe&output=json");
+        return URI.create(baseUri + "/asr?task=transcribe&output=json&word_timestamps=true");
     }
 
     private byte[] multipartBody(
@@ -114,5 +114,69 @@ public class WhisperClient implements SpeechToTextProvider {
     private String textValue(JsonNode json, String fieldName) {
         JsonNode value = json.get(fieldName);
         return value == null || value.isNull() ? "" : value.asText();
+    }
+
+    TranscriptionResponse transcriptionFrom(JsonNode responseJson) {
+        return new TranscriptionResponse(
+                textValue(responseJson, "text"),
+                textValue(responseJson, "language"),
+                segmentsFrom(responseJson.path("segments"))
+        );
+    }
+
+    private List<TranscriptSegment> segmentsFrom(JsonNode segmentsJson) {
+        if (!segmentsJson.isArray()) {
+            return List.of();
+        }
+
+        List<TranscriptSegment> segments = new ArrayList<>();
+        for (JsonNode segmentJson : segmentsJson) {
+            String text = firstText(segmentJson, "text", "transcript").trim();
+            if (text.isEmpty()) {
+                continue;
+            }
+            long start = timestampMilliseconds(segmentJson, "start", "from");
+            long end = Math.max(start, timestampMilliseconds(segmentJson, "end", "to"));
+            String speaker = normalizedOptionalText(segmentJson, "speaker");
+            segments.add(new TranscriptSegment(start, end, speaker, text));
+        }
+        return List.copyOf(segments);
+    }
+
+    private long timestampMilliseconds(JsonNode segmentJson, String directField, String nestedField) {
+        JsonNode value = segmentJson.get(directField);
+        if (value == null || value.isNull()) {
+            value = segmentJson.path("timestamps").get(nestedField);
+        }
+        if (value == null || value.isNull()) {
+            return 0L;
+        }
+        if (value.isNumber()) {
+            return Math.max(0L, Math.round(value.asDouble() * 1000));
+        }
+        return parseTimestamp(value.asText());
+    }
+
+    private long parseTimestamp(String value) {
+        String[] parts = value.trim().split(":");
+        try {
+            double seconds = 0;
+            for (String part : parts) {
+                seconds = seconds * 60 + Double.parseDouble(part);
+            }
+            return Math.max(0L, Math.round(seconds * 1000));
+        } catch (NumberFormatException exception) {
+            return 0L;
+        }
+    }
+
+    private String firstText(JsonNode json, String firstField, String secondField) {
+        String first = textValue(json, firstField);
+        return first.isBlank() ? textValue(json, secondField) : first;
+    }
+
+    private String normalizedOptionalText(JsonNode json, String fieldName) {
+        String value = textValue(json, fieldName);
+        return value.isBlank() ? null : value.trim();
     }
 }

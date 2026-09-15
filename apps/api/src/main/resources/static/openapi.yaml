@@ -143,7 +143,7 @@ paths:
     post:
       summary: Submit multimodal ingestion job
       description: >-
-        Document inputs support plain text (TXT), PDF, DOCX, XLSX, and PPTX, detected from file content.
+        Document inputs support plain text (TXT), PDF, DOC/DOCX, XLS/XLSX, and PPT/PPTX, detected from file content.
         Document processing failures are reported on the documents step through errorCode and errorMessage
         when polling the job. Scanned PDFs without extractable text require OCR before upload; this endpoint
         does not perform automatic OCR. A named document upload with zero bytes is rejected immediately
@@ -163,7 +163,7 @@ paths:
                 document:
                   type: string
                   format: binary
-                  description: TXT, PDF, DOCX, XLSX, or PPTX. The filename and declared MIME type do not determine the format.
+                  description: TXT, PDF, DOC/DOCX, XLS/XLSX, or PPT/PPTX. The filename and declared MIME type do not determine the format.
                 audio:
                   type: string
                   format: binary
@@ -247,9 +247,9 @@ paths:
     post:
       summary: Upload and extract a document directly
       description: >-
-        Supports plain text (TXT), PDF, DOCX, XLSX, and PPTX, detected from the file content rather than
-        the filename or declared MIME type. Other formats, including legacy DOC/XLS/PPT, images,
-        archives, and macro-enabled Office documents, are unsupported. Password-protected documents
+        Supports plain text (TXT), PDF, DOC/DOCX, XLS/XLSX, and PPT/PPTX, detected from the file content rather than
+        the filename or declared MIME type. Other formats, including images,
+        archives, and macro-enabled OOXML documents, are unsupported. Password-protected documents
         must be unlocked before upload. Scanned PDFs without extractable text require OCR before upload;
         automatic OCR is disabled. Nonempty uploads that fail processing remain listed as FAILED
         workspace files and are not added to workspace knowledge. Empty uploads are rejected before storage.
@@ -271,7 +271,7 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: Plain text, PDF, DOCX, XLSX, or PPTX document.
+                  description: Plain text, PDF, DOC/DOCX, XLS/XLSX, or PPT/PPTX document.
       responses:
         "200":
           description: Extracted document text summary.
@@ -298,7 +298,7 @@ paths:
             Supported document cannot be processed. Returns code PASSWORD_PROTECTED_DOCUMENT for encrypted
             files, CORRUPT_DOCUMENT for unreadable or malformed files, EXTRACTION_LIMIT_EXCEEDED when
             extracted text exceeds the configured limit, or NO_EXTRACTABLE_TEXT when parsing produces no
-            meaningful text, including scanned PDFs without a text layer.
+            meaningful text after enabled OCR, or when OCR is disabled.
           content:
             application/json:
               schema:
@@ -330,7 +330,7 @@ paths:
                 $ref: "#/components/schemas/WebPageExtractResponse"
   /api/v1/audio/transcriptions:
     post:
-      summary: Transcribe audio directly
+      summary: Transcribe audio with timed segments
       tags: [Audio]
       requestBody:
         required: true
@@ -347,7 +347,7 @@ paths:
                   format: binary
       responses:
         "200":
-          description: Audio transcription.
+          description: Audio transcription with detected language and timed segments when supplied by Whisper.
           content:
             application/json:
               schema:
@@ -414,7 +414,7 @@ paths:
                 format: binary
   /api/v1/videos/descriptions:
     post:
-      summary: Describe video directly
+      summary: Analyze video and transcribe speech
       tags: [Videos]
       requestBody:
         required: true
@@ -431,11 +431,38 @@ paths:
                   format: binary
       responses:
         "200":
-          description: Video description.
+          description: Video visual summary and spoken transcript with timed segments.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/VideoDescriptionResponse"
+  /api/v1/videos/youtube:
+    post:
+      summary: Ingest a public YouTube video
+      description: >-
+        Analyzes one public YouTube video through the configured video-understanding provider.
+        The application stores derived visual and spoken knowledge with the canonical YouTube URL;
+        it does not download or store the source video bytes. Private and unlisted videos are unsupported.
+      tags: [Videos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YouTubeVideoIngestionRequest"
+      responses:
+        "200":
+          description: YouTube video analysis stored in workspace knowledge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YouTubeVideoIngestionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
   /api/v1/videos/generations:
     post:
       summary: Generate video
@@ -777,6 +804,19 @@ components:
         sheetName:
           type: string
           nullable: true
+        startMilliseconds:
+          type: integer
+          format: int64
+          nullable: true
+          description: Start of the matching audio or video passage.
+        endMilliseconds:
+          type: integer
+          format: int64
+          nullable: true
+          description: End of the matching audio or video passage.
+        speaker:
+          type: string
+          nullable: true
         snippet:
           type: string
         sourceFileKey:
@@ -891,6 +931,10 @@ components:
           type: string
         text:
           type: string
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptSegment"
     TextToSpeechRequest:
       type: object
       required: [text]
@@ -920,6 +964,70 @@ components:
         mimeType:
           type: string
         description:
+          type: string
+          description: Visual summary of the video.
+        transcript:
+          type: string
+          description: Verbatim spoken transcript, or an empty string when no speech is detected.
+        language:
+          type: string
+          nullable: true
+          description: Detected spoken-language code when available.
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptSegment"
+    YouTubeVideoIngestionRequest:
+      type: object
+      required: [workspaceId, url]
+      properties:
+        workspaceId:
+          type: string
+        url:
+          type: string
+          format: uri
+          description: HTTPS URL identifying one public YouTube video.
+    YouTubeVideoIngestionResponse:
+      type: object
+      properties:
+        sourceId:
+          type: string
+          description: Durable imported-source identifier stored with workspace knowledge.
+        videoId:
+          type: string
+        url:
+          type: string
+          format: uri
+          description: Canonical YouTube watch URL.
+        description:
+          type: string
+          description: Visual summary of the video.
+        transcript:
+          type: string
+        language:
+          type: string
+          nullable: true
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptSegment"
+    TranscriptSegment:
+      type: object
+      required: [startMilliseconds, endMilliseconds, text]
+      properties:
+        startMilliseconds:
+          type: integer
+          format: int64
+          minimum: 0
+        endMilliseconds:
+          type: integer
+          format: int64
+          minimum: 0
+        speaker:
+          type: string
+          nullable: true
+          description: Provider-supplied speaker label when diarization is available.
+        text:
           type: string
     GenerationRequest:
       type: object

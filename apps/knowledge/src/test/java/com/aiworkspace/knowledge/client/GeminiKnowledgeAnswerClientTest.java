@@ -58,14 +58,17 @@ class GeminiKnowledgeAnswerClientTest {
         server.expect(requestTo("https://gemini.example/v1beta/models/test-model:generateContent?key=test-key"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().string(containsString("optimized search queries")))
-                .andExpect(content().string(containsString("likely exact facts")))
+                .andExpect(content().string(containsString("Search query rewrite policy v2")))
+                .andExpect(content().string(containsString("specific attribute or relationship")))
+                .andExpect(content().string(containsString("Do not answer the question or insert guessed answer values")))
+                .andExpect(content().string(containsString("The original question is searched separately")))
                 .andExpect(content().string(containsString("responseSchema")))
                 .andRespond(withSuccess("""
-                        {"candidates":[{"content":{"parts":[{"text":"{\\"queries\\":[\\"221B Baker Street\\",\\"Holmes residence\\"]}"}]}}]}
+                        {"candidates":[{"content":{"parts":[{"text":"{\\"queries\\":[\\"Sherlock Holmes address\\",\\"Where does Holmes live?\\"]}"}]}}]}
                         """, MediaType.APPLICATION_JSON));
 
         assertEquals(
-                java.util.List.of("221B Baker Street", "Holmes residence"),
+                java.util.List.of("Sherlock Holmes address", "Where does Holmes live?"),
                 client.expand("What is Sherlock Holmes's address?", 2)
         );
         server.verify();

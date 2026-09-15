@@ -183,9 +183,29 @@ public class KnowledgeService {
             List<KnowledgeChunk> chunks,
             KnowledgeSourceMetadata sourceMetadata
     ) throws IOException {
+        recordChunkedKnowledge(
+                workspaceId,
+                KnowledgeSourceType.DOCUMENT,
+                sourceName,
+                jobId,
+                chunks,
+                sourceMetadata,
+                "Document"
+        );
+    }
+
+    private void recordChunkedKnowledge(
+            String workspaceId,
+            KnowledgeSourceType sourceType,
+            String sourceName,
+            String jobId,
+            List<KnowledgeChunk> chunks,
+            KnowledgeSourceMetadata sourceMetadata,
+            String sourceLabel
+    ) throws IOException {
         knowledgeValidator.validateWorkspaceId(workspaceId);
         if (chunks == null || chunks.isEmpty()) {
-            throw new IllegalArgumentException("Document chunks must not be empty");
+            throw new IllegalArgumentException(sourceLabel + " chunks must not be empty");
         }
 
         String sourceIdentity = sourceMetadata == null
@@ -199,14 +219,15 @@ public class KnowledgeService {
         List<KnowledgeItem> items = new ArrayList<>(chunks.size());
         for (KnowledgeChunk chunk : chunks) {
             if (chunk == null) {
-                throw new IllegalArgumentException("Document chunk must not be null");
+                throw new IllegalArgumentException(sourceLabel + " chunk must not be null");
             }
+            validateMediaLocation(chunk);
             knowledgeValidator.validateKnowledgeItemContent(chunk.content());
             String chunkId = sourceIdentity + ":" + chunk.sequence();
             items.add(new KnowledgeItem(
                     chunkId,
                     workspaceId.trim(),
-                    KnowledgeSourceType.DOCUMENT,
+                    sourceType,
                     normalizedOptionalValue(sourceName),
                     normalizedOptionalValue(jobId),
                     sourceMetadata == null ? null : normalizedOptionalValue(sourceMetadata.sourceId()),
@@ -225,7 +246,10 @@ public class KnowledgeService {
                     null,
                     null,
                     createdAt,
-                    chunk.sectionId()
+                    chunk.sectionId(),
+                    chunk.startMilliseconds(),
+                    chunk.endMilliseconds(),
+                    normalizedOptionalValue(chunk.speaker())
             ));
         }
         List<KnowledgeItem> embeddedItems = withEmbeddings(items);
@@ -237,12 +261,52 @@ public class KnowledgeService {
         }
     }
 
+    private void validateMediaLocation(KnowledgeChunk chunk) {
+        if (chunk.startMilliseconds() != null && chunk.startMilliseconds() < 0) {
+            throw new IllegalArgumentException("Chunk start time must not be negative");
+        }
+        if (chunk.endMilliseconds() != null && chunk.startMilliseconds() == null) {
+            throw new IllegalArgumentException("Chunk end time requires a start time");
+        }
+        if (chunk.endMilliseconds() != null && chunk.endMilliseconds() < chunk.startMilliseconds()) {
+            throw new IllegalArgumentException("Chunk end time must not be before its start time");
+        }
+    }
+
     public void recordAudioInfo(String workspaceId, String sourceName, String jobId, String value) throws IOException {
         recordKnowledgeItem(workspaceId, KnowledgeSourceType.AUDIO, sourceName, jobId, value, null);
     }
 
+    public void recordAudioInfo(
+            String workspaceId,
+            String sourceName,
+            String jobId,
+            List<KnowledgeChunk> chunks,
+            KnowledgeSourceMetadata sourceMetadata
+    ) throws IOException {
+        recordChunkedKnowledge(
+                workspaceId,
+                KnowledgeSourceType.AUDIO,
+                sourceName,
+                jobId,
+                chunks,
+                sourceMetadata,
+                "Audio"
+        );
+    }
+
     public void recordVideoInfo(String workspaceId, String sourceName, String jobId, String value) throws IOException {
         recordKnowledgeItem(workspaceId, KnowledgeSourceType.VIDEO, sourceName, jobId, value, null);
+    }
+
+    public void recordVideoInfo(
+            String workspaceId,
+            String sourceName,
+            String jobId,
+            String value,
+            KnowledgeSourceMetadata sourceMetadata
+    ) throws IOException {
+        recordKnowledgeItem(workspaceId, KnowledgeSourceType.VIDEO, sourceName, jobId, value, sourceMetadata);
     }
 
     public void recordImagesInfo(String workspaceId, String sourceName, String jobId, String value) throws IOException {
@@ -330,7 +394,7 @@ public class KnowledgeService {
             return retrieveExpanded(workspaceId, question, queries);
         }
 
-        int candidateLimit = rerankingEnabled() ? rerankingProperties.candidateLimit() : RETRIEVAL_LIMIT;
+        int candidateLimit = retrievalCandidateLimit();
         List<KnowledgeItem> candidates;
         String stage = "embedding";
         try {
@@ -339,7 +403,7 @@ public class KnowledgeService {
                 stage = "vector_search";
                 candidates = knowledgeRepository.searchKnowledgeItemsByVector(
                         workspaceId, queryEmbedding, candidateLimit,
-                        Math.max(candidateLimit, embeddingProperties.candidateLimit()));
+                        candidateLimit);
             } else {
                 stage = "hybrid_search";
                 candidates = knowledgeRepository.searchKnowledgeItems(
@@ -347,7 +411,7 @@ public class KnowledgeService {
                         question,
                         queryEmbedding,
                         candidateLimit,
-                        Math.max(candidateLimit, embeddingProperties.candidateLimit()),
+                        candidateLimit,
                         embeddingProperties.rrfRankConstant()
                 );
             }
@@ -389,8 +453,8 @@ public class KnowledgeService {
 
     private List<KnowledgeItem> retrieveExpanded(String workspaceId, String question, List<String> queries)
             throws IOException {
+        int perQueryLimit = retrievalCandidateLimit();
         int mergedLimit = rerankingEnabled() ? rerankingProperties.candidateLimit() : RETRIEVAL_LIMIT;
-        int perQueryLimit = rerankingEnabled() ? rerankingProperties.candidateLimit() : RETRIEVAL_LIMIT;
         List<List<KnowledgeItem>> rankings = new ArrayList<>();
         try {
             for (String query : queries) {
@@ -399,7 +463,7 @@ public class KnowledgeService {
                         workspaceId,
                         embedding,
                         perQueryLimit,
-                        Math.max(perQueryLimit, embeddingProperties.candidateLimit())
+                        perQueryLimit
                 ));
                 if (!searchProperties.vectorOnly()) {
                     rankings.add(knowledgeRepository.searchKnowledgeItems(workspaceId, query, perQueryLimit));
@@ -414,28 +478,13 @@ public class KnowledgeService {
             );
             return knowledgeRepository.searchKnowledgeItems(workspaceId, question, RETRIEVAL_LIMIT);
         }
-        return rerank(question, interleave(rankings, mergedLimit));
+        return rerank(question, ReciprocalRankFusion.fuse(
+                rankings, mergedLimit, embeddingProperties.rrfRankConstant()));
     }
 
-    private List<KnowledgeItem> interleave(List<List<KnowledgeItem>> rankings, int limit) {
-        Map<String, KnowledgeItem> merged = new LinkedHashMap<>();
-        int rank = 0;
-        boolean added;
-        do {
-            added = false;
-            for (List<KnowledgeItem> ranking : rankings) {
-                if (rank < ranking.size()) {
-                    KnowledgeItem item = ranking.get(rank);
-                    merged.putIfAbsent(item.id(), item);
-                    added = true;
-                    if (merged.size() == limit) {
-                        return List.copyOf(merged.values());
-                    }
-                }
-            }
-            rank++;
-        } while (added);
-        return List.copyOf(merged.values());
+    private int retrievalCandidateLimit() {
+        int limit = Math.max(RETRIEVAL_LIMIT, embeddingProperties.candidateLimit());
+        return rerankingEnabled() ? Math.max(limit, rerankingProperties.candidateLimit()) : limit;
     }
 
     private List<KnowledgeItem> rerank(String question, List<KnowledgeItem> candidates) {
@@ -444,7 +493,8 @@ public class KnowledgeService {
         }
         try {
             return telemetry.measure("search.rerank", () -> textReranker.rerank(
-                    question, candidates, rerankingProperties.resultLimit()));
+                    question, candidates.stream().limit(rerankingProperties.candidateLimit()).toList(),
+                    rerankingProperties.resultLimit()));
         } catch (IOException | RuntimeException exception) {
             telemetry.fallback("reranking");
             LOGGER.warn(
@@ -503,17 +553,24 @@ public class KnowledgeService {
                     textEmbeddingProvider.dimensions(),
                     sha256(inputs.get(index)),
                     item.createdAt(),
-                    item.sectionId()
+                    item.sectionId(),
+                    item.startMilliseconds(),
+                    item.endMilliseconds(),
+                    item.speaker()
             ));
         }
         return List.copyOf(embeddedItems);
     }
 
     private String embeddingInput(KnowledgeItem item) {
-        if (item.heading() == null || item.heading().isBlank()) {
-            return item.content();
+        StringBuilder input = new StringBuilder();
+        if (item.heading() != null && !item.heading().isBlank()) {
+            input.append(item.heading()).append("\n\n");
         }
-        return item.heading() + "\n\n" + item.content();
+        if (item.speaker() != null && !item.speaker().isBlank()) {
+            input.append("Speaker: ").append(item.speaker()).append("\n\n");
+        }
+        return input.append(item.content()).toString();
     }
 
     private String sha256(String value) {
@@ -567,6 +624,8 @@ public class KnowledgeService {
                     .append(valueOrEmpty(item.heading()))
                     .append("\nLocation: ")
                     .append(location(item))
+                    .append("\nSpeaker: ")
+                    .append(valueOrEmpty(item.speaker()))
                     .append("\nContent:\n")
                     .append(item.content())
                     .append("\n");
@@ -591,6 +650,9 @@ public class KnowledgeService {
                 item.pageNumber(),
                 item.slideNumber(),
                 item.sheetName(),
+                item.startMilliseconds(),
+                item.endMilliseconds(),
+                item.speaker(),
                 snippet(item.content()),
                 sourceFileKey(item)
         );
@@ -640,6 +702,12 @@ public class KnowledgeService {
     }
 
     private String location(KnowledgeItem item) {
+        if (item.startMilliseconds() != null) {
+            String start = timestamp(item.startMilliseconds());
+            return item.endMilliseconds() == null
+                    ? start
+                    : start + " - " + timestamp(item.endMilliseconds());
+        }
         if (item.pageNumber() != null) {
             return "page " + item.pageNumber();
         }
@@ -650,6 +718,15 @@ public class KnowledgeService {
             return "sheet " + item.sheetName();
         }
         return "(empty)";
+    }
+
+    private String timestamp(long milliseconds) {
+        long totalSeconds = milliseconds / 1000;
+        long hours = totalSeconds / 3600;
+        long minutes = totalSeconds % 3600 / 60;
+        long seconds = totalSeconds % 60;
+        long remainder = milliseconds % 1000;
+        return String.format(java.util.Locale.ROOT, "%02d:%02d:%02d.%03d", hours, minutes, seconds, remainder);
     }
 
     private String snippet(String value) {

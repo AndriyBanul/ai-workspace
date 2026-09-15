@@ -19,8 +19,8 @@ public record KnowledgeEmbeddingProperties(
         model = model == null || model.isBlank() ? DEFAULT_MODEL : model.trim();
         dimensions = positive(dimensions, 768, "Embedding dimensions");
         batchSize = positive(batchSize, 32, "Embedding batch size");
-        candidateLimit = positive(candidateLimit, 32, "Hybrid search candidate limit");
-        rrfRankConstant = positive(rrfRankConstant, 60, "RRF rank constant");
+        candidateLimit = positive(candidateLimit, 100, "Search candidate limit");
+        rrfRankConstant = positive(rrfRankConstant, 30, "RRF rank constant");
     }
 
     private static int positive(Integer value, int defaultValue, String name) {

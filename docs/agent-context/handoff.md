@@ -309,3 +309,63 @@ or remote.
   `data/exports/sherlock-768-test/benchmark-20-answers-query-expansion.json`.
   The implementation and documentation remain uncommitted until Andrii asks
   for a commit.
+
+## Legacy Office and PDF OCR (2026-09-14)
+
+- Enabled DOC, XLS, PPT content types, UI selection, documentation, and binary-format extraction tests.
+- Documents renders textless PDF pages and delegates transcription to images via ImageOcrProvider.
+- GeminiOcrClient uses the existing Gemini key with a dedicated transcription prompt and rejects truncated/invalid responses.
+- PDF OCR preserves native text pages, merges OCR in page order, and retains page numbers in chunks. Pages with partial text layers are not OCRed.
+- OCR limits: 50 pages/document, 150 DPI, 4 million pixels/page, maximum rendered side 4096 pixels; standard extraction character/block limits apply.
+- OCR confidence/bounds are optional in the contract; the current Gemini adapter returns null for both.
+- Tests cover mixed PDF flow, disabled OCR, page/text limits, provider errors, response validation, and blank OCR output. No live Gemini OCR quality benchmark was run.
+- Application requires restart to load these changes. Changes remain uncommitted.
+
+## Timed audio and video transcripts (2026-09-15)
+
+- Added a provider-neutral shared transcript segment with millisecond start/end,
+  optional speaker, and text.
+- Whisper requests detailed JSON with word timestamps and maps returned segments;
+  the default faster-whisper deployment does not provide speaker diarization.
+- Gemini video understanding now requests structured JSON containing a separate
+  visual summary, full spoken transcript, language, and timed segments.
+- Direct API responses expose segments, and workspace knowledge stores readable
+  timestamped transcript lines so questions can retrieve spoken details.
+- The web media-analysis result renders visual summaries and timed transcripts.
+- Full Gradle tests, `:api:bootJar`, web tests, web build, and `git diff --check`
+  pass. No live provider call was run after this contract change. Changes remain
+  uncommitted; YouTube URL ingestion is described in the next section.
+
+## Public YouTube URL ingestion (2026-09-15)
+
+- Added `POST /api/v1/videos/youtube` with workspace ID and one YouTube URL.
+- Accepts HTTPS watch, `youtu.be`, Shorts, embed, and live URLs with a valid
+  11-character video ID; canonicalizes all forms and rejects playlists alone,
+  non-YouTube hosts, credentials, custom ports, and non-HTTPS URLs.
+- Uses Gemini's direct public-YouTube input rather than downloading source media.
+  Stores only structured visual/transcript knowledge with a generated source ID,
+  canonical source URL, extraction time, and parser version.
+- Added the YouTube form to the web media-analysis view and documented the API.
+- Full Gradle tests, `:api:bootJar`, web tests, and web production build pass.
+  API integration covers ownership, provider output mapping, canonical URL/source
+  metadata, and knowledge indexing. A live Gemini call was not run because
+  `GEMINI_API_KEY` is unavailable in the current shell.
+- The endpoint is synchronous and uses the shared HTTP read timeout. The Gemini
+  direct-YouTube feature is preview-only and accepts public videos, not private or
+  unlisted videos. Changes remain uncommitted.
+
+## Searchable audio transcript chunks (2026-09-15)
+
+- Audio workspace ingestion now indexes each non-empty timed transcript segment
+  as a separate OpenSearch knowledge item instead of flattening the transcript
+  into one item. Providers without segments fall back to one untimed chunk.
+- Audio chunks use the workspace file ID as the stable source ID and retain chunk
+  sequence, transcript section, start/end milliseconds, and optional speaker.
+  Re-ingestion replaces previous chunks for the same source.
+- OpenSearch mapping and serialization now support media timing and speaker
+  fields. Retrieval searches speaker labels, embeddings include speaker context,
+  and answer sources/context expose the timing and speaker metadata.
+- The web answer evidence panel renders audio/video time ranges and speaker labels.
+  Existing indexed audio must be re-ingested to gain this representation.
+- Focused tests, the full Gradle suite, `:api:bootJar`, frontend tests/build, and
+  the isolated real-OpenSearch integration suite pass. Changes remain uncommitted.
