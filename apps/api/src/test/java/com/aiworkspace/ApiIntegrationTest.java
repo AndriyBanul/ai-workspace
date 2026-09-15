@@ -3,6 +3,7 @@ package com.aiworkspace;
 import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
 import com.aiworkspace.knowledge.interfaces.TextEmbeddingProvider;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
+import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
@@ -350,13 +351,9 @@ class ApiIntegrationTest {
         assertFalse(error.has("cause"));
 
         JsonNode files = workspaceFiles(owner, workspaceId);
-        if (content.length == 0) {
-            assertEquals(0, files.size());
-        } else {
-            assertEquals(1, files.size());
-            assertEquals(filename, files.path(0).path("originalFilename").asText());
-            assertEquals("FAILED", files.path(0).path("status").asText());
-        }
+        assertEquals(1, files.size());
+        assertEquals(filename, files.path(0).path("originalFilename").asText());
+        assertEquals("FAILED", files.path(0).path("status").asText());
         assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
     }
 
@@ -470,7 +467,7 @@ class ApiIntegrationTest {
     }
 
     @Test
-    void rejectsNamedEmptyDocumentsBeforeSubmittingIngestion() throws IOException, InterruptedException {
+    void retainsNamedEmptyDocumentsAsFailedSources() throws IOException, InterruptedException {
         TestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Empty ingestion document").body())
                 .path("id").asText();
@@ -481,13 +478,18 @@ class ApiIntegrationTest {
                 .POST(multipartBody("ai-workspace-test", "workspaceId", workspaceId, "document",
                         "empty.txt", "text/plain", new byte[0]))
                 .build());
-        JsonNode error = OBJECT_MAPPER.readTree(submitted.body());
+        JsonNode submission = OBJECT_MAPPER.readTree(submitted.body());
 
-        assertEquals(HttpStatus.BAD_REQUEST.value(), submitted.statusCode(), submitted.body());
-        assertEquals("EMPTY_DOCUMENT", error.path("code").asText());
-        assertEquals("/api/v1/orchestrator/ingestions", error.path("path").asText());
-        assertFalse(error.has("jobId"));
-        assertEquals(0, workspaceFiles(owner, workspaceId).size());
+        assertEquals(HttpStatus.ACCEPTED.value(), submitted.statusCode(), submitted.body());
+        JsonNode job = waitForJobStatus(owner, submission.path("jobId").asText(), "FAILED");
+        JsonNode documentsStep = step(job, "documents");
+        assertEquals("FAILED", documentsStep.path("status").asText());
+        assertEquals("EMPTY_DOCUMENT", documentsStep.path("errorCode").asText());
+
+        JsonNode sources = workspaceFiles(owner, workspaceId);
+        assertEquals(1, sources.size());
+        assertEquals(submission.path("sourceIds").path("documents").asText(), sources.path(0).path("id").asText());
+        assertEquals("FAILED", sources.path(0).path("status").asText());
         assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
     }
 
@@ -585,6 +587,31 @@ class ApiIntegrationTest {
         assertEquals(body.path("sourceId").asText(), items.getFirst().sourceId());
         assertEquals(body.path("url").asText(), items.getFirst().sourceUrl());
         assertTrue(items.getFirst().content().contains("[00:00:01.000 - 00:00:03.000] Presenter:"));
+
+        JsonNode sources = workspaceSources(owner, workspaceId);
+        assertEquals(1, sources.size());
+        assertEquals("YOUTUBE", sources.path(0).path("sourceType").asText());
+        assertEquals("PROCESSED", sources.path(0).path("status").asText());
+        assertEquals(body.path("url").asText(), sources.path(0).path("sourceUrl").asText());
+
+        String sourceId = body.path("sourceId").asText();
+        HttpResponse<String> reprocessed = send(HttpRequest.newBuilder(
+                        uri("/api/v1/workspaces/" + workspaceId + "/sources/" + sourceId + "/reprocess"))
+                .header("Authorization", owner.basicAuthHeader())
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build());
+        assertEquals(HttpStatus.ACCEPTED.value(), reprocessed.statusCode(), reprocessed.body());
+        JsonNode reprocessSubmission = OBJECT_MAPPER.readTree(reprocessed.body());
+        waitForJobStatus(owner, reprocessSubmission.path("jobId").asText(), "COMPLETED");
+        assertEquals(1, knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).size());
+
+        HttpResponse<String> deleted = send(HttpRequest.newBuilder(
+                        uri("/api/v1/workspaces/" + workspaceId + "/sources/" + sourceId))
+                .header("Authorization", owner.basicAuthHeader())
+                .DELETE()
+                .build());
+        assertEquals(HttpStatus.NO_CONTENT.value(), deleted.statusCode(), deleted.body());
+        assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
     }
 
     private HttpResponse<String> send(HttpRequest request) throws IOException, InterruptedException {
@@ -807,6 +834,16 @@ class ApiIntegrationTest {
         }
     }
 
+    private JsonNode workspaceSources(TestUser user, String workspaceId) throws IOException, InterruptedException {
+        HttpResponse<String> response = send(HttpRequest.newBuilder(
+                        uri("/api/v1/workspaces/" + workspaceId + "/sources"))
+                .header("Authorization", user.basicAuthHeader())
+                .GET()
+                .build());
+        assertEquals(HttpStatus.OK.value(), response.statusCode(), response.body());
+        return OBJECT_MAPPER.readTree(response.body());
+    }
+
     private static class InMemoryKnowledgeRepository implements KnowledgeRepository {
 
         private final List<KnowledgeItem> items = new CopyOnWriteArrayList<>();
@@ -878,15 +915,16 @@ class ApiIntegrationTest {
         @Override
         public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value)
                 throws IOException {
-            addKnowledgeItem(new KnowledgeItem(
-                    UUID.randomUUID().toString(),
-                    workspaceId,
-                    sourceTypeFrom(field),
-                    field.fieldName(),
-                    null,
-                    value,
-                    Instant.now()
-            ));
+            addKnowledgeItem(KnowledgeItem.builder()
+                    .id(UUID.randomUUID().toString())
+                    .workspaceId(workspaceId)
+                    .source(KnowledgeItemSource.builder()
+                            .type(sourceTypeFrom(field))
+                            .name(field.fieldName())
+                            .build())
+                    .content(value)
+                    .createdAt(Instant.now())
+                    .build());
         }
 
         private String joinedContent(List<KnowledgeItem> workspaceItems, KnowledgeSourceType sourceType) {

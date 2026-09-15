@@ -146,9 +146,9 @@ paths:
         Document inputs support plain text (TXT), PDF, DOC/DOCX, XLS/XLSX, and PPT/PPTX, detected from file content.
         Document processing failures are reported on the documents step through errorCode and errorMessage
         when polling the job. Scanned PDFs without extractable text require OCR before upload; this endpoint
-        does not perform automatic OCR. A named document upload with zero bytes is rejected immediately
-        with EMPTY_DOCUMENT before files or a job are created. An absent document part, or a browser file
-        input with an empty filename and zero bytes, skips the documents step.
+        does not perform automatic OCR. A named document upload with zero bytes creates a traceable source,
+        then fails its documents step with EMPTY_DOCUMENT. An absent document part, or a browser file input
+        with an empty filename and zero bytes, skips the documents step without creating a source.
       tags: [Orchestrator]
       requestBody:
         required: true
@@ -181,7 +181,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/OrchestrationSubmission"
         "400":
-          description: Invalid request. A named document upload with zero bytes returns code EMPTY_DOCUMENT before job creation.
+          description: Invalid request that prevents creation of an ingestion job. Processing failures after acceptance are reported by the job steps.
           content:
             application/json:
               schema:
@@ -251,8 +251,8 @@ paths:
         the filename or declared MIME type. Other formats, including images,
         archives, and macro-enabled OOXML documents, are unsupported. Password-protected documents
         must be unlocked before upload. Scanned PDFs without extractable text require OCR before upload;
-        automatic OCR is disabled. Nonempty uploads that fail processing remain listed as FAILED
-        workspace files and are not added to workspace knowledge. Empty uploads are rejected before storage.
+        automatic OCR is disabled. Uploads that fail processing remain listed as FAILED
+        workspace sources and are not added to workspace knowledge, including empty uploads.
         Extracted text is limited to 1,000,000 characters by default, and embedded attachments are excluded
         unless enabled in server configuration. The extraction result preserves ordered headings, paragraphs,
         list items, and table rows. Knowledge text includes page, slide, and sheet markers where the source
@@ -463,6 +463,63 @@ paths:
           $ref: "#/components/responses/NotFound"
         "502":
           $ref: "#/components/responses/BadGateway"
+  /api/v1/workspaces/{workspaceId}/sources:
+    get:
+      summary: List workspace ingestion sources
+      description: Lists uploaded files, imported web pages, and YouTube sources with their lifecycle status.
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "200":
+          description: Workspace sources ordered by creation time.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkspaceFile"
+  /api/v1/workspaces/{workspaceId}/sources/{fileId}:
+    get:
+      summary: Get workspace ingestion source
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: Workspace source metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceFile"
+    delete:
+      summary: Delete source, indexed knowledge, and stored bytes when present
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "204":
+          description: Workspace source deleted.
+  /api/v1/workspaces/{workspaceId}/sources/{fileId}/reprocess:
+    post:
+      summary: Reprocess an existing workspace source
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "202":
+          description: Reprocessing job accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrchestrationSubmission"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Source is already processing or cannot be reprocessed.
   /api/v1/videos/generations:
     post:
       summary: Generate video
@@ -591,11 +648,17 @@ components:
           format: int64
         storageKey:
           type: string
+          nullable: true
         checksumSha256:
           type: string
+          nullable: true
+        sourceUrl:
+          type: string
+          format: uri
+          nullable: true
         sourceType:
           type: string
-          enum: [DOCUMENT, AUDIO, IMAGE, VIDEO]
+          enum: [DOCUMENT, AUDIO, IMAGE, VIDEO, WEB_PAGE, YOUTUBE]
         status:
           type: string
           enum: [UPLOADED, PROCESSING, PROCESSED, FAILED, DELETED]

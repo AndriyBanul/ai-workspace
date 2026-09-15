@@ -2,7 +2,8 @@ package com.aiworkspace.orchestrator.services;
 
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
-import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
+import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
+import com.aiworkspace.workspaces.exceptions.WorkspaceSourceConflictException;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import org.springframework.stereotype.Service;
@@ -20,9 +21,10 @@ public class WorkspaceLifecycleService {
 
     public void deleteFile(String ownerId, String workspaceId, String fileId) throws IOException {
         WorkspaceFile file = workspaceService.getFile(ownerId, workspaceId, fileId);
-        if (file.sourceType() == WorkspaceFileSourceType.DOCUMENT) {
-            knowledgeService.deleteSourceKnowledge(file.workspaceId(), file.id());
+        if (file.status() == WorkspaceFileStatus.PROCESSING) {
+            throw new WorkspaceSourceConflictException("Workspace source cannot be deleted while processing");
         }
+        knowledgeService.deleteSourceKnowledge(file.workspaceId(), file.id());
         workspaceService.deleteFile(ownerId, workspaceId, fileId);
     }
 

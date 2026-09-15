@@ -7,6 +7,7 @@ import com.aiworkspace.videos.models.YouTubeVideoIngestionResponse;
 import com.aiworkspace.users.services.UserAccountService;
 import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.services.VideoService;
+import com.aiworkspace.orchestrator.services.OrchestratorService;
 import java.io.IOException;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -25,10 +26,13 @@ import org.springframework.web.multipart.MultipartFile;
 public class VideoController {
 
     private final VideoService videoService;
+    private final OrchestratorService orchestratorService;
     private final UserAccountService userAccountService;
 
-    public VideoController(VideoService videoService, UserAccountService userAccountService) {
+    public VideoController(VideoService videoService, OrchestratorService orchestratorService,
+            UserAccountService userAccountService) {
         this.videoService = videoService;
+        this.orchestratorService = orchestratorService;
         this.userAccountService = userAccountService;
     }
 
@@ -39,7 +43,7 @@ public class VideoController {
             Authentication authentication
     ) throws IOException, InterruptedException {
         return ResponseEntity.ok(
-                videoService.describeWorkspaceVideo(
+                orchestratorService.ingestVideo(
                 userAccountService.currentUserId(authentication),
                 workspaceId,
                 file.getOriginalFilename(),
@@ -70,7 +74,7 @@ public class VideoController {
             @RequestBody YouTubeVideoIngestionRequest request,
             Authentication authentication
     ) throws IOException, InterruptedException {
-        return ResponseEntity.ok(videoService.ingestYouTube(
+        return ResponseEntity.ok(orchestratorService.ingestYouTube(
                 userAccountService.currentUserId(authentication),
                 request
         ));

@@ -78,6 +78,8 @@ public class AudioService {
         return textToSpeechProvider.synthesize(text);
     }
 
+    /** @deprecated Workspace ingestion is coordinated by {@code OrchestratorService}. */
+    @Deprecated(forRemoval = true)
     public AudioTranscriptionResponse transcribeWorkspaceAudio(
             String ownerId,
             String workspaceId,

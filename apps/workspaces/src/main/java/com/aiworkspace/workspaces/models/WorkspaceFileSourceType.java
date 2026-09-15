@@ -5,5 +5,7 @@ public enum WorkspaceFileSourceType {
     DOCUMENT,
     AUDIO,
     IMAGE,
-    VIDEO
+    VIDEO,
+    WEB_PAGE,
+    YOUTUBE
 }

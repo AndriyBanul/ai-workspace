@@ -43,9 +43,28 @@ are persisted in PostgreSQL through Flyway-managed tables. Extracted multimodal
 knowledge is stored as append-only knowledge items in OpenSearch through the
 `apps/knowledge` module.
 
+Every ingestible input is also a workspace source. Uploaded documents, audio,
+images, and videos reference file storage; web pages and YouTube videos are
+URL-backed sources. All API ingestion paths pass through the orchestrator's
+source lifecycle coordinator: create, process, index, complete/fail, then
+optional reprocess or delete. A stable workspace source ID is also the
+OpenSearch source ID, making replacement and deletion idempotent across media.
+
 `apps/workspaces` owns workspace metadata persisted in PostgreSQL. Business
 flows that attach knowledge to a workspace should use a real `workspaceId`
 instead of hardcoded workspace identifiers.
+
+`apps/knowledge` exposes `KnowledgeService` as its stable workflow facade.
+Internally, indexing, retrieval, answer generation, and citation formatting are
+separate services. Its OpenSearch repository adapter follows the same boundary:
+the public repository client delegates search/read and index/write operations to
+focused collaborators, with index lifecycle and document mapping kept in shared
+OpenSearch infrastructure.
+
+The indexed `KnowledgeItem` aggregate is composed rather than flattened. Source
+provenance, chunk location, and embedding metadata use separate immutable value
+objects. OpenSearch keeps the existing flat document field names as its storage
+schema, so this domain refactor does not require reindexing existing content.
 
 The initial API package is `com.aiworkspace`.
 

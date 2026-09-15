@@ -50,12 +50,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class OrchestratorServiceTest {
 
     @Test
-    void rejectsExplicitlyEmptyDocumentBeforeCreatingFilesOrJob() {
+    void retainsFailedSourceWhenAnEmptyDocumentCannotBeProcessed() throws IOException {
         CapturingKnowledgeRepository knowledgeRepository = new CapturingKnowledgeRepository();
         CapturingIngestionJobRepository jobRepository = new CapturingIngestionJobRepository();
         TestWorkspaceFileService workspaceFileService = new TestWorkspaceFileService();
         OrchestratorService service = new OrchestratorService(
-                new TestDocumentService(),
+                new EmptyRejectingDocumentService(),
                 new TestAudioService(),
                 new TestImageService(),
                 new TestVideoService(),
@@ -66,21 +66,13 @@ class OrchestratorServiceTest {
                 Runnable::run
         );
 
-        DocumentProcessingException exception = assertThrows(
-                DocumentProcessingException.class,
-                () -> service.process(
-                        "owner-1",
-                        "workspace-1",
-                        new OrchestrationContent("empty.txt", "text/plain", new byte[0]),
-                        new OrchestrationContent("audio.mp3", "audio/mpeg", new byte[] {1}),
-                        null,
-                        null
-                )
-        );
+        var submission = service.process(
+                "owner-1", "workspace-1",
+                new OrchestrationContent("empty.txt", "text/plain", new byte[0]), null, null, null);
 
-        assertEquals(DocumentFailureCode.EMPTY_DOCUMENT, exception.code());
-        assertTrue(workspaceFileService.files.isEmpty());
-        assertTrue(jobRepository.jobs.isEmpty());
+        assertEquals(1, workspaceFileService.files.size());
+        assertEquals(WorkspaceFileStatus.FAILED, workspaceFileService.files.get("file-1").status());
+        assertEquals(IngestionJobStatus.FAILED, service.findJob("owner-1", submission.jobId()).status());
         assertTrue(knowledgeRepository.items.isEmpty());
     }
 
@@ -107,7 +99,7 @@ class OrchestratorServiceTest {
                 new OrchestrationContent("document.txt", "text/plain", "Document input".getBytes()),
                 null,
                 new OrchestrationContent("image.png", "image/png", new byte[] {1, 2, 3}),
-                new OrchestrationContent("video.mp4", "video/mp4", new byte[0])
+                null
         );
 
         assertNotNull(submission.jobId());
@@ -227,6 +219,14 @@ class OrchestratorServiceTest {
                     Instant.parse("2026-09-07T12:00:00Z"),
                     "test-document-parser-1"
             );
+        }
+    }
+
+    private static class EmptyRejectingDocumentService extends TestDocumentService {
+
+        @Override
+        public ParsedTextDocument extractDocumentText(String filename, String contentType, byte[] bytes) {
+            throw new DocumentProcessingException(DocumentFailureCode.EMPTY_DOCUMENT);
         }
     }
 

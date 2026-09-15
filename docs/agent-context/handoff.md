@@ -369,3 +369,59 @@ or remote.
   Existing indexed audio must be re-ingested to gain this representation.
 - Focused tests, the full Gradle suite, `:api:bootJar`, frontend tests/build, and
   the isolated real-OpenSearch integration suite pass. Changes remain uncommitted.
+
+## Knowledge responsibility split (2026-09-15)
+
+- `KnowledgeService` remains the stable facade used by API and media modules but
+  now delegates indexing, retrieval/reranking, answer generation, and citation
+  formatting to focused services.
+- The OpenSearch `KnowledgeRepository` implementation remains API-compatible and
+  now delegates query/read operations and mutation/write operations separately;
+  index lifecycle, mappings, transport errors, and hit deserialization are shared
+  through an internal store collaborator.
+- Existing retrieval ordering, neighbor expansion, embedding behavior, source
+  grouping, timestamps, speaker labels, and citation snippets are unchanged.
+- The focused knowledge tests and a clean full Gradle test plus `:api:bootJar`
+  build pass. Docker Desktop did not expose a ready engine during verification,
+  so the isolated real-OpenSearch integration suite still needs to be rerun.
+- Changes remain uncommitted.
+
+## Composed knowledge item metadata (2026-09-15)
+
+- Replaced the 25-component `KnowledgeItem` record with a seven-component
+  aggregate containing `KnowledgeItemSource`, `KnowledgeChunkMetadata`, and
+  `KnowledgeEmbeddingMetadata` value objects.
+- Indexing and OpenSearch serialization/deserialization now construct and consume
+  the composed domain model. Temporary flattened read accessors preserve existing
+  repository consumers while allowing incremental migration.
+- The OpenSearch document schema remains flat and field-compatible; existing
+  indices do not require migration or re-ingestion for this change.
+- Embedding vectors are defensively copied and exposed as immutable lists.
+- Tests construct composed metadata directly, and dedicated model tests cover the
+  compatibility view and embedding immutability. The focused knowledge suite and
+  clean full Gradle test plus `:api:bootJar` build pass. Docker's Linux engine is
+  unavailable, so the isolated real-OpenSearch integration suite was not rerun.
+  Changes remain uncommitted.
+
+## Unified media source lifecycle (2026-09-15)
+
+- All HTTP ingestion paths for documents, audio, images, uploaded videos, web
+  pages, and YouTube now enter through `OrchestratorService` and share
+  `SourceLifecycleCoordinator` transitions.
+- Uploaded and URL-backed inputs are registered before processing. URL sources
+  extend `workspace_files` with nullable storage/checksum fields and `source_url`;
+  `WEB_PAGE` and `YOUTUBE` source types were added in Flyway migration `V6`.
+- Every indexed item now uses the stable workspace source ID. Reprocessing uses
+  replacement indexing for both chunked and single-item sources, preventing
+  duplicate image/video/YouTube knowledge.
+- `GET`, `DELETE`, and asynchronous `POST .../reprocess` source endpoints are
+  available under `/api/v1/workspaces/{workspaceId}/sources`; existing `/files`
+  paths remain compatible. Deletion removes indexed knowledge for every media
+  type before removing URL metadata or stored bytes.
+- Focused workspace, orchestrator, knowledge, and API tests cover URL source
+  creation, lifecycle transition ordering, failure handling, YouTube reprocessing,
+  source deletion, and protection against deletion during processing. The full
+  Gradle test suite, `:api:bootJar`, frontend tests/build, OpenAPI YAML parsing,
+  and `git diff --check` pass. Docker's Linux engine remains unavailable, so the
+  isolated real-OpenSearch integration suite was not rerun. Changes remain
+  uncommitted.

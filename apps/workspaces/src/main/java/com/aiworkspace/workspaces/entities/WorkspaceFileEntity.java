@@ -38,11 +38,14 @@ public class WorkspaceFileEntity {
     @Column(name = "size_bytes", nullable = false)
     private long sizeBytes;
 
-    @Column(name = "storage_key", nullable = false)
+    @Column(name = "storage_key")
     private String storageKey;
 
-    @Column(name = "checksum_sha256", nullable = false)
+    @Column(name = "checksum_sha256")
     private String checksumSha256;
+
+    @Column(name = "source_url", length = 2048)
+    private String sourceUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "source_type", nullable = false)

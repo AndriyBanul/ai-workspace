@@ -90,12 +90,13 @@ Provider errors or truncated responses fail ingestion rather than index partial
 results. Blank OCR output is allowed; a completely textless document still fails.
 The OCR contract allows optional region confidence and normalized coordinates;
 the current Gemini adapter returns neither, rather than inventing them.
-Nonempty files that fail extraction remain visible with status `FAILED`, and
+Sources that fail extraction remain visible with status `FAILED`, including
+empty uploads, and
 their content is not added to workspace knowledge. Async ingestion steps expose
 the same failure code in `errorCode` alongside a readable `errorMessage`.
-An explicitly attached empty document is rejected with `EMPTY_DOCUMENT` before
-an ingestion job or any workspace files are created; an unselected optional
-document field is still skipped.
+An explicitly attached empty document is rejected with `EMPTY_DOCUMENT` after
+its source record is created and marked failed; an unselected optional document
+field is still skipped and creates no source.
 
 Flyway migration `V5` adds the nullable `ingestion_job_steps.error_code` column;
 existing ingestion records retain a null code.
@@ -116,13 +117,17 @@ ai-workspace.documents.extraction.extract-embedded-documents=false
 ai-workspace.documents.extraction.max-chunk-sentences=5
 ```
 
-Every imported document now has a durable source identity. File uploads use the
-workspace file ID; web imports receive a generated source ID and retain their
-URL. Knowledge items also store the extraction completion time and the versioned
+Every imported item now has a durable source identity. Uploaded files, web pages,
+and YouTube URLs are registered before processing and retain either stored-file
+metadata or their canonical URL. Knowledge items also store the extraction completion time and the versioned
 parser identifier. Direct import responses return this metadata, and asynchronous
 ingestion submissions return workspace file IDs in `sourceIds`, keyed by content
 type. This makes same-named files distinguishable and provides the metadata needed
-for later deletion, reprocessing, and traceable citations.
+for deletion, reprocessing, and traceable citations. All ingestion entry points
+use the same lifecycle: `UPLOADED` → `PROCESSING` → `PROCESSED` or `FAILED`.
+List sources with `GET /api/v1/workspaces/{workspaceId}/sources`, reprocess one
+with `POST /api/v1/workspaces/{workspaceId}/sources/{sourceId}/reprocess`, and
+delete it together with indexed knowledge using the corresponding `DELETE` path.
 
 ## Local Whisper
 

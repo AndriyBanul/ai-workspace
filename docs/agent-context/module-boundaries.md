@@ -11,7 +11,11 @@
 - Keep `shared` small and intentional; it must not become a dumping ground.
 - Keep HTTP controllers in `apps/api`; keep business logic in the relevant business module.
 - Each module should own its domain model and persistence rules.
-- Workspace file metadata, file lifecycle, and raw byte storage belong in `apps/workspaces`.
+- Workspace source metadata, source status transitions, and uploaded raw byte
+  storage belong in `apps/workspaces`.
+- Cross-media ingestion sequencing belongs in `apps/orchestrator`; media modules
+  extract or generate content, while the orchestrator coordinates source
+  creation, processing, knowledge indexing, completion/failure, and reprocessing.
 - AI provider integrations should be exposed to services through capability-oriented interfaces in the owning module's `interfaces` package.
 - Avoid broad generic AI provider abstractions; prefer focused ports such as speech-to-text, text-to-speech, image understanding, image generation, video understanding, and video generation.
 - Cross-module communication should happen through interfaces or application services.

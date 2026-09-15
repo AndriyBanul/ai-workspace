@@ -3,6 +3,7 @@ package com.aiworkspace.config;
 import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.models.ApiErrorResponse;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
+import com.aiworkspace.workspaces.exceptions.WorkspaceSourceConflictException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.time.Instant;
@@ -57,6 +58,14 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return error(HttpStatus.NOT_FOUND, detail(exception), request);
+    }
+
+    @ExceptionHandler(WorkspaceSourceConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleWorkspaceSourceConflict(
+            WorkspaceSourceConflictException exception,
+            HttpServletRequest request
+    ) {
+        return error(HttpStatus.CONFLICT, detail(exception), request);
     }
 
     @ExceptionHandler(IOException.class)

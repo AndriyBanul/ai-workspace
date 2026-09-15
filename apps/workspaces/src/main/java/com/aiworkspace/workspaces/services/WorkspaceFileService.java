@@ -1,9 +1,11 @@
 package com.aiworkspace.workspaces.services;
 
 import com.aiworkspace.workspaces.entities.WorkspaceFileEntity;
+import com.aiworkspace.workspaces.exceptions.WorkspaceSourceConflictException;
 import com.aiworkspace.workspaces.interfaces.FileStorage;
 import com.aiworkspace.workspaces.mappers.WorkspaceFileMapper;
 import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
+import com.aiworkspace.workspaces.models.CreateWorkspaceUrlSourceRequest;
 import com.aiworkspace.workspaces.models.FileStorageRequest;
 import com.aiworkspace.workspaces.models.StoredFile;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
@@ -22,10 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class WorkspaceFileService {
 
-    private static final List<WorkspaceFileStatus> ACTIVE_STATUSES = List.of(
+    private static final List<WorkspaceFileStatus> PROCESSING_SOURCE_STATUSES = List.of(
             WorkspaceFileStatus.UPLOADED,
-            WorkspaceFileStatus.PROCESSING
+            WorkspaceFileStatus.PROCESSED,
+            WorkspaceFileStatus.FAILED
     );
+    private static final List<WorkspaceFileStatus> RUNNING_SOURCE_STATUSES = List.of(WorkspaceFileStatus.PROCESSING);
 
     private final WorkspaceFileRepository workspaceFileRepository;
     private final WorkspaceFileMapper workspaceFileMapper;
@@ -85,6 +89,25 @@ public class WorkspaceFileService {
         return workspaceFileMapper.toModel(workspaceFileRepository.save(entity));
     }
 
+    @Transactional
+    public WorkspaceFile createUrlSource(CreateWorkspaceUrlSourceRequest request) {
+        workspaceFileValidator.validateCreateUrlRequest(request);
+        Instant now = Instant.now();
+        WorkspaceFileEntity entity = WorkspaceFileEntity.builder()
+                .id(UUID.randomUUID().toString())
+                .workspaceId(request.workspaceId().trim())
+                .originalFilename(request.displayName().trim())
+                .contentType(normalizedOptionalValue(request.contentType()))
+                .sizeBytes(0)
+                .sourceUrl(request.sourceUrl().trim())
+                .sourceType(request.sourceType())
+                .status(WorkspaceFileStatus.UPLOADED)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        return workspaceFileMapper.toModel(workspaceFileRepository.save(entity));
+    }
+
     @Transactional(readOnly = true)
     public List<WorkspaceFile> listFiles(String workspaceId) {
         workspaceFileValidator.validateWorkspaceId(workspaceId);
@@ -102,28 +125,35 @@ public class WorkspaceFileService {
     @Transactional(readOnly = true)
     public InputStream readContent(String workspaceId, String fileId) throws IOException {
         WorkspaceFileEntity entity = findActiveEntity(workspaceId, fileId);
+        if (entity.getStorageKey() == null || entity.getStorageKey().isBlank()) {
+            throw new IllegalStateException("URL-backed workspace source has no stored file content");
+        }
         return fileStorage.read(entity.getStorageKey());
     }
 
     @Transactional
     public WorkspaceFile markProcessing(String workspaceId, String fileId) {
-        return updateStatus(workspaceId, fileId, WorkspaceFileStatus.PROCESSING);
+        return updateStatus(
+                workspaceId, fileId, WorkspaceFileStatus.PROCESSING, PROCESSING_SOURCE_STATUSES, true);
     }
 
     @Transactional
     public WorkspaceFile markProcessed(String workspaceId, String fileId) {
-        return updateStatus(workspaceId, fileId, WorkspaceFileStatus.PROCESSED);
+        return updateStatus(
+                workspaceId, fileId, WorkspaceFileStatus.PROCESSED, RUNNING_SOURCE_STATUSES, false);
     }
 
     @Transactional
     public WorkspaceFile markFailed(String workspaceId, String fileId) {
-        return updateStatus(workspaceId, fileId, WorkspaceFileStatus.FAILED);
+        return updateStatus(workspaceId, fileId, WorkspaceFileStatus.FAILED, RUNNING_SOURCE_STATUSES, false);
     }
 
     @Transactional
     public void deleteFile(String workspaceId, String fileId) throws IOException {
         WorkspaceFileEntity entity = findActiveEntity(workspaceId, fileId);
-        fileStorage.delete(entity.getStorageKey());
+        if (entity.getStorageKey() != null && !entity.getStorageKey().isBlank()) {
+            fileStorage.delete(entity.getStorageKey());
+        }
         entity.softDelete(Instant.now());
         workspaceFileRepository.save(entity);
     }
@@ -133,20 +163,27 @@ public class WorkspaceFileService {
         List<WorkspaceFileEntity> files = workspaceFileRepository
                 .findAllByWorkspaceIdAndDeletedAtIsNullOrderByCreatedAtDesc(workspaceId.trim());
         for (WorkspaceFileEntity file : files) {
-            fileStorage.delete(file.getStorageKey());
+            if (file.getStorageKey() != null && !file.getStorageKey().isBlank()) {
+                fileStorage.delete(file.getStorageKey());
+            }
         }
     }
 
-    private WorkspaceFile updateStatus(String workspaceId, String fileId, WorkspaceFileStatus status) {
+    private WorkspaceFile updateStatus(String workspaceId, String fileId, WorkspaceFileStatus status,
+            List<WorkspaceFileStatus> allowedCurrentStatuses, boolean transitionRequired) {
         workspaceFileValidator.validateWorkspaceId(workspaceId);
         workspaceFileValidator.validateFileId(fileId);
-        workspaceFileRepository.updateStatusIfActive(
+        int updated = workspaceFileRepository.updateStatusIfActive(
                 fileId.trim(),
                 workspaceId.trim(),
                 status,
                 Instant.now(),
-                ACTIVE_STATUSES
+                allowedCurrentStatuses
         );
+        if (transitionRequired && updated == 0) {
+            throw new WorkspaceSourceConflictException(
+                    "Workspace source is already processing or cannot be reprocessed");
+        }
         return workspaceFileMapper.toModel(findActiveEntity(workspaceId, fileId));
     }
 

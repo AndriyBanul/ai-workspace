@@ -3,6 +3,7 @@ package com.aiworkspace.orchestrator.services;
 import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.knowledge.services.KnowledgeService;
+import com.aiworkspace.workspaces.exceptions.WorkspaceSourceConflictException;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
@@ -49,6 +50,22 @@ class WorkspaceLifecycleServiceTest {
     }
 
     @Test
+    void rejectsDeletionWhileSourceIsProcessing() {
+        List<String> events = new ArrayList<>();
+        WorkspaceLifecycleService service = new WorkspaceLifecycleService(
+                new TestWorkspaceService(events, WorkspaceFileStatus.PROCESSING),
+                new TestKnowledgeService(events, false)
+        );
+
+        assertThrows(
+                WorkspaceSourceConflictException.class,
+                () -> service.deleteFile("owner-1", "workspace-1", "file-1")
+        );
+
+        assertEquals(List.of(), events);
+    }
+
+    @Test
     void deletesWorkspaceKnowledgeBeforeFilesAndMetadata() throws IOException {
         List<String> events = new ArrayList<>();
         WorkspaceLifecycleService service = new WorkspaceLifecycleService(
@@ -64,10 +81,16 @@ class WorkspaceLifecycleServiceTest {
     private static class TestWorkspaceService extends WorkspaceService {
 
         private final List<String> events;
+        private final WorkspaceFileStatus fileStatus;
 
         TestWorkspaceService(List<String> events) {
+            this(events, WorkspaceFileStatus.PROCESSED);
+        }
+
+        TestWorkspaceService(List<String> events, WorkspaceFileStatus fileStatus) {
             super(null, null);
             this.events = events;
+            this.fileStatus = fileStatus;
         }
 
         @Override
@@ -81,8 +104,9 @@ class WorkspaceLifecycleServiceTest {
                     100,
                     workspaceId + "/" + fileId,
                     "a".repeat(64),
+                    null,
                     WorkspaceFileSourceType.DOCUMENT,
-                    WorkspaceFileStatus.PROCESSED,
+                    fileStatus,
                     now,
                     now,
                     null

@@ -4,7 +4,10 @@ import com.aiworkspace.documents.models.DocumentBlockType;
 import com.aiworkspace.documents.models.DocumentTextBlock;
 import com.aiworkspace.documents.services.DocumentChunker;
 import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
+import com.aiworkspace.knowledge.models.KnowledgeChunkMetadata;
+import com.aiworkspace.knowledge.models.KnowledgeEmbeddingMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
+import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -163,10 +166,14 @@ class RetrievalEvaluationTest {
             for (int index = 0; index < chunks.size(); index++) {
                 var chunk = chunks.get(index);
                 String id = source.id() + ":" + chunk.sequence();
-                result.add(KnowledgeItem.builder().id(id).chunkId(id).workspaceId("evaluation")
-                        .sourceId(source.id()).sourceName(source.heading()).sourceType(KnowledgeSourceType.DOCUMENT)
-                        .content(chunk.content()).heading(chunk.heading()).chunkSequence(chunk.sequence()).sectionId(chunk.sectionId())
-                        .embedding(vectors.get(index)).embeddingModel(embeddings.model()).embeddingDimensions(768)
+                result.add(KnowledgeItem.builder().id(id).workspaceId("evaluation")
+                        .source(KnowledgeItemSource.builder().id(source.id()).name(source.heading())
+                                .type(KnowledgeSourceType.DOCUMENT).build())
+                        .content(chunk.content())
+                        .chunkMetadata(KnowledgeChunkMetadata.builder().id(id).heading(chunk.heading())
+                                .sequence(chunk.sequence()).sectionId(chunk.sectionId()).build())
+                        .embeddingMetadata(new KnowledgeEmbeddingMetadata(
+                                vectors.get(index), embeddings.model(), 768, null))
                         .createdAt(Instant.parse("2026-01-01T00:00:00Z")).build());
             }
         }

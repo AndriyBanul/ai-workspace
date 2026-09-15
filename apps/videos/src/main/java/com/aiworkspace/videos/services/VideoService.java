@@ -100,6 +100,8 @@ public class VideoService {
         return videoGenerationProvider.generate(description.trim());
     }
 
+    /** @deprecated Workspace ingestion is coordinated by {@code OrchestratorService}. */
+    @Deprecated(forRemoval = true)
     public VideoDescriptionResponse describeWorkspaceVideo(
             String ownerId,
             String workspaceId,
@@ -148,6 +150,8 @@ public class VideoService {
         return generate(request.description());
     }
 
+    /** @deprecated Workspace ingestion is coordinated by {@code OrchestratorService}. */
+    @Deprecated(forRemoval = true)
     public YouTubeVideoIngestionResponse ingestYouTube(
             String ownerId,
             YouTubeVideoIngestionRequest request
@@ -192,6 +196,31 @@ public class VideoService {
                 description.language(),
                 description.segments()
         );
+    }
+
+    public VideoDescription describeYouTube(String rawUrl) throws IOException, InterruptedException {
+        videoValidator.validateYouTubeUrl(rawUrl);
+        if (youTubeVideoUnderstandingProvider == null) {
+            throw new IllegalStateException("YouTube video understanding provider is not configured");
+        }
+        String videoId = videoValidator.youtubeVideoId(rawUrl);
+        VideoAnalysis analysis = youTubeVideoUnderstandingProvider.analyzeYouTube(
+                videoValidator.canonicalYouTubeUrl(rawUrl), descriptionPrompt);
+        return new VideoDescription(
+                "YouTube video " + videoId,
+                "video/youtube",
+                analysis.summary(),
+                analysis.transcript(),
+                analysis.language(),
+                analysis.segments());
+    }
+
+    public String canonicalYouTubeUrl(String rawUrl) {
+        return videoValidator.canonicalYouTubeUrl(rawUrl);
+    }
+
+    public String youtubeVideoId(String rawUrl) {
+        return videoValidator.youtubeVideoId(rawUrl);
     }
 
     public String knowledgeText(VideoDescription description) {

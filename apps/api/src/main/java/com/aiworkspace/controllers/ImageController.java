@@ -4,6 +4,7 @@ import com.aiworkspace.images.models.GeneratedImage;
 import com.aiworkspace.images.models.ImageDescriptionResponse;
 import com.aiworkspace.images.models.ImageGenerationRequest;
 import com.aiworkspace.images.services.ImageService;
+import com.aiworkspace.orchestrator.services.OrchestratorService;
 import com.aiworkspace.users.services.UserAccountService;
 import java.io.IOException;
 import org.springframework.http.ContentDisposition;
@@ -23,10 +24,13 @@ import org.springframework.web.multipart.MultipartFile;
 public class ImageController {
 
     private final ImageService imageService;
+    private final OrchestratorService orchestratorService;
     private final UserAccountService userAccountService;
 
-    public ImageController(ImageService imageService, UserAccountService userAccountService) {
+    public ImageController(ImageService imageService, OrchestratorService orchestratorService,
+            UserAccountService userAccountService) {
         this.imageService = imageService;
+        this.orchestratorService = orchestratorService;
         this.userAccountService = userAccountService;
     }
 
@@ -36,7 +40,7 @@ public class ImageController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication
     ) throws IOException, InterruptedException {
-        return ResponseEntity.ok(imageService.describeWorkspaceImage(
+        return ResponseEntity.ok(orchestratorService.ingestImage(
                 userAccountService.currentUserId(authentication),
                 workspaceId,
                 file.getOriginalFilename(),

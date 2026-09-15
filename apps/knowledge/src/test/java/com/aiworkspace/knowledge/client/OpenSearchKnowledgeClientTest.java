@@ -1,6 +1,8 @@
 package com.aiworkspace.knowledge.client;
 
 import com.aiworkspace.knowledge.models.KnowledgeItem;
+import com.aiworkspace.knowledge.models.KnowledgeChunkMetadata;
+import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -80,17 +82,21 @@ class OpenSearchKnowledgeClientTest {
         client.addKnowledgeItems(List.of(KnowledgeItem.builder()
                 .id("item-1")
                 .workspaceId("workspace-1")
-                .sourceType(KnowledgeSourceType.DOCUMENT)
-                .sourceName("report.pdf")
-                .sourceId("file-1")
+                .source(KnowledgeItemSource.builder()
+                        .type(KnowledgeSourceType.DOCUMENT)
+                        .name("report.pdf")
+                        .id("file-1")
+                        .build())
                 .content("Revenue increased")
-                .chunkId("file-1:1")
-                .chunkSequence(1)
-                .heading("Revenue")
-                .pageNumber(4)
-                .startMilliseconds(1_250L)
-                .endMilliseconds(3_500L)
-                .speaker("Speaker 1")
+                .chunkMetadata(KnowledgeChunkMetadata.builder()
+                        .id("file-1:1")
+                        .sequence(1)
+                        .heading("Revenue")
+                        .pageNumber(4)
+                        .startMilliseconds(1_250L)
+                        .endMilliseconds(3_500L)
+                        .speaker("Speaker 1")
+                        .build())
                 .createdAt(Instant.parse("2026-09-08T09:00:00Z"))
                 .build()));
 
@@ -118,8 +124,10 @@ class OpenSearchKnowledgeClientTest {
         KnowledgeItem replacement = KnowledgeItem.builder()
                 .id("file-1:1")
                 .workspaceId("workspace-1")
-                .sourceId("file-1")
-                .sourceType(KnowledgeSourceType.DOCUMENT)
+                .source(KnowledgeItemSource.builder()
+                        .id("file-1")
+                        .type(KnowledgeSourceType.DOCUMENT)
+                        .build())
                 .content("Replacement")
                 .createdAt(Instant.now())
                 .build();

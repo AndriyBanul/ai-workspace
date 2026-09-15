@@ -4,6 +4,7 @@ import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.models.AudioTranscriptionResponse;
 import com.aiworkspace.audio.models.TextToSpeechRequest;
 import com.aiworkspace.audio.services.AudioService;
+import com.aiworkspace.orchestrator.services.OrchestratorService;
 import com.aiworkspace.users.services.UserAccountService;
 import java.io.IOException;
 import org.springframework.http.ContentDisposition;
@@ -23,10 +24,13 @@ import org.springframework.web.multipart.MultipartFile;
 public class AudioController {
 
     private final AudioService audioService;
+    private final OrchestratorService orchestratorService;
     private final UserAccountService userAccountService;
 
-    public AudioController(AudioService audioService, UserAccountService userAccountService) {
+    public AudioController(AudioService audioService, OrchestratorService orchestratorService,
+            UserAccountService userAccountService) {
         this.audioService = audioService;
+        this.orchestratorService = orchestratorService;
         this.userAccountService = userAccountService;
     }
 
@@ -37,7 +41,7 @@ public class AudioController {
             Authentication authentication
     ) throws IOException, InterruptedException {
         return ResponseEntity.ok(
-                audioService.transcribeWorkspaceAudio(
+                orchestratorService.ingestAudio(
                     userAccountService.currentUserId(authentication),
                     workspaceId,
                     file.getOriginalFilename(),

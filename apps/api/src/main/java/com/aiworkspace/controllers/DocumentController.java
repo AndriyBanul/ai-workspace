@@ -3,7 +3,7 @@ package com.aiworkspace.controllers;
 import com.aiworkspace.documents.models.WebPageExtractRequest;
 import com.aiworkspace.documents.models.WebPageExtractResponse;
 import com.aiworkspace.documents.models.TextDocumentUploadResponse;
-import com.aiworkspace.documents.services.DocumentService;
+import com.aiworkspace.orchestrator.services.OrchestratorService;
 import com.aiworkspace.users.services.UserAccountService;
 import java.io.IOException;
 import org.springframework.http.MediaType;
@@ -20,11 +20,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/v1/documents")
 public class DocumentController {
 
-    private final DocumentService documentService;
+    private final OrchestratorService orchestratorService;
     private final UserAccountService userAccountService;
 
-    public DocumentController(DocumentService documentService, UserAccountService userAccountService) {
-        this.documentService = documentService;
+    public DocumentController(OrchestratorService orchestratorService, UserAccountService userAccountService) {
+        this.orchestratorService = orchestratorService;
         this.userAccountService = userAccountService;
     }
 
@@ -34,7 +34,7 @@ public class DocumentController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication
     ) throws IOException {
-        return ResponseEntity.ok(documentService.uploadTextDocument(
+        return ResponseEntity.ok(orchestratorService.ingestDocument(
                     userAccountService.currentUserId(authentication),
                     workspaceId,
                     file.getOriginalFilename(),
@@ -50,6 +50,6 @@ public class DocumentController {
     )
             throws IOException {
         return ResponseEntity
-                .ok(documentService.extractWebPage(userAccountService.currentUserId(authentication), request));
+                .ok(orchestratorService.ingestWebPage(userAccountService.currentUserId(authentication), request));
     }
 }

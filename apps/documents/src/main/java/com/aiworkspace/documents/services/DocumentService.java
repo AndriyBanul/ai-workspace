@@ -260,6 +260,10 @@ public class DocumentService {
         return webPageContentExtractor.extract(restClient.get(rawUrl));
     }
 
+    public void validateWebPageRequest(WebPageExtractRequest request) {
+        documentValidator.validateWebPageExtractRequest(request);
+    }
+
     public List<KnowledgeChunk> chunkForKnowledge(ParsedTextDocument document) {
         return documentChunker.chunk(
                 document.blocks(),
@@ -268,6 +272,12 @@ public class DocumentService {
         );
     }
 
+    public List<KnowledgeChunk> chunkTextForKnowledge(String content) {
+        return documentChunker.chunkText(content, extractionProperties.maxChunkSentences());
+    }
+
+    /** @deprecated Workspace ingestion is coordinated by {@code OrchestratorService}. */
+    @Deprecated(forRemoval = true)
     public TextDocumentUploadResponse uploadTextDocument(
             String ownerId,
             String workspaceId,
@@ -328,6 +338,8 @@ public class DocumentService {
         );
     }
 
+    /** @deprecated Workspace ingestion is coordinated by {@code OrchestratorService}. */
+    @Deprecated(forRemoval = true)
     public WebPageExtractResponse extractWebPage(String ownerId, WebPageExtractRequest request) throws IOException {
         documentValidator.validateWebPageExtractRequest(request);
 

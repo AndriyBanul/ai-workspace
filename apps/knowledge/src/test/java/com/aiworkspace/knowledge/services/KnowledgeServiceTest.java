@@ -9,6 +9,8 @@ import com.aiworkspace.knowledge.interfaces.TextEmbeddingProvider;
 import com.aiworkspace.knowledge.interfaces.TextReranker;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeChunk;
+import com.aiworkspace.knowledge.models.KnowledgeChunkMetadata;
+import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
@@ -350,30 +352,38 @@ class KnowledgeServiceTest {
                 KnowledgeItem.builder()
                         .id("item-1")
                         .workspaceId("workspace-1")
-                        .sourceType(KnowledgeSourceType.DOCUMENT)
-                        .sourceName("document.txt")
-                        .jobId("job-1")
-                        .sourceId("file-42")
-                        .sourceUrl("https://example.com/source")
+                        .source(KnowledgeItemSource.builder()
+                                .type(KnowledgeSourceType.DOCUMENT)
+                                .name("document.txt")
+                                .jobId("job-1")
+                                .id("file-42")
+                                .url("https://example.com/source")
+                                .extractedAt(Instant.parse("2026-07-01T23:59:00Z"))
+                                .parserVersion("parser-1")
+                                .build())
                         .content("Document context")
-                        .extractedAt(Instant.parse("2026-07-01T23:59:00Z"))
-                        .parserVersion("parser-1")
-                        .chunkId("file-42:1")
-                        .chunkSequence(1)
-                        .heading("Overview")
-                        .pageNumber(2)
+                        .chunkMetadata(KnowledgeChunkMetadata.builder()
+                                .id("file-42:1")
+                                .sequence(1)
+                                .heading("Overview")
+                                .pageNumber(2)
+                                .build())
                         .createdAt(Instant.parse("2026-07-02T00:00:00Z"))
                         .build(),
                 KnowledgeItem.builder()
                         .id("item-2")
                         .workspaceId("workspace-1")
-                        .sourceType(KnowledgeSourceType.AUDIO)
-                        .sourceName("meeting.mp3")
-                        .jobId("job-1")
+                        .source(KnowledgeItemSource.builder()
+                                .type(KnowledgeSourceType.AUDIO)
+                                .name("meeting.mp3")
+                                .jobId("job-1")
+                                .build())
                         .content("Audio context")
-                        .startMilliseconds(1_250L)
-                        .endMilliseconds(3_500L)
-                        .speaker("Speaker 1")
+                        .chunkMetadata(KnowledgeChunkMetadata.builder()
+                                .startMilliseconds(1_250L)
+                                .endMilliseconds(3_500L)
+                                .speaker("Speaker 1")
+                                .build())
                         .createdAt(Instant.parse("2026-07-02T00:00:01Z"))
                         .build()
         );
@@ -419,7 +429,7 @@ class KnowledgeServiceTest {
         repository.searchResults = List.of(KnowledgeItem.builder()
                 .id("item-1")
                 .workspaceId("workspace-1")
-                .sourceType(KnowledgeSourceType.DOCUMENT)
+                .source(KnowledgeItemSource.builder().type(KnowledgeSourceType.DOCUMENT).build())
                 .content("Semantic result")
                 .createdAt(Instant.now())
                 .build());
@@ -438,7 +448,7 @@ class KnowledgeServiceTest {
         repository.searchResults = List.of(KnowledgeItem.builder()
                 .id("item-1")
                 .workspaceId("workspace-1")
-                .sourceType(KnowledgeSourceType.DOCUMENT)
+                .source(KnowledgeItemSource.builder().type(KnowledgeSourceType.DOCUMENT).build())
                 .content("Vector result")
                 .createdAt(Instant.now())
                 .build());
@@ -585,7 +595,7 @@ class KnowledgeServiceTest {
         return KnowledgeItem.builder()
                 .id(id)
                 .workspaceId("workspace-1")
-                .sourceType(KnowledgeSourceType.DOCUMENT)
+                .source(KnowledgeItemSource.builder().type(KnowledgeSourceType.DOCUMENT).build())
                 .content(content)
                 .createdAt(Instant.now())
                 .build();
@@ -750,20 +760,21 @@ class KnowledgeServiceTest {
 
         @Override
         public void updateWorkspaceKnowledgeField(String workspaceId, WorkspaceKnowledgeField field, String value) {
-            addKnowledgeItem(new KnowledgeItem(
-                    "item-" + items.size(),
-                    workspaceId,
-                    switch (field) {
-                        case DOCUMENTS_INFO -> KnowledgeSourceType.DOCUMENT;
-                        case AUDIO_INFO -> KnowledgeSourceType.AUDIO;
-                        case IMAGES_INFO -> KnowledgeSourceType.IMAGE;
-                        case VIDEO_INFO -> KnowledgeSourceType.VIDEO;
-                    },
-                    field.fieldName(),
-                    null,
-                    value,
-                    Instant.now()
-            ));
+            addKnowledgeItem(KnowledgeItem.builder()
+                    .id("item-" + items.size())
+                    .workspaceId(workspaceId)
+                    .source(KnowledgeItemSource.builder()
+                            .type(switch (field) {
+                                case DOCUMENTS_INFO -> KnowledgeSourceType.DOCUMENT;
+                                case AUDIO_INFO -> KnowledgeSourceType.AUDIO;
+                                case IMAGES_INFO -> KnowledgeSourceType.IMAGE;
+                                case VIDEO_INFO -> KnowledgeSourceType.VIDEO;
+                            })
+                            .name(field.fieldName())
+                            .build())
+                    .content(value)
+                    .createdAt(Instant.now())
+                    .build());
         }
     }
 

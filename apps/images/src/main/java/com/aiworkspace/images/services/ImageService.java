@@ -73,6 +73,8 @@ public class ImageService {
         return imageGenerationProvider.generate(description.trim());
     }
 
+    /** @deprecated Workspace ingestion is coordinated by {@code OrchestratorService}. */
+    @Deprecated(forRemoval = true)
     public ImageDescriptionResponse describeWorkspaceImage(
             String ownerId,
             String workspaceId,

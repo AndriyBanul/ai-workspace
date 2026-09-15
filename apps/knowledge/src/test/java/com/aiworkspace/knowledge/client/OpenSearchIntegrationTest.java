@@ -1,7 +1,10 @@
 package com.aiworkspace.knowledge.client;
 
 import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
+import com.aiworkspace.knowledge.models.KnowledgeChunkMetadata;
+import com.aiworkspace.knowledge.models.KnowledgeEmbeddingMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
+import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -134,17 +137,22 @@ class OpenSearchIntegrationTest {
     }
 
     private KnowledgeItem sectionItem(String id, String workspace, String source, int sequence, String section) {
-        return KnowledgeItem.builder().id(id).workspaceId(workspace).sourceId(source)
-                .sourceType(KnowledgeSourceType.DOCUMENT).content(id).chunkId(id)
-                .chunkSequence(sequence).sectionId(section).embedding(List.of(1f, 0f, 0f))
+        return KnowledgeItem.builder().id(id).workspaceId(workspace)
+                .source(KnowledgeItemSource.builder().id(source).type(KnowledgeSourceType.DOCUMENT).build())
+                .content(id)
+                .chunkMetadata(KnowledgeChunkMetadata.builder().id(id).sequence(sequence).sectionId(section).build())
+                .embeddingMetadata(KnowledgeEmbeddingMetadata.builder().vector(List.of(1f, 0f, 0f)).build())
                 .createdAt(Instant.parse("2026-01-01T00:00:00Z")).build();
     }
 
     private KnowledgeItem item(String id, String workspace, String source, String content, List<Float> vector) {
-        return KnowledgeItem.builder().id(id).workspaceId(workspace).sourceId(source)
-                .sourceType(KnowledgeSourceType.DOCUMENT).sourceName("test.txt").content(content)
-                .chunkId(id).chunkSequence(1).pageNumber(2).embedding(vector).embeddingDimensions(3)
-                .startMilliseconds(1_250L).endMilliseconds(3_500L).speaker("Speaker 1")
-                .embeddingModel("test").createdAt(Instant.parse("2026-01-01T00:00:00Z")).build();
+        return KnowledgeItem.builder().id(id).workspaceId(workspace)
+                .source(KnowledgeItemSource.builder()
+                        .id(source).type(KnowledgeSourceType.DOCUMENT).name("test.txt").build())
+                .content(content)
+                .chunkMetadata(KnowledgeChunkMetadata.builder().id(id).sequence(1).pageNumber(2)
+                        .startMilliseconds(1_250L).endMilliseconds(3_500L).speaker("Speaker 1").build())
+                .embeddingMetadata(new KnowledgeEmbeddingMetadata(vector, "test", 3, null))
+                .createdAt(Instant.parse("2026-01-01T00:00:00Z")).build();
     }
 }

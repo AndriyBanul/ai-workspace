@@ -6,4 +6,7 @@
 - Never generate schema manually.
 - Keep migrations reviewable and deterministic.
 - Prefer explicit constraints and indexes for important domain rules and query paths.
-- Store workspace file metadata in PostgreSQL via `workspace_files`; store raw bytes through `FileStorage`, not in database `bytea` columns.
+- Store workspace ingestion-source metadata in PostgreSQL via `workspace_files`.
+  Uploaded sources reference raw bytes through `FileStorage`; URL-backed web and
+  YouTube sources store a URL and have null storage/checksum fields. Never store
+  raw bytes in database `bytea` columns.

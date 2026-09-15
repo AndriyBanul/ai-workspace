@@ -12,10 +12,15 @@ public record WorkspaceFile(
         long sizeBytes,
         String storageKey,
         String checksumSha256,
+        String sourceUrl,
         WorkspaceFileSourceType sourceType,
         WorkspaceFileStatus status,
         Instant createdAt,
         Instant updatedAt,
         Instant deletedAt
 ) {
+
+    public boolean urlBacked() {
+        return sourceUrl != null && !sourceUrl.isBlank();
+    }
 }

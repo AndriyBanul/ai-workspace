@@ -17,6 +17,7 @@ dependencies {
 	implementation project(':documents')
 	implementation project(':images')
 	implementation project(':knowledge')
+	implementation project(':shared')
 	implementation project(':videos')
 	implementation project(':workspaces')
 	compileOnly 'org.mapstruct:mapstruct:1.6.3'
@@ -36,6 +37,7 @@ dependencies {
 	testImplementation 'org.slf4j:slf4j-api'
 	testImplementation 'org.springframework:spring-tx'
 	testImplementation 'org.springframework:spring-web'
+	testImplementation 'org.mockito:mockito-core'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
