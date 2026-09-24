@@ -1,5 +1,76 @@
 # Active Handoff
 
+## Architecture improvement sequence (2026-09-23)
+
+- Step 1: Spring Security now permits the Vite `/assets/**` bundle and no longer
+  lists the removed static demo files. `ApiIntegrationTest` loads `/` and each
+  referenced asset anonymously from the Spring app.
+- Step 2: `.github/workflows/ci.yml` checks frontend tests/build, clean Gradle
+  tests plus bootJar, and changed-line whitespace on PRs and develop pushes.
+- Durable ingestion: asynchronous submissions persist recovery rows linked to
+  their original jobs before after-commit dispatch. Workers queue source IDs in
+  a bounded executor. `V8` links jobs; `V9` adds per-attempt fencing tokens.
+  Leases renew through queue wait and provider work; stale workers cannot commit.
+  `V11` and `Idempotency-Key` make async upload/reprocess retries replay the
+  original response (30-day retention). Multi-instance fencing tests pass.
+- Versioned indexing: `V10` stores active source manifests. OpenSearch staging
+  waits for refresh and verifies exact generation count. The source/job/manifest
+  completion transaction publishes one active generation; readers hide staged
+  versions, and reconciliation checks completeness and prunes inactive versions.
+- Frontend state: workspace routes are bookmarkable, activity jobs and answer
+  history are persisted server-side (`V12` for answers), API errors share one
+  handler, 401 clears browser credentials, and views load lazily.
+- Cleanup: removed obsolete media-service ingestion paths, simplified production
+  orchestrator injection, added typed source processing results and the Gradle
+  `verifyModuleBoundaries` check. CI runs a strict JSDoc/TypeScript check of the
+  frontend API and route modules; broader React typing/formatting remains
+  incremental rather than a complete TypeScript conversion.
+- Safeguards: `V13` adds PostgreSQL daily per-user quotas, request IDs flow into
+  response headers/logs, Micrometer exposes ingestion/recovery/worker metrics,
+  and the production profile enforces HTTPS. HTTP Basic and process-local IP
+  rate limiting still require managed identity and shared edge controls for a
+  sensitive multi-node production deployment.
+- Verification: clean Gradle tests, module boundary check, Spring bootJar,
+  frontend tests/build, whitespace check, and the isolated real OpenSearch suite
+  passed. The latter includes staged-generation visibility and pruning.
+- The Mantine UI work is part of this delivery. Inspect `git status --short`
+  for newer local work rather than relying on this historical status note.
+
+## Mantine frontend integration (2026-09-23)
+
+- The Mantine design reference in `docs/design/mantine-workspace` is now implemented
+  in `apps/web`. The design prototype remains fixture-only; the application uses
+  the existing authenticated APIs for all Library, Ask, Studio, and Activity flows.
+- Library has one Add sources dialog for background/direct files, web pages, and
+  YouTube, plus metadata/recovery details, reprocessing, deletion, search, and
+  status mapping. At initial integration, Ask kept session-only history and
+  Activity kept local job IDs; the architecture sequence above replaced both
+  with persisted API reads. Studio retains generation and direct analysis.
+- Mantine core/hooks and Tabler icons are pinned in `apps/web`; obsolete CSS and
+  superseded upload components were removed. A standalone Mantine theme and
+  CSS module own the new presentation. No backend contract was changed.
+- Frontend tests/build and full Gradle tests/bootJar pass. Desktop/mobile visual
+  smoke checks with mocked API responses showed no browser page errors. A live
+  provider-backed end-to-end run remains separate work.
+- Fixed `apps/api` resource packaging so `processResources` tracks the Vite
+  output and rebuilds the Spring JAR when frontend assets change. Removed the
+  superseded static demo. A clean Gradle test/bootJar build passed, and the
+  resulting JAR contains the current Vite `index.html` and hashed assets.
+- The UI implementation and design handoff are included with this delivery.
+
+## End-to-end regression specification (2026-09-24)
+
+- `docs/end-to-end-test-specification.md` now defines agent execution rules,
+  isolated fixtures, 58 case IDs, and 17 positive plus two negative grounded
+  answer questions. It separates deterministic checks from live provider and
+  fault-injection profiles, with evidence and cleanup requirements.
+- Audio segments are indexed as timed chunks; uploaded video and YouTube
+  currently index one combined summary/transcript item. The specification
+  tests these different contracts without requiring video citation timestamps.
+- The full live provider-backed regression suite has not been run. It needs
+  disposable dependencies, controlled public HTML/YouTube fixtures, and an
+  approved provider spend cap.
+
 This file is the durable handoff for AI-agent sessions on this repository.
 Use it when a chat is long, when Codex compaction fails, or when work must
 continue in a new chat.
@@ -44,9 +115,9 @@ or remote.
 
 ## Current Focus
 
-- Roadmap items 6, 7, and 8 are implemented. The working tree contains the HTTP
-  security baseline, durable source recovery/reconciliation, and the frontend
-  component/workflow-test refactor; all remain uncommitted.
+- Roadmap items 6, 7, and 8 are implemented. The HTTP security baseline,
+  durable source recovery/reconciliation, frontend component/workflow-test
+  refactor, and Mantine UI are in this delivery. Check Git for subsequent work.
 
 ## Completed
 
