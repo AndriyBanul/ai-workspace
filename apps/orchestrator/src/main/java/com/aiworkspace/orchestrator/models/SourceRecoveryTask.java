@@ -5,6 +5,7 @@ import java.time.Instant;
 public record SourceRecoveryTask(
         String sourceId,
         String workspaceId,
+        String jobId,
         SourceOperationType operationType,
         SourceRecoveryStatus status,
         int attemptCount,

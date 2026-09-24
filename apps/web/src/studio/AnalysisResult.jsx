@@ -1,18 +1,15 @@
 import React from 'react';
+import { Badge, Text, Title } from '@mantine/core';
+import s from '../design/workspace.module.css';
 
 export default function AnalysisResult({ result }) {
-  return <div className="result" role="status">
-    <h3>{result.filename}</h3>
-    {result.language && <p>Language: {result.language}</p>}
-    {result.description && <><h4>Visual summary</h4><p className="preserve">{result.description}</p></>}
-    {result.text && !result.segments?.length && <><h4>Transcript</h4><p className="preserve">{result.text}</p></>}
-    {result.transcript && !result.segments?.length && <><h4>Transcript</h4><p className="preserve">{result.transcript}</p></>}
-    {result.segments?.length > 0 && <><h4>Timed transcript</h4><ol className="transcript-segments">
-      {result.segments.map((segment, index) => <li key={`${segment.startMilliseconds}-${index}`}>
-        <span>{formatTimestamp(segment.startMilliseconds)}–{formatTimestamp(segment.endMilliseconds)}</span>
-        <p>{segment.speaker && <strong>{segment.speaker}: </strong>}{segment.text}</p>
-      </li>)}
-    </ol></>}
+  return <div className={s.analysisResult} role="status">
+    <Title order={3}>{result.filename || 'Source analysis'}</Title>
+    {result.language && <Badge variant="light" mt="sm">{result.language}</Badge>}
+    {result.description && <><Title order={4} mt="lg">Visual summary</Title><Text mt="sm" className={s.preserve}>{result.description}</Text></>}
+    {result.text && !result.segments?.length && <><Title order={4} mt="lg">Transcript</Title><Text mt="sm" className={s.preserve}>{result.text}</Text></>}
+    {result.transcript && !result.segments?.length && <><Title order={4} mt="lg">Transcript</Title><Text mt="sm" className={s.preserve}>{result.transcript}</Text></>}
+    {result.segments?.length > 0 && <><Title order={4} mt="lg">Timed transcript</Title><div className={s.transcript}>{result.segments.map((segment, index) => <div className={s.transcriptRow} key={String(segment.startMilliseconds) + '-' + index}><span>{formatTimestamp(segment.startMilliseconds)}–{formatTimestamp(segment.endMilliseconds)}</span><Text>{segment.speaker && <strong>{segment.speaker}: </strong>}{segment.text}</Text></div>)}</div></>}
   </div>;
 }
 

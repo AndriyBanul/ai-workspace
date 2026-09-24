@@ -1,0 +1,23 @@
+{
+  "name": "ai-workspace-mantine-design",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5186 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5186 --strictPort",
+    "screenshots": "node scripts/capture.mjs"
+  },
+  "dependencies": {
+    "@mantine/core": "9.6.2",
+    "@mantine/hooks": "9.6.2",
+    "@tabler/icons-react": "3.48.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0",
+    "vite": "8.3.0"
+  }
+}

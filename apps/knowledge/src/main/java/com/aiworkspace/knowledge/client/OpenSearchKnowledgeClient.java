@@ -8,6 +8,7 @@ import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.observability.SearchTelemetry;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
+import com.aiworkspace.knowledge.services.SourceIndexManifestService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -34,9 +35,11 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
             ObjectMapper objectMapper,
             KnowledgeEmbeddingProperties embeddingProperties,
             @Value("${ai-workspace.knowledge.search.heading-weight:2}") int headingWeight,
-            SearchTelemetry telemetry
+            SearchTelemetry telemetry,
+            SourceIndexManifestService manifestService
     ) {
-        this(normalizedBaseUri(baseUrl), restClient, objectMapper, embeddingProperties, headingWeight, telemetry);
+        this(normalizedBaseUri(baseUrl), restClient, objectMapper, embeddingProperties, headingWeight, telemetry,
+                manifestService);
     }
 
     OpenSearchKnowledgeClient(URI baseUri, RestClient restClient, ObjectMapper objectMapper) {
@@ -51,14 +54,15 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
 
     OpenSearchKnowledgeClient(URI baseUri, RestClient restClient, ObjectMapper objectMapper,
             KnowledgeEmbeddingProperties embeddingProperties, int headingWeight) {
-        this(baseUri, restClient, objectMapper, embeddingProperties, headingWeight, SearchTelemetry.NOOP);
+        this(baseUri, restClient, objectMapper, embeddingProperties, headingWeight, SearchTelemetry.NOOP, null);
     }
 
     private OpenSearchKnowledgeClient(URI baseUri, RestClient restClient, ObjectMapper objectMapper,
-            KnowledgeEmbeddingProperties embeddingProperties, int headingWeight, SearchTelemetry telemetry) {
+            KnowledgeEmbeddingProperties embeddingProperties, int headingWeight, SearchTelemetry telemetry,
+            SourceIndexManifestService manifestService) {
         OpenSearchKnowledgeStore store = new OpenSearchKnowledgeStore(
                 baseUri, restClient, objectMapper, embeddingProperties);
-        this.reader = new OpenSearchKnowledgeSearchReader(store, headingWeight, telemetry);
+        this.reader = new OpenSearchKnowledgeSearchReader(store, headingWeight, telemetry, manifestService);
         this.writer = new OpenSearchKnowledgeIndexWriter(store);
     }
 
@@ -108,6 +112,23 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
     public void replaceKnowledgeItems(String workspaceId, String sourceId, List<KnowledgeItem> items)
             throws IOException {
         writer.replace(workspaceId, sourceId, items);
+    }
+
+    @Override
+    public void stageKnowledgeItems(String workspaceId, String sourceId, String generation,
+            List<KnowledgeItem> items) throws IOException {
+        writer.stage(workspaceId, sourceId, generation, items);
+    }
+
+    @Override
+    public int countSourceGeneration(String workspaceId, String sourceId, String generation) throws IOException {
+        return writer.countSourceGeneration(workspaceId, sourceId, generation);
+    }
+
+    @Override
+    public void pruneSourceGenerations(String workspaceId, String sourceId, String activeGeneration)
+            throws IOException {
+        writer.pruneSourceGenerations(workspaceId, sourceId, activeGeneration);
     }
 
     @Override

@@ -24,6 +24,7 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 	testImplementation 'org.junit.jupiter:junit-jupiter'
 	testImplementation 'org.mockito:mockito-core'
+	testImplementation 'jakarta.persistence:jakarta.persistence-api'
 	testImplementation 'org.springframework.data:spring-data-jpa'
 	testImplementation 'org.springframework.security:spring-security-core'
 	testImplementation 'org.springframework.security:spring-security-crypto'

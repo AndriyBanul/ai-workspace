@@ -94,6 +94,10 @@ final class OpenSearchKnowledgeStore {
         return URI.create(baseUri + "/_bulk?refresh=wait_for");
     }
 
+    URI countUri() {
+        return URI.create(baseUri + "/" + INDEX + "/_count");
+    }
+
     URI deleteByQueryUri() {
         return URI.create(baseUri + "/" + INDEX + "/_delete_by_query?refresh=true&conflicts=proceed");
     }
@@ -170,6 +174,7 @@ final class OpenSearchKnowledgeStore {
         properties.put("sourceName", Map.of("type", "keyword"));
         properties.put("jobId", Map.of("type", "keyword"));
         properties.put("sourceId", Map.of("type", "keyword"));
+        properties.put("sourceGeneration", Map.of("type", "keyword"));
         properties.put("sourceUrl", Map.of("type", "keyword", "ignore_above", 2048));
         properties.put("content", Map.of("type", "text"));
         properties.put("extractedAt", Map.of("type", "date"));
@@ -217,6 +222,7 @@ final class OpenSearchKnowledgeStore {
                         .url(text(source, "sourceUrl", null))
                         .extractedAt(instant(source, "extractedAt"))
                         .parserVersion(text(source, "parserVersion", null))
+                        .generation(text(source, "generation", null))
                         .build())
                 .content(text(source, "content", ""))
                 .chunkMetadata(KnowledgeChunkMetadata.builder()

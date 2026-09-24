@@ -1,15 +1,19 @@
 package com.aiworkspace.knowledge.client;
 
 import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
+import com.aiworkspace.knowledge.entities.SourceIndexManifestEntity;
 import com.aiworkspace.knowledge.models.KnowledgeChunkMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeEmbeddingMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
+import com.aiworkspace.knowledge.observability.SearchTelemetry;
+import com.aiworkspace.knowledge.services.SourceIndexManifestService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -45,6 +49,7 @@ class OpenSearchIntegrationTest {
         assertEquals(3, mapping.path("embedding").path("dimension").asInt());
         assertEquals("lucene", mapping.path("embedding").path("method").path("engine").asText());
         assertEquals("keyword", mapping.path("workspaceId").path("type").asText());
+        assertEquals("keyword", mapping.path("sourceGeneration").path("type").asText());
         assertEquals("long", mapping.path("startMilliseconds").path("type").asText());
         assertEquals("long", mapping.path("endMilliseconds").path("type").asText());
         assertEquals("keyword", mapping.path("speaker").path("type").asText());
@@ -94,6 +99,43 @@ class OpenSearchIntegrationTest {
     }
 
     @Test
+    void stagedGenerationsBecomeVisibleOnlyAfterPublication() throws Exception {
+        AtomicReference<String> active = new AtomicReference<>();
+        SourceIndexManifestService manifests = new SourceIndexManifestService(null) {
+            @Override
+            public List<SourceIndexManifestEntity> findByWorkspaceId(String workspaceId) {
+                String generation = active.get();
+                return generation == null ? List.of() : List.of(new SourceIndexManifestEntity(
+                        "s", "a", generation, 1, Instant.now()));
+            }
+        };
+        OpenSearchKnowledgeStore store = new OpenSearchKnowledgeStore(
+                URI.create(URL), RestClient.create(), json,
+                new KnowledgeEmbeddingProperties(true, "test", 3, 32, 32, 60));
+        OpenSearchKnowledgeSearchReader reader = new OpenSearchKnowledgeSearchReader(
+                store, 2, SearchTelemetry.NOOP, manifests);
+
+        client.stageKnowledgeItems("a", "s", "first", List.of(versionedItem("first")));
+        assertEquals(1, client.countSourceGeneration("a", "s", "first"));
+        assertTrue(reader.findByWorkspaceIdItems("a").isEmpty());
+
+        active.set("first");
+        assertEquals(List.of("first"), reader.findByWorkspaceIdItems("a").stream()
+                .map(KnowledgeItem::content).toList());
+
+        client.stageKnowledgeItems("a", "s", "second", List.of(versionedItem("second")));
+        assertEquals(List.of("first"), reader.findByWorkspaceIdItems("a").stream()
+                .map(KnowledgeItem::content).toList());
+
+        active.set("second");
+        assertEquals(List.of("second"), reader.findByWorkspaceIdItems("a").stream()
+                .map(KnowledgeItem::content).toList());
+        client.pruneSourceGenerations("a", "s", "second");
+        assertEquals(0, client.countSourceGeneration("a", "s", "first"));
+        assertEquals(1, client.countSourceGeneration("a", "s", "second"));
+    }
+
+    @Test
     void expandsFollowingChunksWithoutCrossingSectionsSourcesOrWorkspaces() throws Exception {
         var seed = sectionItem("s3", "a", "s", 3, "one");
         var secondSeed = sectionItem("s4", "a", "s", 4, "one");
@@ -134,6 +176,17 @@ class OpenSearchIntegrationTest {
 
         assertEquals(List.of("rank4", "rank5", "rank2", "rank3"),
                 expanded.stream().map(KnowledgeItem::id).toList());
+    }
+
+    private KnowledgeItem versionedItem(String generation) {
+        String id = "s:" + generation + ":0";
+        return KnowledgeItem.builder().id(id).workspaceId("a")
+                .source(KnowledgeItemSource.builder().id("s").generation(generation)
+                        .type(KnowledgeSourceType.DOCUMENT).build())
+                .content(generation)
+                .chunkMetadata(KnowledgeChunkMetadata.builder().id(id).sequence(0).build())
+                .embeddingMetadata(KnowledgeEmbeddingMetadata.builder().vector(List.of(1f, 0f, 0f)).build())
+                .createdAt(Instant.parse("2026-01-01T00:00:00Z")).build();
     }
 
     private KnowledgeItem sectionItem(String id, String workspace, String source, int sequence, String section) {

@@ -11,8 +11,12 @@ import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
+import com.aiworkspace.orchestrator.models.IngestionStepStatus;
 import com.aiworkspace.orchestrator.models.OrchestrationContent;
 import com.aiworkspace.orchestrator.models.OrchestrationSubmission;
+import com.aiworkspace.orchestrator.models.RecoveryClaim;
+import com.aiworkspace.orchestrator.models.SourceRecoveryTask;
+import com.aiworkspace.orchestrator.models.SourceProcessingResult;
 import com.aiworkspace.videos.models.VideoDescriptionResponse;
 import com.aiworkspace.videos.models.YouTubeVideoIngestionRequest;
 import com.aiworkspace.videos.models.YouTubeVideoIngestionResponse;
@@ -30,14 +34,17 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class OrchestratorService {
@@ -101,7 +108,6 @@ public class OrchestratorService {
                         workspaceFileService, knowledgeService));
     }
 
-    @Autowired
     public OrchestratorService(
             DocumentService documentService,
             AudioService audioService,
@@ -116,6 +122,16 @@ public class OrchestratorService {
             SourceLifecycleCoordinator lifecycleCoordinator,
             WorkspaceSourceProcessingService sourceProcessingService
     ) {
+        this(documentService, videoService, workspaceFileService, ingestionJobService, workspaceService,
+                executor, orchestratorValidator, lifecycleCoordinator, sourceProcessingService);
+    }
+
+    @Autowired
+    public OrchestratorService(DocumentService documentService, VideoService videoService,
+            WorkspaceFileService workspaceFileService, IngestionJobService ingestionJobService,
+            WorkspaceService workspaceService, @Qualifier("orchestratorTaskExecutor") Executor executor,
+            OrchestratorValidator orchestratorValidator, SourceLifecycleCoordinator lifecycleCoordinator,
+            WorkspaceSourceProcessingService sourceProcessingService) {
         this.documentService = documentService;
         this.videoService = videoService;
         this.workspaceFileService = workspaceFileService;
@@ -160,7 +176,8 @@ public class OrchestratorService {
                 content.contentType().apiName(),
                 content.file().id()
         ));
-        IngestionJobDetails job = ingestionJobService.createJob(trimmedWorkspaceId, submittedTypes, skippedTypes);
+        IngestionJobDetails job = lifecycleCoordinator.queueSubmission(trimmedWorkspaceId, submittedTypes,
+                skippedTypes, submittedContent.stream().map(SubmittedContent::file).toList());
 
         submittedContent.forEach(content -> submit(job, content));
 
@@ -174,29 +191,16 @@ public class OrchestratorService {
         );
     }
 
-    public OrchestrationSubmission processUploads(
-            String ownerId,
-            String workspaceId,
-            MultipartFile document,
-            MultipartFile audio,
-            MultipartFile image,
-            MultipartFile video
-    ) throws IOException {
-        return process(
-                ownerId,
-                workspaceId,
-                contentFrom(document),
-                contentFrom(audio),
-                contentFrom(image),
-                contentFrom(video)
-        );
-    }
-
     public IngestionJobDetails findJob(String ownerId, String jobId) {
         orchestratorValidator.validateOwnerId(ownerId);
         IngestionJobDetails job = ingestionJobService.getJob(jobId);
         workspaceService.getWorkspace(ownerId.trim(), job.workspaceId());
         return job;
+    }
+
+    public List<IngestionJobDetails> listJobs(String ownerId, String workspaceId, int limit) {
+        String ownedId = workspaceService.getWorkspace(ownerId, workspaceId).id();
+        return ingestionJobService.listRecentJobs(ownedId, limit);
     }
 
     public TextDocumentUploadResponse ingestDocument(String ownerId, String workspaceId, String filename,
@@ -205,7 +209,7 @@ public class OrchestratorService {
                 ownerId, workspaceId, IngestionContentType.DOCUMENTS, WorkspaceFileSourceType.DOCUMENT,
                 new OrchestrationContent(filename, contentType, content));
         try {
-            return (TextDocumentUploadResponse) processSynchronously(submitted);
+            return ((SourceProcessingResult.Document) processSynchronously(submitted)).response();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IOException("Document ingestion was interrupted", exception);
@@ -217,7 +221,7 @@ public class OrchestratorService {
         SubmittedContent submitted = createUploadedSource(
                 ownerId, workspaceId, IngestionContentType.AUDIO, WorkspaceFileSourceType.AUDIO,
                 new OrchestrationContent(filename, contentType, content));
-        return (AudioTranscriptionResponse) processSynchronously(submitted);
+        return ((SourceProcessingResult.Audio) processSynchronously(submitted)).response();
     }
 
     public ImageDescriptionResponse ingestImage(String ownerId, String workspaceId, String filename,
@@ -225,7 +229,7 @@ public class OrchestratorService {
         SubmittedContent submitted = createUploadedSource(
                 ownerId, workspaceId, IngestionContentType.IMAGES, WorkspaceFileSourceType.IMAGE,
                 new OrchestrationContent(filename, contentType, content));
-        return (ImageDescriptionResponse) processSynchronously(submitted);
+        return ((SourceProcessingResult.Image) processSynchronously(submitted)).response();
     }
 
     public VideoDescriptionResponse ingestVideo(String ownerId, String workspaceId, String filename,
@@ -233,7 +237,7 @@ public class OrchestratorService {
         SubmittedContent submitted = createUploadedSource(
                 ownerId, workspaceId, IngestionContentType.VIDEOS, WorkspaceFileSourceType.VIDEO,
                 new OrchestrationContent(filename, contentType, content));
-        return (VideoDescriptionResponse) processSynchronously(submitted);
+        return ((SourceProcessingResult.Video) processSynchronously(submitted)).response();
     }
 
     public WebPageExtractResponse ingestWebPage(String ownerId, WebPageExtractRequest request) throws IOException {
@@ -248,7 +252,7 @@ public class OrchestratorService {
                 .build());
         SubmittedContent submitted = new SubmittedContent(IngestionContentType.DOCUMENTS, source, null);
         try {
-            return (WebPageExtractResponse) processSynchronously(submitted);
+            return ((SourceProcessingResult.WebPage) processSynchronously(submitted)).response();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IOException("Web page ingestion was interrupted", exception);
@@ -269,8 +273,8 @@ public class OrchestratorService {
                 .sourceUrl(canonicalUrl)
                 .contentType("video/youtube")
                 .build());
-        return (YouTubeVideoIngestionResponse) processSynchronously(
-                new SubmittedContent(IngestionContentType.VIDEOS, source, null));
+        return ((SourceProcessingResult.YouTube) processSynchronously(
+                new SubmittedContent(IngestionContentType.VIDEOS, source, null))).response();
     }
 
     public OrchestrationSubmission reprocessSource(String ownerId, String workspaceId, String sourceId)
@@ -279,28 +283,37 @@ public class OrchestratorService {
         IngestionContentType contentType = contentType(source.sourceType());
         OrchestrationContent original = source.urlBacked() ? null : readOriginal(source);
         SubmittedContent submitted = new SubmittedContent(contentType, source, original);
-        IngestionJobDetails job = singleSourceJob(source.workspaceId(), contentType);
+        IngestionJobDetails job = lifecycleCoordinator.queueSubmission(source.workspaceId(), List.of(contentType),
+                java.util.Arrays.stream(IngestionContentType.values()).filter(type -> type != contentType).toList(),
+                List.of(source));
         submit(job, submitted);
         return new OrchestrationSubmission(
                 job.jobId(), job.workspaceId(), job.status(), List.of(contentType.apiName()), List.of(),
                 Map.of(contentType.apiName(), source.id()));
     }
 
-    public void recoverSource(String workspaceId, String sourceId) throws IOException {
-        WorkspaceFile source = workspaceFileService.getFile(workspaceId, sourceId);
-        if (source.status() == WorkspaceFileStatus.PROCESSING) {
-            source = workspaceFileService.markFailed(workspaceId, sourceId);
-        }
-        lifecycleCoordinator.startRecoveryAttempt(source);
+    public void recoverSource(SourceRecoveryTask task) throws IOException {
+        WorkspaceFile source = workspaceFileService.getFile(task.workspaceId(), task.sourceId());
+        RecoveryClaim claim = lifecycleCoordinator.startRecoveryAttempt(source);
+        SourceLeaseKeeper.Lease lease = null;
         try {
+            lease = lifecycleCoordinator.keepRecoveryLease(source, claim);
+            if (source.status() == WorkspaceFileStatus.PROCESSING) {
+                source = workspaceFileService.markFailed(task.workspaceId(), task.sourceId());
+            }
             IngestionContentType contentType = contentType(source.sourceType());
             SubmittedContent submitted = new SubmittedContent(
                     contentType, source, source.urlBacked() ? null : readOriginal(source));
-            IngestionJobDetails job = singleSourceJob(source.workspaceId(), contentType);
-            submitRecovered(job, submitted);
+            IngestionJobDetails job = pendingJob(task, contentType);
+            if (job == null) {
+                job = singleSourceJob(source.workspaceId(), contentType);
+                lifecycleCoordinator.assignRecoveryJob(source, job.jobId(), claim);
+            }
+            submitRecovered(job, submitted, claim, lease);
         } catch (RuntimeException exception) {
+            if (lease != null) lease.close();
             try {
-                lifecycleCoordinator.failRecoveryAttempt(source, exception);
+                lifecycleCoordinator.failRecoveryAttempt(source, claim, exception);
             } catch (RuntimeException recoveryException) {
                 exception.addSuppressed(recoveryException);
             }
@@ -308,7 +321,32 @@ public class OrchestratorService {
         }
     }
 
-    private Object processSynchronously(SubmittedContent submitted) throws IOException, InterruptedException {
+    private IngestionJobDetails pendingJob(SourceRecoveryTask task, IngestionContentType contentType) {
+        if (task.jobId() == null) {
+            return null;
+        }
+        IngestionJobDetails job;
+        try {
+            job = ingestionJobService.getJob(task.jobId());
+        } catch (NoSuchElementException exception) {
+            return null;
+        }
+        IngestionStepStatus status = job.steps().stream()
+                .filter(step -> step.type().equals(contentType.apiName()))
+                .map(step -> step.status())
+                .findFirst().orElse(null);
+        if (status == IngestionStepStatus.PENDING) {
+            return job;
+        }
+        if (status == IngestionStepStatus.RUNNING) {
+            ingestionJobService.markStepFailed(job.jobId(), contentType,
+                    new IllegalStateException("Previous processing attempt expired"));
+        }
+        return null;
+    }
+
+    private SourceProcessingResult processSynchronously(SubmittedContent submitted)
+            throws IOException, InterruptedException {
         IngestionJobDetails job = singleSourceJob(submitted.file().workspaceId(), submitted.contentType());
         try {
             return lifecycleCoordinator.process(
@@ -346,19 +384,6 @@ public class OrchestratorService {
         return ingestionJobService.createJob(workspaceId, List.of(contentType), skipped);
     }
 
-    private OrchestrationContent contentFrom(MultipartFile file) throws IOException {
-        if (file == null) {
-            return null;
-        }
-
-        String filename = file.getOriginalFilename();
-        if (file.isEmpty() && (filename == null || filename.isBlank())) {
-            return null;
-        }
-
-        return new OrchestrationContent(filename, file.getContentType(), file.getBytes());
-    }
-
     private void collectContent(
             IngestionContentType contentType,
             WorkspaceFileSourceType sourceType,
@@ -383,38 +408,79 @@ public class OrchestratorService {
     }
 
     private void submit(IngestionJobDetails job, SubmittedContent content) {
-        CompletableFuture.runAsync(() -> runTask(job, content), executor);
+        afterCommit(() -> {
+            try {
+                CompletableFuture.runAsync(() -> runTask(job.jobId(), content.file().workspaceId(),
+                        content.file().id(), content.contentType()), executor);
+            } catch (RejectedExecutionException exception) {
+                log.warn("Ingestion worker queue is full; the persisted source will be dispatched by recovery "
+                        + "workspaceId={} sourceId={} jobId={}", content.file().workspaceId(), content.file().id(),
+                        job.jobId());
+            }
+        });
     }
 
-    private void submitRecovered(IngestionJobDetails job, SubmittedContent content) {
-        CompletableFuture.runAsync(() -> runRecoveredTask(job, content), executor);
+    private void afterCommit(Runnable task) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
     }
 
-    private void runTask(IngestionJobDetails job, SubmittedContent content) {
+    private void submitRecovered(IngestionJobDetails job, SubmittedContent content, RecoveryClaim claim,
+            SourceLeaseKeeper.Lease lease) {
         try {
+            CompletableFuture.runAsync(() -> runRecoveredTask(job.jobId(), content.file().workspaceId(),
+                    content.file().id(), content.contentType(), claim, lease), executor);
+        } catch (RejectedExecutionException exception) {
+            throw new java.io.UncheckedIOException(new IOException("Ingestion worker queue is full", exception));
+        }
+    }
+
+    private void runTask(String jobId, String workspaceId, String sourceId, IngestionContentType contentType) {
+        try {
+            IngestionJobDetails job = ingestionJobService.getJob(jobId);
+            WorkspaceFile source = workspaceFileService.getFile(workspaceId, sourceId);
+            SubmittedContent content = new SubmittedContent(contentType, source,
+                    source.urlBacked() ? null : readOriginal(source));
             lifecycleCoordinator.process(
-                    job, content.contentType(), content.file(), () -> processSource(job, content));
+                    job, contentType, source, () -> processSource(job, content));
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            log.warn("Interrupted while running {} orchestration task", content.contentType().apiName(), exception);
+            log.warn("Interrupted while running {} orchestration task", contentType.apiName(), exception);
+        } catch (NoSuchElementException exception) {
+            ingestionJobService.markStepFailed(jobId, contentType, exception);
+            log.warn("Queued source disappeared workspaceId={} sourceId={} jobId={}",
+                    workspaceId, sourceId, jobId, exception);
         } catch (Exception exception) {
-            log.warn("Failed to run {} orchestration task", content.contentType().apiName(), exception);
+            log.warn("Failed to run {} orchestration task", contentType.apiName(), exception);
         }
     }
 
-    private void runRecoveredTask(IngestionJobDetails job, SubmittedContent content) {
-        try {
+    private void runRecoveredTask(String jobId, String workspaceId, String sourceId,
+            IngestionContentType contentType, RecoveryClaim claim, SourceLeaseKeeper.Lease lease) {
+        try (lease) {
+            IngestionJobDetails job = ingestionJobService.getJob(jobId);
+            WorkspaceFile source = workspaceFileService.getFile(workspaceId, sourceId);
+            SubmittedContent content = new SubmittedContent(contentType, source,
+                    source.urlBacked() ? null : readOriginal(source));
             lifecycleCoordinator.processClaimedRecovery(
-                    job, content.contentType(), content.file(), () -> processSource(job, content));
+                    job, contentType, source, claim, () -> processSource(job, content));
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            log.warn("Interrupted while recovering {} orchestration task", content.contentType().apiName(), exception);
+            log.warn("Interrupted while recovering {} orchestration task", contentType.apiName(), exception);
         } catch (Exception exception) {
-            log.warn("Failed to recover {} orchestration task", content.contentType().apiName(), exception);
+            log.warn("Failed to recover {} orchestration task", contentType.apiName(), exception);
         }
     }
 
-    private Object processSource(IngestionJobDetails job, SubmittedContent content) throws Exception {
+    private SourceProcessingResult processSource(IngestionJobDetails job, SubmittedContent content) throws Exception {
         return sourceProcessingService.process(job, content.file(), content.original());
     }
 

@@ -4,6 +4,7 @@ import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeChunkMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
+import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -18,6 +19,7 @@ import org.springframework.web.client.RestClient;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -100,6 +102,37 @@ class OpenSearchKnowledgeClientTest {
                 .createdAt(Instant.parse("2026-09-08T09:00:00Z"))
                 .build()));
 
+        server.verify();
+    }
+
+    @Test
+    void refusesToPublishIncompleteStagedGeneration() throws Exception {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/_bulk?refresh=wait_for"))
+                .andExpect(content().string(containsString("\"sourceGeneration\":\"file-1:generation-2\"")))
+                .andRespond(withSuccess("{\"errors\":false,\"items\":[]}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_count"))
+                .andExpect(content().string(containsString("\"sourceGeneration\":\"file-1:generation-2\"")))
+                .andRespond(withSuccess("{\"count\":0}", MediaType.APPLICATION_JSON));
+        OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
+                URI.create("http://localhost:9200"), builder.build(), new ObjectMapper());
+        KnowledgeItem item = KnowledgeItem.builder()
+                .id("file-1:generation-2:0")
+                .workspaceId("workspace-1")
+                .source(KnowledgeItemSource.builder()
+                        .id("file-1")
+                        .generation("generation-2")
+                        .type(KnowledgeSourceType.DOCUMENT)
+                        .build())
+                .content("Replacement")
+                .createdAt(Instant.now())
+                .build();
+
+        assertThrows(UpstreamServiceException.class,
+                () -> client.stageKnowledgeItems("workspace-1", "file-1", "generation-2", List.of(item)));
         server.verify();
     }
 

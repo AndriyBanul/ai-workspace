@@ -53,6 +53,19 @@ public interface KnowledgeRepository {
         addKnowledgeItems(items);
     }
 
+    default void stageKnowledgeItems(String workspaceId, String sourceId, String generation,
+            List<KnowledgeItem> items) throws IOException {
+        addKnowledgeItems(items);
+    }
+
+    default int countSourceGeneration(String workspaceId, String sourceId, String generation) throws IOException {
+        return -1;
+    }
+
+    default void pruneSourceGenerations(String workspaceId, String sourceId, String activeGeneration)
+            throws IOException {
+    }
+
     void deleteKnowledgeItemsBySourceId(String workspaceId, String sourceId) throws IOException;
 
     void deleteKnowledgeItemsByWorkspaceId(String workspaceId) throws IOException;

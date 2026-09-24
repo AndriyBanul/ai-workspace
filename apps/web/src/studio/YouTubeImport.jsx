@@ -1,32 +1,20 @@
 import React, { useState } from 'react';
-import { Icon, Notice, Submit, useAction } from '../components.jsx';
-import AnalysisResult from './AnalysisResult.jsx';
+import { Button, Divider, Text, TextInput } from '@mantine/core';
+import { IconBrandYoutube } from '@tabler/icons-react';
+import { Notice, useAction } from '../components.jsx';
 
-export default function YouTubeImport({ api, workspace }) {
-  const [result, setResult] = useState(null);
+export default function YouTubeImport({ api, workspace, onResult }) {
+  const [url, setUrl] = useState('');
   const action = useAction();
 
   async function submit(event) {
     event.preventDefault();
-    const form = event.currentTarget;
-    const url = new FormData(form).get('youtubeUrl').trim();
     await action.run(async () => {
-      setResult(await api('/videos/youtube', { method: 'POST', json: { workspaceId: workspace.id, url } }));
-      form.reset();
+      const result = await api('/videos/youtube', { method: 'POST', json: { workspaceId: workspace.id, url: url.trim() } });
+      onResult({ ...result, filename: 'YouTube video ' + result.videoId });
+      setUrl('');
     });
   }
 
-  return <section className="card">
-    <span className="tag">PUBLIC YOUTUBE VIDEO</span><h2>Import from YouTube</h2>
-    <p>Add a public video by URL. The video stays on YouTube; its visual summary and timed spoken transcript become workspace knowledge.</p>
-    {!workspace
-      ? <p>Select a workspace to import a video.</p>
-      : <form onSubmit={submit}><fieldset disabled={action.busy}>
-        <label>YouTube URL<input name="youtubeUrl" type="url" pattern="https://(www\.|m\.|music\.)?youtube\.com/.*|https://youtu\.be/.*" placeholder="https://www.youtube.com/watch?v=…" required/></label>
-        <Notice error={action.error}/><Submit busy={action.busy}>Import video<Icon name="arrow" size={18}/></Submit>
-      </fieldset></form>}
-    {result && (
-      <AnalysisResult result={{ ...result, filename: `YouTube video ${result.videoId}` }}/>
-    )}
-  </section>;
+  return <><Divider my="xl" label="or import a public video"/><form onSubmit={submit}><TextInput label="YouTube URL" type="url" placeholder="https://www.youtube.com/watch?v=…" value={url} onChange={event => setUrl(event.target.value)} required disabled={!workspace || action.busy}/><Text size="xs" c="dimmed" mt="sm">The video stays on YouTube. The visual summary and transcript become workspace knowledge.</Text><Button mt="md" type="submit" variant="default" leftSection={<IconBrandYoutube size={17}/>} loading={action.busy} disabled={!workspace || !url.trim()}>Import video</Button><Notice error={action.error}/></form></>;
 }

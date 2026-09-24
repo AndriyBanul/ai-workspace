@@ -27,5 +27,13 @@
 - API and registration rate limits are configurable. The current implementation
   is process-local and keyed from the direct peer address; use a trusted edge or
   distributed limiter before running multiple API instances.
+- Daily per-user ingestion, answer, and generation quotas are enforced in
+  PostgreSQL and serialized per user across API instances. They return 429 and
+  `Retry-After` when exhausted; failed and idempotently retried requests count.
+- The browser clears its in-memory Basic credentials on an authenticated 401.
+  This is not a token refresh or centralized session revocation system.
+- The production profile enforces HTTPS, but TLS termination must come through
+  a trusted proxy with correctly configured forwarded headers. A managed
+  identity provider and distributed edge rate limiter remain deployment work.
 
 Security-sensitive changes should be explained clearly before implementation when trade-offs exist.

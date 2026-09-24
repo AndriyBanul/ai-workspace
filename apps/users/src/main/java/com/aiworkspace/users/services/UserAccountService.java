@@ -94,6 +94,15 @@ public class UserAccountService implements UserDetailsService {
         return currentUser(authentication).id();
     }
 
+    /** Acquires the account row lock for a caller's surrounding transaction. */
+    @Transactional
+    public String lockUserIdByEmail(String email) {
+        userAccountValidator.validateEmail(email);
+        return userAccountRepository.lockByEmail(email.trim().toLowerCase())
+                .orElseThrow(() -> new NoSuchElementException("User account was not found"))
+                .getId();
+    }
+
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) {

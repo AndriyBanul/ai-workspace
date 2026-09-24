@@ -5,6 +5,7 @@ import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.observability.SearchTelemetry;
 import com.aiworkspace.knowledge.services.ReciprocalRankFusion;
+import com.aiworkspace.knowledge.services.SourceIndexManifestService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -17,12 +18,19 @@ final class OpenSearchKnowledgeSearchReader {
     private final OpenSearchKnowledgeStore store;
     private final int headingWeight;
     private final SearchTelemetry telemetry;
+    private final SourceIndexManifestService manifests;
 
     OpenSearchKnowledgeSearchReader(OpenSearchKnowledgeStore store, int headingWeight, SearchTelemetry telemetry) {
+        this(store, headingWeight, telemetry, null);
+    }
+
+    OpenSearchKnowledgeSearchReader(OpenSearchKnowledgeStore store, int headingWeight, SearchTelemetry telemetry,
+            SourceIndexManifestService manifests) {
         if (headingWeight <= 0) throw new IllegalArgumentException("Heading weight must be positive");
         this.store = store;
         this.headingWeight = headingWeight;
         this.telemetry = telemetry == null ? SearchTelemetry.NOOP : telemetry;
+        this.manifests = manifests;
     }
 
     Optional<WorkspaceKnowledge> findByWorkspaceId(String workspaceId) throws IOException {
@@ -38,7 +46,7 @@ final class OpenSearchKnowledgeSearchReader {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("size", 1000);
         request.put("_source", Map.of("excludes", List.of("embedding")));
-        request.put("query", Map.of("term", Map.of("workspaceId", workspaceId)));
+        request.put("query", Map.of("bool", Map.of("filter", sourceFilters(workspaceId))));
         request.put("sort", List.of(
                 Map.of("createdAt", Map.of("order", "asc")),
                 Map.of("sourceId", Map.of("order", "asc", "missing", "_last")),
@@ -50,7 +58,7 @@ final class OpenSearchKnowledgeSearchReader {
     List<KnowledgeItem> search(String workspaceId, String query, int limit) throws IOException {
         store.ensureIndex();
         Map<String, Object> bool = new LinkedHashMap<>();
-        bool.put("filter", List.of(Map.of("term", Map.of("workspaceId", workspaceId))));
+        bool.put("filter", sourceFilters(workspaceId));
         bool.put("must", List.of(Map.of("multi_match", Map.of(
                 "query", query, "fields", List.of("content", "heading^" + headingWeight, "speaker^2")))));
         Map<String, Object> request = new LinkedHashMap<>();
@@ -98,7 +106,7 @@ final class OpenSearchKnowledgeSearchReader {
             request.put("size", 24);
             request.put("_source", Map.of("excludes", List.of("embedding")));
             request.put("query", Map.of("bool", Map.of(
-                    "filter", List.of(Map.of("term", Map.of("workspaceId", workspaceId))),
+                    "filter", sourceFilters(workspaceId),
                     "should", clauses, "minimum_should_match", 1)));
             var neighbors = new LinkedHashMap<String, KnowledgeItem>();
             for (var item : store.searchItems(request, "Failed to fetch neighboring chunks")) {
@@ -126,7 +134,7 @@ final class OpenSearchKnowledgeSearchReader {
         Map<String, Object> knn = new LinkedHashMap<>();
         knn.put("vector", embedding);
         knn.put("k", candidateLimit);
-        knn.put("filter", Map.of("term", Map.of("workspaceId", workspaceId)));
+        knn.put("filter", Map.of("bool", Map.of("filter", sourceFilters(workspaceId))));
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("size", candidateLimit);
         request.put("_source", Map.of("excludes", List.of("embedding")));
@@ -138,6 +146,23 @@ final class OpenSearchKnowledgeSearchReader {
 
     private String neighborKey(String sourceId, String sectionId, int sequence) {
         return sourceId + "\u0000" + sectionId + "\u0000" + sequence;
+    }
+
+    private List<Map<String, Object>> sourceFilters(String workspaceId) {
+        Map<String, Object> workspaceFilter = Map.of("term", Map.of("workspaceId", workspaceId));
+        if (manifests == null) return List.of(workspaceFilter);
+        var active = manifests.findByWorkspaceId(workspaceId);
+        Map<String, Object> legacy = Map.of("bool", Map.of("must_not", List.of(
+                Map.of("exists", Map.of("field", "sourceGeneration")),
+                Map.of("terms", Map.of("sourceId", active.stream().map(item -> item.getSourceId()).toList())))));
+        if (active.isEmpty()) {
+            return List.of(workspaceFilter, Map.of("bool", Map.of("must_not", List.of(
+                    Map.of("exists", Map.of("field", "sourceGeneration"))))));
+        }
+        Map<String, Object> published = Map.of("terms", Map.of("sourceGeneration", active.stream()
+                .map(item -> item.getSourceId() + ":" + item.getActiveGeneration()).toList()));
+        return List.of(workspaceFilter, Map.of("bool", Map.of(
+                "should", List.of(published, legacy), "minimum_should_match", 1)));
     }
 
     private String joinedContent(List<KnowledgeItem> items, KnowledgeSourceType type) {

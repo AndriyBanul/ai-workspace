@@ -12,6 +12,7 @@ public record KnowledgeItemSource(
         String id,
         String url,
         Instant extractedAt,
-        String parserVersion
+        String parserVersion,
+        String generation
 ) {
 }

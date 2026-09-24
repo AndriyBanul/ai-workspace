@@ -49,6 +49,10 @@ public record KnowledgeItem(
         return source == null ? null : source.parserVersion();
     }
 
+    public String generation() {
+        return source == null ? null : source.generation();
+    }
+
     public String chunkId() {
         return chunkMetadata == null ? null : chunkMetadata.id();
     }

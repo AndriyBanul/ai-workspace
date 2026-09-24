@@ -7,23 +7,13 @@ import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.documents.models.DocumentBlockType;
 import com.aiworkspace.documents.models.DocumentFailureCode;
 import com.aiworkspace.documents.models.FetchedWebPage;
-import com.aiworkspace.documents.models.WebPageExtractRequest;
-import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
-import com.aiworkspace.knowledge.models.KnowledgeChunk;
-import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
-import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
-import com.aiworkspace.knowledge.services.KnowledgeService;
-import com.aiworkspace.workspaces.models.Workspace;
-import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.apache.pdfbox.Loader;
@@ -60,7 +50,7 @@ class DocumentServiceTest {
             return new com.aiworkspace.images.models.OcrResult(List.of(
                     new com.aiworkspace.images.models.OcrRegion("Recovered scan text", null, null)));
         }, new com.aiworkspace.documents.config.PdfOcrProperties(true, null, null, null), limits);
-        var service = new DocumentService(new TestRestClient(), null, null, null, new DocumentValidator(),
+        var service = new DocumentService(new TestRestClient(), new DocumentValidator(),
                 limits, new DocxStructureExtractor(), new WebPageContentExtractor(), new DocumentChunker(), fallback);
         try (var pdf = Loader.loadPDF(pdfWithText("Original text page")); var output = new ByteArrayOutputStream()) {
             var page = new PDPage();
@@ -568,37 +558,19 @@ class DocumentServiceTest {
     }
 
     @Test
-    void reportsFullStoredWebContentWithoutFalseTruncation() throws IOException {
+    void preservesFullExtractedWebContentWithoutFalseTruncation() throws IOException {
         String content = "A".repeat(25_000);
-        TestKnowledgeService knowledgeService = new TestKnowledgeService();
-        DocumentService service = new DocumentService(
-                new TestRestClient(new FetchedWebPage(
+        DocumentService service = new DocumentService(new TestRestClient(new FetchedWebPage(
                         "https://example.com/large",
                         "text/plain",
                         "UTF-8",
                         content.getBytes(StandardCharsets.UTF_8)
-                )),
-                null,
-                knowledgeService,
-                new TestWorkspaceService(),
-                new DocumentValidator(),
-                new DocumentExtractionProperties(null, null, null, null, null),
-                new DocxStructureExtractor()
-        );
+                )));
 
-        var response = service.extractWebPage(
-                "owner-1",
-                new WebPageExtractRequest("workspace-1", "https://example.com/large")
-        );
+        var page = service.extractWebPage("https://example.com/large");
 
-        assertEquals(25_000, response.characterCount());
-        assertEquals(25_000, response.storedCharacterCount());
-        assertEquals(25_000, response.loggedCharacterCount());
-        assertTrue(!response.truncated());
-        assertEquals(response.sourceId(), knowledgeService.sourceMetadata.sourceId());
-        assertEquals("https://example.com/large", knowledgeService.sourceMetadata.sourceUrl());
-        assertEquals(content, knowledgeService.content);
-        assertEquals(1, knowledgeService.chunkCount);
+        assertEquals(25_000, page.content().length());
+        assertEquals(content, page.content());
     }
 
     private static class TestRestClient extends GenericRestClient {
@@ -645,93 +617,6 @@ class DocumentServiceTest {
         }
     }
 
-    private static class TestKnowledgeService extends KnowledgeService {
-
-        private KnowledgeSourceMetadata sourceMetadata;
-        private String content;
-        private int chunkCount;
-
-        TestKnowledgeService() {
-            super(new EmptyKnowledgeRepository(), new EmptyKnowledgeAnswerProvider());
-        }
-
-        @Override
-        public void recordDocumentsInfo(
-                String workspaceId,
-                String sourceName,
-                String jobId,
-                List<KnowledgeChunk> chunks,
-                KnowledgeSourceMetadata sourceMetadata
-        ) {
-            this.content = chunks.stream().map(KnowledgeChunk::content).reduce("", String::concat);
-            this.chunkCount = chunks.size();
-            this.sourceMetadata = sourceMetadata;
-        }
-    }
-
-    private static class TestWorkspaceService extends WorkspaceService {
-
-        TestWorkspaceService() {
-            super(null, null);
-        }
-
-        @Override
-        public Workspace getWorkspace(String ownerId, String workspaceId) {
-            return new Workspace(workspaceId, ownerId, "Test", Instant.now(), Instant.now());
-        }
-    }
-
-    private static class EmptyKnowledgeRepository implements KnowledgeRepository {
-
-        @Override
-        public Optional<com.aiworkspace.knowledge.models.WorkspaceKnowledge> findByWorkspaceId(String workspaceId) {
-            return Optional.empty();
-        }
-
-        @Override
-        public List<com.aiworkspace.knowledge.models.KnowledgeItem> findKnowledgeItemsByWorkspaceId(
-                String workspaceId
-        ) {
-            return List.of();
-        }
-
-        @Override
-        public List<com.aiworkspace.knowledge.models.KnowledgeItem> searchKnowledgeItems(
-                String workspaceId,
-                String query,
-                int limit
-        ) {
-            return List.of();
-        }
-
-        @Override
-        public void addKnowledgeItem(com.aiworkspace.knowledge.models.KnowledgeItem item) {
-        }
-
-        @Override
-        public void deleteKnowledgeItemsBySourceId(String workspaceId, String sourceId) {
-        }
-
-        @Override
-        public void deleteKnowledgeItemsByWorkspaceId(String workspaceId) {
-        }
-
-        @Override
-        public void updateWorkspaceKnowledgeField(
-                String workspaceId,
-                com.aiworkspace.knowledge.models.WorkspaceKnowledgeField field,
-                String value
-        ) {
-        }
-    }
-
-    private static class EmptyKnowledgeAnswerProvider implements KnowledgeAnswerProvider {
-
-        @Override
-        public String answer(String question, String context) {
-            return "";
-        }
-    }
 
     private byte[] pdfWithText(String text) throws IOException {
         return pdfWithPages(text);

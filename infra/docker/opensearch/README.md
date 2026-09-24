@@ -33,8 +33,8 @@ a time because the test Compose project and port are fixed.
 
 The tests check the cluster name before resetting the test index. They verify
 mapping settings, bulk metadata persistence, BM25 and kNN contributions,
-nearest-vector ordering, workspace isolation, source replacement, and source
-and workspace deletion. Fixed vectors make these checks independent of model
+nearest-vector ordering, workspace isolation, staged-generation publication,
+source replacement, and source/workspace deletion. Fixed vectors make these checks independent of model
 downloads, credentials, or embedding quality.
 
 Normal ./gradlew test excludes the opensearch tag and requires no Docker.

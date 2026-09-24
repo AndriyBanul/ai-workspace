@@ -93,6 +93,15 @@ public class IngestionJobService {
         return details(job, ingestionJobRepository.findSteps(job.id()));
     }
 
+    @Transactional(readOnly = true)
+    public List<IngestionJobDetails> listRecentJobs(String workspaceId, int limit) {
+        ingestionJobValidator.validateWorkspaceId(workspaceId);
+        int size = Math.max(1, Math.min(limit, 100));
+        return ingestionJobRepository.findRecentJobs(workspaceId.trim(), size).stream()
+                .map(job -> details(job, ingestionJobRepository.findSteps(job.id())))
+                .toList();
+    }
+
     @Transactional
     public boolean markStepRunning(String jobId, IngestionContentType contentType) {
         ingestionJobValidator.validateJobId(jobId);

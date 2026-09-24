@@ -20,6 +20,8 @@ dependencies {
 	implementation project(':shared')
 	implementation project(':videos')
 	implementation project(':workspaces')
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+	implementation 'io.micrometer:micrometer-core'
 	compileOnly 'org.mapstruct:mapstruct:1.6.3'
 	compileOnly 'org.slf4j:slf4j-api'
 	compileOnly 'jakarta.persistence:jakarta.persistence-api'
@@ -28,7 +30,6 @@ dependencies {
 	compileOnly 'org.springframework:spring-beans'
 	compileOnly 'org.springframework:spring-context'
 	compileOnly 'org.springframework:spring-tx'
-	compileOnly 'org.springframework:spring-web'
 	annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
 	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 	testImplementation 'org.junit.jupiter:junit-jupiter'

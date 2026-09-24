@@ -6,25 +6,12 @@ import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.documents.models.DocumentFailureCode;
 import com.aiworkspace.documents.models.ExtractedWebPage;
 import com.aiworkspace.documents.models.ParsedTextDocument;
-import com.aiworkspace.documents.models.TextDocumentUploadResponse;
 import com.aiworkspace.documents.models.WebPageExtractRequest;
-import com.aiworkspace.documents.models.WebPageExtractResponse;
 import com.aiworkspace.knowledge.models.KnowledgeChunk;
-import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
-import com.aiworkspace.knowledge.services.KnowledgeService;
-import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
-import com.aiworkspace.workspaces.models.Workspace;
-import com.aiworkspace.workspaces.models.WorkspaceFile;
-import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
-import com.aiworkspace.workspaces.services.WorkspaceFileService;
-import com.aiworkspace.workspaces.services.WorkspaceService;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import org.apache.tika.exception.EncryptedDocumentException;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.exception.WriteLimitReachedException;
@@ -39,8 +26,6 @@ import org.apache.tika.parser.ocr.TesseractOCRConfig;
 import org.apache.tika.parser.pdf.PDFParserConfig;
 import org.apache.tika.sax.BodyContentHandler;
 import org.apache.tika.sax.WriteOutContentHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
@@ -52,12 +37,8 @@ public class DocumentService {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     private static final String TIKA_PARSER_VERSION =
             parserVersion("ai-workspace-document-structure-v1/tika", AutoDetectParser.class);
-    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     private final GenericRestClient restClient;
-    private final WorkspaceFileService workspaceFileService;
-    private final KnowledgeService knowledgeService;
-    private final WorkspaceService workspaceService;
     private final DocumentValidator documentValidator;
     private final DocumentExtractionProperties extractionProperties;
     private final DocxStructureExtractor docxStructureExtractor;
@@ -73,60 +54,18 @@ public class DocumentService {
     DocumentService(GenericRestClient restClient, DocumentExtractionProperties extractionProperties) {
         this(
                 restClient,
-                null,
-                null,
-                null,
                 new DocumentValidator(),
                 extractionProperties,
                 new DocxStructureExtractor(),
                 new WebPageContentExtractor(),
-                new DocumentChunker()
+                new DocumentChunker(),
+                null
         );
-    }
-
-    public DocumentService(
-            GenericRestClient restClient,
-            WorkspaceFileService workspaceFileService,
-            KnowledgeService knowledgeService,
-            WorkspaceService workspaceService,
-            DocumentValidator documentValidator,
-            DocumentExtractionProperties extractionProperties,
-            DocxStructureExtractor docxStructureExtractor
-    ) {
-        this(
-                restClient,
-                workspaceFileService,
-                knowledgeService,
-                workspaceService,
-                documentValidator,
-                extractionProperties,
-                docxStructureExtractor,
-                new WebPageContentExtractor(),
-                new DocumentChunker()
-        );
-    }
-
-    public DocumentService(
-            GenericRestClient restClient,
-            WorkspaceFileService workspaceFileService,
-            KnowledgeService knowledgeService,
-            WorkspaceService workspaceService,
-            DocumentValidator documentValidator,
-            DocumentExtractionProperties extractionProperties,
-            DocxStructureExtractor docxStructureExtractor,
-            WebPageContentExtractor webPageContentExtractor,
-            DocumentChunker documentChunker
-    ) {
-        this(restClient, workspaceFileService, knowledgeService, workspaceService, documentValidator,
-                extractionProperties, docxStructureExtractor, webPageContentExtractor, documentChunker, null);
     }
 
     @Autowired
     public DocumentService(
             GenericRestClient restClient,
-            WorkspaceFileService workspaceFileService,
-            KnowledgeService knowledgeService,
-            WorkspaceService workspaceService,
             DocumentValidator documentValidator,
             DocumentExtractionProperties extractionProperties,
             DocxStructureExtractor docxStructureExtractor,
@@ -135,9 +74,6 @@ public class DocumentService {
             PdfOcrFallback pdfOcrFallback
     ) {
         this.restClient = restClient;
-        this.workspaceFileService = workspaceFileService;
-        this.knowledgeService = knowledgeService;
-        this.workspaceService = workspaceService;
         this.documentValidator = documentValidator;
         this.extractionProperties = extractionProperties;
         this.docxStructureExtractor = docxStructureExtractor;
@@ -274,120 +210,6 @@ public class DocumentService {
 
     public List<KnowledgeChunk> chunkTextForKnowledge(String content) {
         return documentChunker.chunkText(content, extractionProperties.maxChunkSentences());
-    }
-
-    /** @deprecated Workspace ingestion is coordinated by {@code OrchestratorService}. */
-    @Deprecated(forRemoval = true)
-    public TextDocumentUploadResponse uploadTextDocument(
-            String ownerId,
-            String workspaceId,
-            String filename,
-            String contentType,
-            byte[] content
-    ) throws IOException {
-        documentValidator.validateUploadContent(content);
-
-        Workspace workspace = workspaceService.getWorkspace(ownerId, workspaceId);
-        WorkspaceFile workspaceFile = workspaceFileService.createFile(CreateWorkspaceFileRequest.builder()
-                .workspaceId(workspace.id())
-                .sourceType(WorkspaceFileSourceType.DOCUMENT)
-                .originalFilename(filename)
-                .contentType(contentType)
-                .content(new ByteArrayInputStream(content))
-                .build());
-        workspaceFileService.markProcessing(workspace.id(), workspaceFile.id());
-
-        ParsedTextDocument document;
-        try {
-            document = extractDocumentText(filename, contentType, content);
-            knowledgeService.recordDocumentsInfo(
-                    workspace.id(),
-                    document.filename(),
-                    null,
-                    chunkForKnowledge(document),
-                    new KnowledgeSourceMetadata(
-                            workspaceFile.id(),
-                            null,
-                            document.extractedAt(),
-                            document.parserVersion()
-                    )
-            );
-            workspaceFileService.markProcessed(workspace.id(), workspaceFile.id());
-        } catch (IOException | RuntimeException exception) {
-            workspaceFileService.markFailed(workspace.id(), workspaceFile.id());
-            throw exception;
-        }
-
-        log.info(
-                "Extracted document text for workspaceId={} fileId={} filename='{}' characterCount={}",
-                workspace.id(),
-                workspaceFile.id(),
-                document.filename(),
-                document.content().length()
-        );
-        return new TextDocumentUploadResponse(
-                workspaceFile.id(),
-                document.filename(),
-                document.detectedContentType(),
-                document.title(),
-                content.length,
-                document.content().length(),
-                document.blocks().size(),
-                document.extractedAt(),
-                document.parserVersion()
-        );
-    }
-
-    /** @deprecated Workspace ingestion is coordinated by {@code OrchestratorService}. */
-    @Deprecated(forRemoval = true)
-    public WebPageExtractResponse extractWebPage(String ownerId, WebPageExtractRequest request) throws IOException {
-        documentValidator.validateWebPageExtractRequest(request);
-
-        workspaceService.getWorkspace(ownerId, request.workspaceId());
-        ExtractedWebPage page = extractWebPage(request.url());
-        String sourceId = UUID.randomUUID().toString();
-        int storedCharacterCount = page.content().length();
-
-        log.info(
-                "Extracted web page text for workspaceId={} host={} characterCount={}",
-                request.workspaceId().trim(),
-                hostForLog(page.url()),
-                storedCharacterCount
-        );
-        knowledgeService.recordDocumentsInfo(
-                request.workspaceId(),
-                page.title(),
-                null,
-                documentChunker.chunkText(page.content(), extractionProperties.maxChunkSentences()),
-                new KnowledgeSourceMetadata(
-                        sourceId,
-                        page.url(),
-                        page.extractedAt(),
-                        page.parserVersion()
-                )
-        );
-
-        return new WebPageExtractResponse(
-                sourceId,
-                page.url(),
-                page.contentType(),
-                page.title(),
-                storedCharacterCount,
-                storedCharacterCount,
-                storedCharacterCount,
-                false,
-                page.extractedAt(),
-                page.parserVersion()
-        );
-    }
-
-    private String hostForLog(String url) {
-        try {
-            String host = URI.create(url).getHost();
-            return host == null || host.isBlank() ? "(unknown)" : host;
-        } catch (IllegalArgumentException exception) {
-            return "(invalid)";
-        }
     }
 
     private String normalizedOptionalValue(String value) {

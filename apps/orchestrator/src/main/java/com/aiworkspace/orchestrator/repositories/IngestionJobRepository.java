@@ -15,6 +15,10 @@ public interface IngestionJobRepository {
 
     Optional<IngestionJob> findJob(String jobId);
 
+    default List<IngestionJob> findRecentJobs(String workspaceId, int limit) {
+        return List.of();
+    }
+
     List<IngestionJobStep> findSteps(String jobId);
 
     void updateJobStatus(String jobId, IngestionJobStatus status, Instant updatedAt, Instant completedAt);

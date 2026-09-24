@@ -30,10 +30,18 @@ cd apps
 ./gradlew test
 ```
 
-## Demo UI
+## Web application
 
-The API serves a simple demo console from `/` when the Spring Boot application is
-running.
+The API serves the Mantine-based React application from `/` when Spring Boot is
+running. The Library, Ask, Studio, and Activity views use the existing authenticated
+API. Library's Add sources dialog handles file uploads, public web pages, and
+YouTube URLs; background ingestion jobs appear in Activity. Source details show
+metadata and recovery diagnostics, while Ask displays answers beside their
+supporting passages. Generated media can be previewed and downloaded in Studio.
+
+For frontend development, run `npm ci`, `npm test`, `npm run typecheck`, and `npm run dev` from
+`apps/web`; Vite proxies API requests to `127.0.0.1:8080`. The Spring Boot
+`bootJar` build embeds the frontend production build.
 
 ```bash
 open http://localhost:8080/
@@ -42,7 +50,8 @@ open http://localhost:8080/
 ## Security
 
 The API uses stateless HTTP Basic authentication. The browser keeps credentials
-in memory only, and the server does not create an HTTP session. Production must
+in memory only, clears them after an authenticated 401, and the server does not
+create an HTTP session. Production must
 serve the application through TLS; set `SECURITY_REQUIRE_HTTPS=true` after the
 reverse proxy is configured to forward the original scheme correctly.
 
@@ -57,6 +66,14 @@ separate limit of 10 registration requests per minute. Configure them through
 HTTP 429 with `Retry-After`. The current limiter is process-local, so multi-node
 deployments must enforce a shared limit at the gateway or replace it with a
 distributed implementation.
+
+PostgreSQL-backed per-user daily quotas default to 100 ingestion requests, 500
+answers, and 25 media generations. Configure `USER_QUOTA_ENABLED`,
+`USER_INGESTIONS_PER_DAY`, `USER_ANSWERS_PER_DAY`, and
+`USER_GENERATIONS_PER_DAY`. The quota window resets at 00:00 UTC. Rejected
+requests return HTTP 429 with `Retry-After`; unsuccessful requests and repeated
+submissions also consume quota. HTTP Basic remains an MVP authentication model;
+use a managed identity provider before exposing sensitive production data.
 
 Authentication failures, rejected authenticated resource access, mutations, and
 rate-limit events are written to the `SECURITY_AUDIT` logger. Actor and client
@@ -155,7 +172,11 @@ with `POST /api/v1/workspaces/{workspaceId}/sources/{sourceId}/reprocess`, and
 delete it together with indexed knowledge using the corresponding `DELETE` path.
 
 Source processing and deletion are backed by a durable PostgreSQL recovery
-ledger. Transient provider, OpenSearch, and storage failures are retried with
+ledger. Asynchronous submissions persist a pending recovery task with their job
+before worker dispatch, so a queued source can resume after a restart. Workers
+queue source IDs and load uploaded bytes from storage when processing begins.
+The bounded worker queue defers excess work to the recovery scheduler. Transient
+provider, OpenSearch, and storage failures are retried with
 bounded exponential backoff; permanent failures and exhausted retries move to
 `DEAD_LETTER` with a bounded error code and message. Expired processing leases
 make interrupted work recoverable after restart. Completed sources are also
@@ -168,6 +189,29 @@ source details show the same state, attempt count, next check, and last error.
 Recovery is enabled by default. Its retry count, backoff, lease, reconciliation,
 polling, and batch settings are configured through the `SOURCE_RECOVERY_*` and
 `SOURCE_RECONCILIATION_INTERVAL` variables documented in `.env.example`.
+`INGESTION_WORKER_THREADS` and `INGESTION_QUEUE_CAPACITY` bound local dispatch.
+
+Recovery claims have per-attempt fencing tokens and renewable leases, including
+while a recovered job waits in the worker queue. A stale worker cannot publish a
+completed generation or change the source/job state after losing its lease.
+OpenSearch writes stage a new source generation first and verify its exact item
+count. Only then does the database transaction publish the active generation
+with the completed source and job; readers ignore unpublished generations.
+Old generations are pruned after publication and by later reconciliation.
+
+Async ingestion and source reprocessing accept an `Idempotency-Key` header.
+Retry the same payload with the same key to receive the original submission;
+reusing the key with different input returns a conflict. Keys expire after 30
+days. Synchronous direct media endpoints do not currently use this key.
+`GET /api/v1/orchestrator/jobs?workspaceId=...` returns recent persisted jobs,
+and `GET /api/v1/knowledge/workspaces/{workspaceId}/answers` returns saved
+question-and-answer history. The Activity and Ask views load these server-side
+records, so navigation and reload no longer lose them.
+
+Each API response includes `X-Request-ID`, which is included in server logs.
+Authenticated `/actuator/metrics` exposes ingestion attempts, recovery
+transitions, worker activity, and queue depth. Keep metrics behind the same
+trusted access boundary as the API.
 
 ## Local Whisper
 

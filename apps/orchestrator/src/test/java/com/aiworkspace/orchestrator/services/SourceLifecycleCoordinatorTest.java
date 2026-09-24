@@ -4,6 +4,7 @@ import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
 import com.aiworkspace.orchestrator.models.IngestionJobStatus;
 import com.aiworkspace.orchestrator.models.SourceOperationType;
+import com.aiworkspace.orchestrator.models.RecoveryClaim;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
 import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
@@ -29,21 +30,24 @@ class SourceLifecycleCoordinatorTest {
         IngestionJobService jobs = mock(IngestionJobService.class);
         WorkspaceFileService sources = mock(WorkspaceFileService.class);
         SourceRecoveryTracker recovery = mock(SourceRecoveryTracker.class);
+        WorkspaceFile source = source();
+        RecoveryClaim claim = new RecoveryClaim("lease-1", 1);
+        when(recovery.startAttempt(source, SourceOperationType.PROCESS)).thenReturn(claim);
         when(jobs.markStepRunning("job-1", IngestionContentType.AUDIO)).thenReturn(true);
         when(jobs.markStepCompleted("job-1", IngestionContentType.AUDIO)).thenReturn(true);
         SourceLifecycleCoordinator coordinator = new SourceLifecycleCoordinator(jobs, sources, recovery);
-        WorkspaceFile source = source();
 
         String result = coordinator.process(job(), IngestionContentType.AUDIO, source, () -> "indexed");
 
         assertEquals("indexed", result);
         InOrder order = inOrder(jobs, sources, recovery);
-        order.verify(jobs).markStepRunning("job-1", IngestionContentType.AUDIO);
         order.verify(recovery).startAttempt(source, SourceOperationType.PROCESS);
+        order.verify(jobs).markStepRunning("job-1", IngestionContentType.AUDIO);
         order.verify(sources).markProcessing("workspace-1", "source-1");
+        order.verify(recovery).assertCurrent(source, SourceOperationType.PROCESS, claim);
         order.verify(jobs).markStepCompleted("job-1", IngestionContentType.AUDIO);
         order.verify(sources).markProcessed("workspace-1", "source-1");
-        order.verify(recovery).complete(source, SourceOperationType.PROCESS);
+        order.verify(recovery).complete(source, SourceOperationType.PROCESS, claim);
     }
 
     @Test
@@ -51,12 +55,14 @@ class SourceLifecycleCoordinatorTest {
         IngestionJobService jobs = mock(IngestionJobService.class);
         WorkspaceFileService sources = mock(WorkspaceFileService.class);
         SourceRecoveryTracker recovery = mock(SourceRecoveryTracker.class);
+        WorkspaceFile source = source();
+        RecoveryClaim claim = new RecoveryClaim("lease-1", 1);
+        when(recovery.startAttempt(source, SourceOperationType.PROCESS)).thenReturn(claim);
         when(jobs.markStepRunning("job-1", IngestionContentType.AUDIO)).thenReturn(true);
         when(jobs.markStepFailed(org.mockito.ArgumentMatchers.eq("job-1"),
                 org.mockito.ArgumentMatchers.eq(IngestionContentType.AUDIO),
                 org.mockito.ArgumentMatchers.any(IOException.class))).thenReturn(true);
         SourceLifecycleCoordinator coordinator = new SourceLifecycleCoordinator(jobs, sources, recovery);
-        WorkspaceFile source = source();
 
         assertThrows(IOException.class, () -> coordinator.process(
                 job(), IngestionContentType.AUDIO, source, () -> {
@@ -66,6 +72,7 @@ class SourceLifecycleCoordinatorTest {
         verify(sources).markFailed("workspace-1", "source-1");
         verify(recovery).fail(org.mockito.ArgumentMatchers.eq(source),
                 org.mockito.ArgumentMatchers.eq(SourceOperationType.PROCESS),
+                org.mockito.ArgumentMatchers.eq(claim),
                 org.mockito.ArgumentMatchers.any(IOException.class));
     }
 
@@ -75,6 +82,8 @@ class SourceLifecycleCoordinatorTest {
         WorkspaceFileService sources = mock(WorkspaceFileService.class);
         SourceRecoveryTracker recovery = mock(SourceRecoveryTracker.class);
         WorkspaceFile source = source();
+        RecoveryClaim claim = new RecoveryClaim("lease-1", 1);
+        when(recovery.startAttempt(source, SourceOperationType.PROCESS)).thenReturn(claim);
         when(jobs.markStepRunning("job-1", IngestionContentType.AUDIO)).thenReturn(true);
         when(jobs.markStepCompleted("job-1", IngestionContentType.AUDIO)).thenReturn(false);
         SourceLifecycleCoordinator coordinator = new SourceLifecycleCoordinator(jobs, sources, recovery);
@@ -83,9 +92,10 @@ class SourceLifecycleCoordinatorTest {
                 job(), IngestionContentType.AUDIO, source, () -> "indexed"));
 
         verify(sources).markFailed("workspace-1", "source-1");
-        verify(recovery, never()).complete(source, SourceOperationType.PROCESS);
+        verify(recovery, never()).complete(source, SourceOperationType.PROCESS, claim);
         verify(recovery).fail(org.mockito.ArgumentMatchers.eq(source),
                 org.mockito.ArgumentMatchers.eq(SourceOperationType.PROCESS),
+                org.mockito.ArgumentMatchers.eq(claim),
                 org.mockito.ArgumentMatchers.any(IllegalStateException.class));
     }
 

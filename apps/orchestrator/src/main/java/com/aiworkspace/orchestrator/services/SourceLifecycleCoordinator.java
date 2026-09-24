@@ -2,11 +2,15 @@ package com.aiworkspace.orchestrator.services;
 
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
+import com.aiworkspace.orchestrator.models.RecoveryClaim;
 import com.aiworkspace.orchestrator.models.SourceOperationType;
+import com.aiworkspace.orchestrator.models.SourceProcessingResult;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.services.WorkspaceFileService;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 
 /** Owns the state transitions shared by every source ingestion path. */
 @Service
@@ -15,76 +19,103 @@ public class SourceLifecycleCoordinator {
     private final IngestionJobService ingestionJobService;
     private final WorkspaceFileService workspaceFileService;
     private final SourceRecoveryTracker recoveryTracker;
+    private final SourceCompletionService completionService;
+    private final SourceLeaseKeeper leaseKeeper;
+    private final IngestionTelemetry telemetry;
 
     public SourceLifecycleCoordinator(IngestionJobService ingestionJobService,
             WorkspaceFileService workspaceFileService) {
         this(ingestionJobService, workspaceFileService, SourceRecoveryTracker.noop());
     }
 
-    @Autowired
     public SourceLifecycleCoordinator(IngestionJobService ingestionJobService,
             WorkspaceFileService workspaceFileService, SourceRecoveryTracker recoveryTracker) {
+        this(ingestionJobService, workspaceFileService, recoveryTracker,
+                new SourceCompletionService(ingestionJobService, workspaceFileService, recoveryTracker), null,
+                IngestionTelemetry.NOOP);
+    }
+
+    @Autowired
+    public SourceLifecycleCoordinator(IngestionJobService ingestionJobService,
+            WorkspaceFileService workspaceFileService, SourceRecoveryTracker recoveryTracker,
+            SourceCompletionService completionService, SourceLeaseKeeper leaseKeeper,
+            IngestionTelemetry telemetry) {
         this.ingestionJobService = ingestionJobService;
         this.workspaceFileService = workspaceFileService;
         this.recoveryTracker = recoveryTracker;
+        this.completionService = completionService;
+        this.leaseKeeper = leaseKeeper;
+        this.telemetry = telemetry;
     }
 
     public <T> T process(IngestionJobDetails job, IngestionContentType contentType, WorkspaceFile source,
             SourceProcessingOperation<T> operation) throws Exception {
-        return process(job, contentType, source, operation, false);
+        return process(job, contentType, source, operation, null);
     }
 
-    public void startRecoveryAttempt(WorkspaceFile source) {
-        recoveryTracker.startAttempt(source, SourceOperationType.PROCESS);
+    @Transactional
+    public IngestionJobDetails queueSubmission(String workspaceId, List<IngestionContentType> submittedTypes,
+            List<IngestionContentType> skippedTypes, List<WorkspaceFile> sources) {
+        IngestionJobDetails job = ingestionJobService.createJob(workspaceId, submittedTypes, skippedTypes);
+        sources.forEach(source -> recoveryTracker.queueSubmission(source, job.jobId()));
+        return job;
     }
 
-    public void failRecoveryAttempt(WorkspaceFile source, Exception exception) {
-        recoveryTracker.fail(source, SourceOperationType.PROCESS, exception);
+    public RecoveryClaim startRecoveryAttempt(WorkspaceFile source) {
+        return recoveryTracker.startAttempt(source, SourceOperationType.PROCESS);
+    }
+
+    public SourceLeaseKeeper.Lease keepRecoveryLease(WorkspaceFile source, RecoveryClaim claim) {
+        return leaseKeeper == null ? () -> { }
+                : leaseKeeper.keep(source, SourceOperationType.PROCESS, claim);
+    }
+
+    public void failRecoveryAttempt(WorkspaceFile source, RecoveryClaim claim, Exception exception) {
+        recoveryTracker.fail(source, SourceOperationType.PROCESS, claim, exception);
+    }
+
+    public void assignRecoveryJob(WorkspaceFile source, String jobId, RecoveryClaim claim) {
+        recoveryTracker.assignJob(source, jobId, claim);
     }
 
     public <T> T processClaimedRecovery(IngestionJobDetails job, IngestionContentType contentType,
-            WorkspaceFile source, SourceProcessingOperation<T> operation) throws Exception {
-        return process(job, contentType, source, operation, true);
+            WorkspaceFile source, RecoveryClaim claim, SourceProcessingOperation<T> operation) throws Exception {
+        return process(job, contentType, source, operation, claim);
     }
 
     private <T> T process(IngestionJobDetails job, IngestionContentType contentType, WorkspaceFile source,
-            SourceProcessingOperation<T> operation, boolean recoveryStarted) throws Exception {
+            SourceProcessingOperation<T> operation, RecoveryClaim existingClaim) throws Exception {
         boolean sourceTransitioned = false;
+        long startedAt = System.nanoTime();
+        RecoveryClaim claim = existingClaim;
         try {
+            if (claim == null) {
+                claim = recoveryTracker.startAttempt(source, SourceOperationType.PROCESS);
+            }
             if (!ingestionJobService.markStepRunning(job.jobId(), contentType)) {
                 throw new IllegalStateException("Ingestion source is no longer pending");
             }
-            if (!recoveryStarted) {
-                recoveryTracker.startAttempt(source, SourceOperationType.PROCESS);
-                recoveryStarted = true;
-            }
             workspaceFileService.markProcessing(job.workspaceId(), source.id());
             sourceTransitioned = true;
-            T result = operation.process();
-            if (!ingestionJobService.markStepCompleted(job.jobId(), contentType)) {
-                throw new IllegalStateException("Ingestion source is no longer running");
-            }
-            workspaceFileService.markProcessed(job.workspaceId(), source.id());
-            recoveryTracker.complete(source, SourceOperationType.PROCESS);
-            return result;
-        } catch (Exception exception) {
-            try {
-                ingestionJobService.markStepFailed(job.jobId(), contentType, exception);
-            } catch (RuntimeException statusException) {
-                exception.addSuppressed(statusException);
-            }
-            if (sourceTransitioned) {
-                try {
-                    workspaceFileService.markFailed(job.workspaceId(), source.id());
-                } catch (RuntimeException statusException) {
-                    exception.addSuppressed(statusException);
+            T result;
+            if (leaseKeeper == null) {
+                result = operation.process();
+            } else {
+                try (AutoCloseable ignored = leaseKeeper.keep(source, SourceOperationType.PROCESS, claim)) {
+                    result = operation.process();
                 }
             }
-            if (recoveryStarted) {
+            completionService.complete(job, contentType, source, claim,
+                    result instanceof SourceProcessingResult processed ? processed.stagedIndex() : null);
+            telemetry.recordAttempt(SourceOperationType.PROCESS, "success", System.nanoTime() - startedAt);
+            return result;
+        } catch (Exception exception) {
+            telemetry.recordAttempt(SourceOperationType.PROCESS, "failure", System.nanoTime() - startedAt);
+            if (claim != null) {
                 try {
-                    recoveryTracker.fail(source, SourceOperationType.PROCESS, exception);
-                } catch (RuntimeException recoveryException) {
-                    exception.addSuppressed(recoveryException);
+                    completionService.fail(job, contentType, source, claim, sourceTransitioned, exception);
+                } catch (RuntimeException completionException) {
+                    exception.addSuppressed(completionException);
                 }
             }
             throw exception;

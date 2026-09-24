@@ -69,7 +69,7 @@ public class SourceRecoveryScheduler {
 
     private void retryProcess(SourceRecoveryTask task) throws IOException {
         try {
-            orchestratorService.recoverSource(task.workspaceId(), task.sourceId());
+            orchestratorService.recoverSource(task);
         } catch (NoSuchElementException exception) {
             knowledgeService.deleteSourceKnowledge(task.workspaceId(), task.sourceId());
             recoveryTaskService.completeDeletedTask(task);
@@ -104,6 +104,9 @@ public class SourceRecoveryScheduler {
             recoveryTaskService.scheduleRepair(
                     source, "KNOWLEDGE_MISSING", "Indexed source knowledge is missing");
             return;
+        }
+        if (source.status() == WorkspaceFileStatus.PROCESSED) {
+            knowledgeService.pruneInactiveSourceGenerations(source.workspaceId(), source.id());
         }
         recoveryTaskService.deferReconciliation(source);
     }

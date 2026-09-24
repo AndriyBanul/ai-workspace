@@ -10,6 +10,13 @@
 - Flyway
 - REST APIs
 
+## Frontend
+
+- React 19 and Vite 8 under `apps/web`
+- Mantine 9 for the application shell, forms, dialogs, and visual theme
+- Tabler icons for consistent navigation and media/source indicators
+- Vitest and Testing Library for workflow tests
+
 Build commands should be run from `apps`, for example:
 
 ```bash

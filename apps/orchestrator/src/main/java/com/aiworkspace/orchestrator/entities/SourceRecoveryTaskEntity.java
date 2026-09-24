@@ -9,6 +9,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,6 +31,9 @@ public class SourceRecoveryTaskEntity {
     @Column(name = "workspace_id", nullable = false)
     private String workspaceId;
 
+    @Column(name = "job_id")
+    private String jobId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "operation_type", nullable = false)
     private SourceOperationType operationType;
@@ -47,6 +51,9 @@ public class SourceRecoveryTaskEntity {
     @Column(name = "lease_expires_at")
     private Instant leaseExpiresAt;
 
+    @Column(name = "lease_token", length = 36)
+    private String leaseToken;
+
     @Column(name = "last_error_code", length = 100)
     private String lastErrorCode;
 
@@ -61,10 +68,14 @@ public class SourceRecoveryTaskEntity {
 
     public void start(SourceOperationType operationType, Instant now, Instant leaseExpiresAt, boolean resetAttempts) {
         this.operationType = operationType;
+        if (operationType != SourceOperationType.PROCESS) {
+            this.jobId = null;
+        }
         this.status = SourceRecoveryStatus.RUNNING;
         this.attemptCount = (resetAttempts ? 0 : attemptCount) + 1;
         this.nextAttemptAt = null;
         this.leaseExpiresAt = leaseExpiresAt;
+        this.leaseToken = UUID.randomUUID().toString();
         this.lastErrorCode = null;
         this.lastErrorMessage = null;
         this.updatedAt = now;
@@ -74,6 +85,7 @@ public class SourceRecoveryTaskEntity {
         this.status = SourceRecoveryStatus.SCHEDULED;
         this.nextAttemptAt = nextAttemptAt;
         this.leaseExpiresAt = null;
+        this.leaseToken = null;
         this.lastErrorCode = errorCode;
         this.lastErrorMessage = errorMessage;
         this.updatedAt = now;
@@ -83,6 +95,7 @@ public class SourceRecoveryTaskEntity {
         this.status = SourceRecoveryStatus.COMPLETED;
         this.nextAttemptAt = nextReconciliationAt;
         this.leaseExpiresAt = null;
+        this.leaseToken = null;
         this.lastErrorCode = null;
         this.lastErrorMessage = null;
         this.updatedAt = now;
@@ -92,6 +105,7 @@ public class SourceRecoveryTaskEntity {
         this.status = SourceRecoveryStatus.DEAD_LETTER;
         this.nextAttemptAt = null;
         this.leaseExpiresAt = null;
+        this.leaseToken = null;
         this.lastErrorCode = errorCode;
         this.lastErrorMessage = errorMessage;
         this.updatedAt = now;
@@ -99,12 +113,23 @@ public class SourceRecoveryTaskEntity {
 
     public void prepare(SourceOperationType operationType, Instant nextAttemptAt, Instant now) {
         this.operationType = operationType;
+        this.jobId = null;
         this.status = SourceRecoveryStatus.SCHEDULED;
         this.attemptCount = 0;
         this.nextAttemptAt = nextAttemptAt;
         this.leaseExpiresAt = null;
+        this.leaseToken = null;
         this.lastErrorCode = null;
         this.lastErrorMessage = null;
+        this.updatedAt = now;
+    }
+
+    public void assignJob(String jobId) {
+        this.jobId = jobId;
+    }
+
+    public void renewLease(Instant leaseExpiresAt, Instant now) {
+        this.leaseExpiresAt = leaseExpiresAt;
         this.updatedAt = now;
     }
 }

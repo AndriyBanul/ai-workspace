@@ -60,6 +60,47 @@ final class OpenSearchKnowledgeIndexWriter {
         deleteSourceExcept(workspaceId, sourceId, items.stream().map(KnowledgeItem::id).toList());
     }
 
+    void stage(String workspaceId, String sourceId, String generation, List<KnowledgeItem> items)
+            throws IOException {
+        if (items == null || items.isEmpty() || items.stream().anyMatch(item ->
+                !workspaceId.equals(item.workspaceId()) || !sourceId.equals(item.sourceId())
+                        || !generation.equals(item.generation()))) {
+            throw new IllegalArgumentException("Staged items must belong to one source generation");
+        }
+        add(items);
+        if (countSourceGeneration(workspaceId, sourceId, generation) != items.size()) {
+            throw store.invalidResponse("Incomplete source generation after bulk indexing", null);
+        }
+    }
+
+    int countSourceGeneration(String workspaceId, String sourceId, String generation) throws IOException {
+        store.ensureIndex();
+        try {
+            ResponseEntity<String> response = store.restClient.post().uri(store.countUri())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(store.objectMapper.writeValueAsString(Map.of("query", sourceGenerationQuery(
+                            workspaceId, sourceId, generation))))
+                    .retrieve().toEntity(String.class);
+            JsonNode body = store.objectMapper.readTree(response.getBody() == null ? "{}" : response.getBody());
+            if (!body.path("count").canConvertToInt()) {
+                throw store.invalidResponse("Failed to count indexed source generation", null);
+            }
+            return body.path("count").asInt();
+        } catch (RestClientResponseException exception) {
+            throw store.responseException("Failed to count indexed source generation", exception);
+        } catch (RestClientException exception) {
+            throw store.clientException("Failed to count indexed source generation", exception);
+        }
+    }
+
+    void pruneSourceGenerations(String workspaceId, String sourceId, String activeGeneration) throws IOException {
+        Map<String, Object> bool = new LinkedHashMap<>();
+        bool.put("filter", List.of(Map.of("term", Map.of("workspaceId", workspaceId)),
+                Map.of("term", Map.of("sourceId", sourceId))));
+        bool.put("must_not", List.of(Map.of("term", Map.of("sourceGeneration", sourceId + ":" + activeGeneration))));
+        executeDelete(Map.of("bool", bool));
+    }
+
     void deleteSource(String workspaceId, String sourceId) throws IOException {
         deleteSourceExcept(workspaceId, sourceId, List.of());
     }
@@ -75,6 +116,13 @@ final class OpenSearchKnowledgeIndexWriter {
                 Map.of("term", Map.of("sourceId", sourceId))));
         if (!retainedIds.isEmpty()) bool.put("must_not", List.of(Map.of("ids", Map.of("values", retainedIds))));
         executeDelete(Map.of("bool", bool));
+    }
+
+    private Map<String, Object> sourceGenerationQuery(String workspaceId, String sourceId, String generation) {
+        return Map.of("bool", Map.of("filter", List.of(
+                Map.of("term", Map.of("workspaceId", workspaceId)),
+                Map.of("term", Map.of("sourceId", sourceId)),
+                Map.of("term", Map.of("sourceGeneration", sourceId + ":" + generation)))));
     }
 
     private void executeDelete(Map<String, Object> query) throws IOException {
@@ -116,6 +164,9 @@ final class OpenSearchKnowledgeIndexWriter {
         document.put("sourceName", source == null ? null : source.name());
         document.put("jobId", source == null ? null : source.jobId());
         document.put("sourceId", source == null ? null : source.id());
+        document.put("sourceGeneration", source == null || source.id() == null || source.generation() == null
+                ? null : source.id() + ":" + source.generation());
+        document.put("generation", source == null ? null : source.generation());
         document.put("sourceUrl", source == null ? null : source.url());
         document.put("content", item.content());
         document.put("extractedAt", source == null || source.extractedAt() == null

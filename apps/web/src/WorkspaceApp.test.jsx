@@ -1,5 +1,6 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from './test-utils.jsx';
 import { describe, expect, it, vi } from 'vitest';
 import WorkspaceApp from './WorkspaceApp.jsx';
 
@@ -22,27 +23,40 @@ function workspaceApi() {
       return null;
     }
     if (path.endsWith('/sources') && !options.method) return [];
+    if (path.includes('/answers?limit=50') && !options.method) return [];
     throw new Error(`Unexpected API call: ${options.method || 'GET'} ${path}`);
   });
 }
 
 describe('Workspace shell workflow', () => {
+  it('opens a bookmarked workspace view and writes navigation into the URL', async () => {
+    window.history.replaceState(null, '', '#/workspaces/workspace-1/ask');
+    render(<WorkspaceApp session={session} logout={vi.fn()} api={workspaceApi()}/>);
+
+    expect(await screen.findByRole('heading', { name: 'A good question changes things.' },
+      { timeout: 5000 })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Activity' }));
+    await waitFor(() => expect(window.location.hash).toBe('#/workspaces/workspace-1/activity'));
+  });
+
   it('creates, navigates within, and deletes a workspace', async () => {
     const api = workspaceApi();
     render(<WorkspaceApp session={session} logout={vi.fn()} api={api}/>);
 
-    await waitFor(() => expect(screen.getByLabelText('Select workspace')).toHaveValue('workspace-1'));
-    fireEvent.click(screen.getByRole('button', { name: /new workspace/i }));
-    fireEvent.change(screen.getByLabelText('Workspace name'), { target: { value: 'Beta' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Select workspace' })).toHaveTextContent('Alpha'));
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace options' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /new workspace/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: /Workspace name/i }), { target: { value: 'Beta' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
 
-    await waitFor(() => expect(screen.getByLabelText('Select workspace')).toHaveValue('workspace-2'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Select workspace' })).toHaveTextContent('Beta'));
     expect(api).toHaveBeenCalledWith('/workspaces', { method: 'POST', json: { name: 'Beta' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Ask workspace' }));
-    expect(screen.getByRole('heading', { name: 'Ask your workspace' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'A good question changes things.' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete workspace' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace options' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete workspace' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
 
     await waitFor(() => expect(screen.getByText('A fresh start')).toBeInTheDocument());

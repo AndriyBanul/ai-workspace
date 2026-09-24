@@ -8,6 +8,7 @@ import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
+import com.aiworkspace.knowledge.models.StagedKnowledgeIndex;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -26,35 +28,47 @@ public class KnowledgeIndexingService {
     private final KnowledgeRepository knowledgeRepository;
     private final KnowledgeValidator knowledgeValidator;
     private final TextEmbeddingProvider textEmbeddingProvider;
+    private final boolean versionedWrites;
 
     public KnowledgeIndexingService(KnowledgeRepository knowledgeRepository, KnowledgeValidator knowledgeValidator,
             TextEmbeddingProvider textEmbeddingProvider) {
+        this(knowledgeRepository, knowledgeValidator, textEmbeddingProvider, false);
+    }
+
+    @Autowired
+    public KnowledgeIndexingService(KnowledgeRepository knowledgeRepository, KnowledgeValidator knowledgeValidator,
+            TextEmbeddingProvider textEmbeddingProvider, SourceIndexManifestService manifestService) {
+        this(knowledgeRepository, knowledgeValidator, textEmbeddingProvider, true);
+    }
+
+    private KnowledgeIndexingService(KnowledgeRepository knowledgeRepository, KnowledgeValidator knowledgeValidator,
+            TextEmbeddingProvider textEmbeddingProvider, boolean versionedWrites) {
         this.knowledgeRepository = knowledgeRepository;
         this.knowledgeValidator = knowledgeValidator;
         this.textEmbeddingProvider = textEmbeddingProvider;
+        this.versionedWrites = versionedWrites;
     }
 
-    public void record(String workspaceId, KnowledgeSourceType sourceType, String sourceName, String jobId,
+    public StagedKnowledgeIndex record(String workspaceId, KnowledgeSourceType sourceType, String sourceName, String jobId,
             String value, KnowledgeSourceMetadata sourceMetadata) throws IOException {
         knowledgeValidator.validateKnowledgeItemContent(value);
         knowledgeValidator.validateWorkspaceId(workspaceId);
         String sourceId = sourceMetadata == null ? null : normalized(sourceMetadata.sourceId());
+        String generation = versionedWrites && sourceId != null ? UUID.randomUUID().toString() : null;
         KnowledgeItem item = KnowledgeItem.builder()
-                .id(sourceId == null ? UUID.randomUUID().toString() : sourceId + ":0")
+                .id(sourceId == null ? UUID.randomUUID().toString()
+                        : generation == null ? sourceId + ":0" : sourceId + ":" + generation + ":0")
                 .workspaceId(workspaceId.trim())
-                .source(source(sourceType, sourceName, jobId, sourceMetadata))
+                .source(source(sourceType, sourceName, jobId, sourceMetadata, generation))
                 .content(value.trim())
                 .createdAt(Instant.now())
                 .build();
         List<KnowledgeItem> items = withEmbeddings(List.of(item));
-        if (sourceId == null) {
-            knowledgeRepository.addKnowledgeItems(items);
-        } else {
-            knowledgeRepository.replaceKnowledgeItems(workspaceId.trim(), sourceId, items);
-        }
+        return writeItems(workspaceId.trim(), sourceId, generation, items);
     }
 
-    public void recordChunks(String workspaceId, KnowledgeSourceType sourceType, String sourceName, String jobId,
+    public StagedKnowledgeIndex recordChunks(String workspaceId, KnowledgeSourceType sourceType, String sourceName,
+            String jobId,
             List<KnowledgeChunk> chunks, KnowledgeSourceMetadata sourceMetadata, String sourceLabel)
             throws IOException {
         knowledgeValidator.validateWorkspaceId(workspaceId);
@@ -66,6 +80,8 @@ public class KnowledgeIndexingService {
         if (sourceIdentity == null) {
             sourceIdentity = UUID.randomUUID().toString();
         }
+        String sourceId = sourceMetadata == null ? null : normalized(sourceMetadata.sourceId());
+        String generation = versionedWrites && sourceId != null ? UUID.randomUUID().toString() : null;
 
         Instant createdAt = Instant.now();
         List<KnowledgeItem> items = new ArrayList<>(chunks.size());
@@ -75,11 +91,12 @@ public class KnowledgeIndexingService {
             }
             validateMediaLocation(chunk);
             knowledgeValidator.validateKnowledgeItemContent(chunk.content());
-            String chunkId = sourceIdentity + ":" + chunk.sequence();
+            String chunkId = generation == null ? sourceIdentity + ":" + chunk.sequence()
+                    : sourceIdentity + ":" + generation + ":" + chunk.sequence();
             items.add(KnowledgeItem.builder()
                     .id(chunkId)
                     .workspaceId(workspaceId.trim())
-                    .source(source(sourceType, sourceName, jobId, sourceMetadata))
+                    .source(source(sourceType, sourceName, jobId, sourceMetadata, generation))
                     .content(chunk.content().trim())
                     .chunkMetadata(KnowledgeChunkMetadata.builder()
                             .id(chunkId)
@@ -98,12 +115,21 @@ public class KnowledgeIndexingService {
         }
 
         List<KnowledgeItem> embeddedItems = withEmbeddings(items);
-        String sourceId = sourceMetadata == null ? null : normalized(sourceMetadata.sourceId());
+        return writeItems(workspaceId.trim(), sourceId, generation, embeddedItems);
+    }
+
+    private StagedKnowledgeIndex writeItems(String workspaceId, String sourceId, String generation,
+            List<KnowledgeItem> items) throws IOException {
         if (sourceId == null) {
-            knowledgeRepository.addKnowledgeItems(embeddedItems);
-        } else {
-            knowledgeRepository.replaceKnowledgeItems(workspaceId.trim(), sourceId, embeddedItems);
+            knowledgeRepository.addKnowledgeItems(items);
+            return null;
         }
+        if (generation == null) {
+            knowledgeRepository.replaceKnowledgeItems(workspaceId, sourceId, items);
+            return null;
+        }
+        knowledgeRepository.stageKnowledgeItems(workspaceId, sourceId, generation, items);
+        return new StagedKnowledgeIndex(workspaceId, sourceId, generation, items.size());
     }
 
     public void deleteSource(String workspaceId, String sourceId) throws IOException {
@@ -192,7 +218,7 @@ public class KnowledgeIndexingService {
     }
 
     private KnowledgeItemSource source(KnowledgeSourceType sourceType, String sourceName, String jobId,
-            KnowledgeSourceMetadata sourceMetadata) {
+            KnowledgeSourceMetadata sourceMetadata, String generation) {
         return KnowledgeItemSource.builder()
                 .type(sourceType)
                 .name(normalized(sourceName))
@@ -201,6 +227,7 @@ public class KnowledgeIndexingService {
                 .url(sourceMetadata == null ? null : normalized(sourceMetadata.sourceUrl()))
                 .extractedAt(sourceMetadata == null ? null : sourceMetadata.extractedAt())
                 .parserVersion(sourceMetadata == null ? null : normalized(sourceMetadata.parserVersion()))
+                .generation(generation)
                 .build();
     }
 }

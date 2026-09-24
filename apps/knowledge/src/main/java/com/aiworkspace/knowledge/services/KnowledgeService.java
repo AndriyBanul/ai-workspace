@@ -12,6 +12,7 @@ import com.aiworkspace.knowledge.models.KnowledgeChunk;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
+import com.aiworkspace.knowledge.models.StagedKnowledgeIndex;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeAnswer;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
@@ -36,6 +37,7 @@ public class KnowledgeService {
     private final KnowledgeIndexingService indexingService;
     private final KnowledgeRetrievalService retrievalService;
     private final KnowledgeAnswerService answerService;
+    private final SourceIndexManifestService manifestService;
 
     public KnowledgeService(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider) {
         this(knowledgeRepository, knowledgeAnswerProvider, null, new KnowledgeValidator(), null,
@@ -92,18 +94,21 @@ public class KnowledgeService {
                 knowledgeRepository, textEmbeddingProvider, embeddingProperties, searchProperties, textReranker,
                 rerankingProperties, searchQueryProvider, queryExpansionProperties, telemetry);
         this.answerService = new KnowledgeAnswerService(knowledgeAnswerProvider, citationService);
+        this.manifestService = null;
     }
 
     @Autowired
     public KnowledgeService(KnowledgeRepository knowledgeRepository, WorkspaceService workspaceService,
             KnowledgeValidator knowledgeValidator, KnowledgeIndexingService indexingService,
-            KnowledgeRetrievalService retrievalService, KnowledgeAnswerService answerService) {
+            KnowledgeRetrievalService retrievalService, KnowledgeAnswerService answerService,
+            SourceIndexManifestService manifestService) {
         this.knowledgeRepository = knowledgeRepository;
         this.workspaceService = workspaceService;
         this.knowledgeValidator = knowledgeValidator;
         this.indexingService = indexingService;
         this.retrievalService = retrievalService;
         this.answerService = answerService;
+        this.manifestService = manifestService;
     }
 
     public Optional<WorkspaceKnowledge> findWorkspaceKnowledge(String workspaceId) throws IOException {
@@ -129,15 +134,15 @@ public class KnowledgeService {
         recordDocumentsInfo(workspaceId, sourceName, jobId, value, null);
     }
 
-    public void recordDocumentsInfo(String workspaceId, String sourceName, String jobId, String value,
+    public StagedKnowledgeIndex recordDocumentsInfo(String workspaceId, String sourceName, String jobId, String value,
             KnowledgeSourceMetadata sourceMetadata) throws IOException {
-        indexingService.record(
+        return indexingService.record(
                 workspaceId, KnowledgeSourceType.DOCUMENT, sourceName, jobId, value, sourceMetadata);
     }
 
-    public void recordDocumentsInfo(String workspaceId, String sourceName, String jobId,
+    public StagedKnowledgeIndex recordDocumentsInfo(String workspaceId, String sourceName, String jobId,
             List<KnowledgeChunk> chunks, KnowledgeSourceMetadata sourceMetadata) throws IOException {
-        indexingService.recordChunks(
+        return indexingService.recordChunks(
                 workspaceId, KnowledgeSourceType.DOCUMENT, sourceName, jobId, chunks, sourceMetadata, "Document");
     }
 
@@ -146,9 +151,10 @@ public class KnowledgeService {
         indexingService.record(workspaceId, KnowledgeSourceType.AUDIO, sourceName, jobId, value, null);
     }
 
-    public void recordAudioInfo(String workspaceId, String sourceName, String jobId, List<KnowledgeChunk> chunks,
+    public StagedKnowledgeIndex recordAudioInfo(String workspaceId, String sourceName, String jobId,
+            List<KnowledgeChunk> chunks,
             KnowledgeSourceMetadata sourceMetadata) throws IOException {
-        indexingService.recordChunks(
+        return indexingService.recordChunks(
                 workspaceId, KnowledgeSourceType.AUDIO, sourceName, jobId, chunks, sourceMetadata, "Audio");
     }
 
@@ -157,9 +163,9 @@ public class KnowledgeService {
         indexingService.record(workspaceId, KnowledgeSourceType.VIDEO, sourceName, jobId, value, null);
     }
 
-    public void recordVideoInfo(String workspaceId, String sourceName, String jobId, String value,
+    public StagedKnowledgeIndex recordVideoInfo(String workspaceId, String sourceName, String jobId, String value,
             KnowledgeSourceMetadata sourceMetadata) throws IOException {
-        indexingService.record(workspaceId, KnowledgeSourceType.VIDEO, sourceName, jobId, value, sourceMetadata);
+        return indexingService.record(workspaceId, KnowledgeSourceType.VIDEO, sourceName, jobId, value, sourceMetadata);
     }
 
     public void recordImagesInfo(String workspaceId, String sourceName, String jobId, String value)
@@ -167,9 +173,9 @@ public class KnowledgeService {
         indexingService.record(workspaceId, KnowledgeSourceType.IMAGE, sourceName, jobId, value, null);
     }
 
-    public void recordImagesInfo(String workspaceId, String sourceName, String jobId, String value,
+    public StagedKnowledgeIndex recordImagesInfo(String workspaceId, String sourceName, String jobId, String value,
             KnowledgeSourceMetadata sourceMetadata) throws IOException {
-        indexingService.record(workspaceId, KnowledgeSourceType.IMAGE, sourceName, jobId, value, sourceMetadata);
+        return indexingService.record(workspaceId, KnowledgeSourceType.IMAGE, sourceName, jobId, value, sourceMetadata);
     }
 
     public void deleteSourceKnowledge(String workspaceId, String sourceId) throws IOException {
@@ -185,8 +191,25 @@ public class KnowledgeService {
         if (sourceId == null || sourceId.isBlank()) {
             throw new IllegalArgumentException("Source ID must not be blank");
         }
+        if (manifestService != null) {
+            var manifest = manifestService.findBySourceId(sourceId.trim());
+            if (manifest.isPresent()) {
+                var active = manifest.get();
+                return workspaceId.trim().equals(active.getWorkspaceId())
+                        && knowledgeRepository.countSourceGeneration(workspaceId.trim(), sourceId.trim(),
+                                active.getActiveGeneration()) == active.getExpectedItems();
+            }
+        }
         return knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId.trim()).stream()
                 .anyMatch(item -> sourceId.trim().equals(item.sourceId()));
+    }
+
+    public void pruneInactiveSourceGenerations(String workspaceId, String sourceId) throws IOException {
+        if (manifestService == null) return;
+        var manifest = manifestService.findBySourceId(sourceId);
+        if (manifest.isPresent() && workspaceId.equals(manifest.get().getWorkspaceId())) {
+            knowledgeRepository.pruneSourceGenerations(workspaceId, sourceId, manifest.get().getActiveGeneration());
+        }
     }
 
     public WorkspaceKnowledgeAnswer answerWorkspaceQuestion(String workspaceId, String question) throws IOException {

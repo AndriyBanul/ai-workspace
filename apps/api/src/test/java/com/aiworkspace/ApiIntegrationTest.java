@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -67,6 +68,29 @@ class ApiIntegrationTest {
 
     @Autowired
     private InMemoryKnowledgeRepository inMemoryKnowledgeRepository;
+
+    @Test
+    void servesBundledFrontendAssetsWithoutAuthentication() throws IOException, InterruptedException {
+        HttpResponse<String> page = send(HttpRequest.newBuilder(uri("/"))
+                .GET()
+                .build());
+
+        assertEquals(HttpStatus.OK.value(), page.statusCode());
+        List<String> assets = Pattern.compile("(?:src|href)=\"(/assets/[^\"]+)\"")
+                .matcher(page.body())
+                .results()
+                .map(match -> match.group(1))
+                .toList();
+        assertFalse(assets.isEmpty(), "The packaged frontend must reference its built assets");
+
+        for (String asset : assets) {
+            HttpResponse<String> response = send(HttpRequest.newBuilder(uri(asset))
+                    .GET()
+                    .build());
+            assertEquals(HttpStatus.OK.value(), response.statusCode(), asset);
+            assertFalse(response.body().isBlank(), asset);
+        }
+    }
 
     @Test
     void mapsValidationErrorsToStandardErrorResponse() throws IOException, InterruptedException {
@@ -259,7 +283,7 @@ class ApiIntegrationTest {
         for (int index = 0; index < items.size(); index++) {
             KnowledgeItem item = items.get(index);
             assertEquals(sourceId, item.sourceId());
-            assertEquals(sourceId + ":" + (index + 1), item.chunkId());
+            assertEquals(sourceId + ":" + item.generation() + ":" + (index + 1), item.chunkId());
             assertEquals(index + 1, item.chunkSequence());
             assertTrue(item.content().endsWith("."));
             assertEquals("0", item.sectionId());
@@ -481,6 +505,15 @@ class ApiIntegrationTest {
         assertEquals("SKIPPED", stepStatus(job, "audio"));
         assertEquals("SKIPPED", stepStatus(job, "images"));
         assertEquals("SKIPPED", stepStatus(job, "videos"));
+
+        HttpResponse<String> recovery = send(HttpRequest.newBuilder(uri(
+                        "/api/v1/workspaces/" + workspaceId + "/sources/"
+                                + submission.path("sourceIds").path("documents").asText() + "/recovery"))
+                .header("Authorization", owner.basicAuthHeader())
+                .GET()
+                .build());
+        assertEquals(HttpStatus.OK.value(), recovery.statusCode(), recovery.body());
+        assertEquals(submission.path("jobId").asText(), OBJECT_MAPPER.readTree(recovery.body()).path("jobId").asText());
     }
 
     @Test
@@ -609,6 +642,68 @@ class ApiIntegrationTest {
         assertTrue(swagger.body().contains("SwaggerUIBundle"));
         assertEquals(HttpStatus.OK.value(), openApi.statusCode());
         assertTrue(openApi.body().contains("AI Workspace API"));
+    }
+
+    @Test
+    void idempotentUploadReturnsOriginalJobAndRejectsChangedPayload() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Idempotent uploads").body())
+                .path("id").asText();
+        String key = UUID.randomUUID().toString();
+
+        HttpResponse<String> first = submitIdempotentDocument(owner, workspaceId, key, "Original content");
+        HttpResponse<String> replay = submitIdempotentDocument(owner, workspaceId, key, "Original content");
+        HttpResponse<String> changed = submitIdempotentDocument(owner, workspaceId, key, "Different content");
+
+        assertEquals(HttpStatus.ACCEPTED.value(), first.statusCode(), first.body());
+        assertEquals(HttpStatus.ACCEPTED.value(), replay.statusCode(), replay.body());
+        assertEquals(OBJECT_MAPPER.readTree(first.body()).path("jobId").asText(),
+                OBJECT_MAPPER.readTree(replay.body()).path("jobId").asText());
+        assertEquals(HttpStatus.CONFLICT.value(), changed.statusCode(), changed.body());
+        assertEquals(1, workspaceFiles(owner, workspaceId).size());
+        waitForJobStatus(owner, OBJECT_MAPPER.readTree(first.body()).path("jobId").asText(), "COMPLETED");
+    }
+
+    @Test
+    void savesQuestionHistoryForTheWorkspaceOwnerOnly() throws IOException, InterruptedException {
+        TestUser owner = registerUser();
+        TestUser other = registerUser();
+        String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Answer history").body())
+                .path("id").asText();
+        HttpResponse<String> uploaded = uploadDocument(owner, workspaceId, "facts.txt", "text/plain",
+                "The project launches Friday.".getBytes(StandardCharsets.UTF_8));
+        assertEquals(HttpStatus.OK.value(), uploaded.statusCode(), uploaded.body());
+        String path = "/api/v1/knowledge/workspaces/" + workspaceId + "/answers";
+
+        HttpResponse<String> answer = send(HttpRequest.newBuilder(uri(path))
+                .header("Authorization", owner.basicAuthHeader())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"question\":\"Friday\"}"))
+                .build());
+        HttpResponse<String> history = send(HttpRequest.newBuilder(uri(path))
+                .header("Authorization", owner.basicAuthHeader()).GET().build());
+        HttpResponse<String> denied = send(HttpRequest.newBuilder(uri(path))
+                .header("Authorization", other.basicAuthHeader()).GET().build());
+
+        assertEquals(HttpStatus.OK.value(), answer.statusCode(), answer.body());
+        assertEquals(HttpStatus.OK.value(), history.statusCode(), history.body());
+        JsonNode entries = OBJECT_MAPPER.readTree(history.body());
+        assertEquals(1, entries.size());
+        assertEquals("Friday", entries.path(0).path("answer").path("question").asText());
+        assertEquals(OBJECT_MAPPER.readTree(answer.body()).path("answer").asText(),
+                entries.path(0).path("answer").path("answer").asText());
+        assertEquals(HttpStatus.NOT_FOUND.value(), denied.statusCode());
+    }
+
+    private HttpResponse<String> submitIdempotentDocument(TestUser owner, String workspaceId, String key,
+            String content) throws IOException, InterruptedException {
+        return send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.basicAuthHeader())
+                .header("Idempotency-Key", key)
+                .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
+                .POST(multipartBody("ai-workspace-test", "workspaceId", workspaceId,
+                        "document", "sample.txt", "text/plain", content))
+                .build());
     }
 
     @Test
@@ -947,6 +1042,27 @@ class ApiIntegrationTest {
             }
             items.removeIf(item -> item.workspaceId().equals(workspaceId) && sourceId.equals(item.sourceId()));
             items.addAll(replacements);
+        }
+
+        @Override
+        public void stageKnowledgeItems(String workspaceId, String sourceId, String generation,
+                List<KnowledgeItem> staged) throws IOException {
+            if (failingWorkspaceIds.remove(workspaceId)) {
+                throw new IOException("Simulated knowledge indexing failure");
+            }
+            items.addAll(staged);
+        }
+
+        @Override
+        public int countSourceGeneration(String workspaceId, String sourceId, String generation) {
+            return (int) items.stream().filter(item -> workspaceId.equals(item.workspaceId())
+                    && sourceId.equals(item.sourceId()) && generation.equals(item.generation())).count();
+        }
+
+        @Override
+        public void pruneSourceGenerations(String workspaceId, String sourceId, String activeGeneration) {
+            items.removeIf(item -> workspaceId.equals(item.workspaceId()) && sourceId.equals(item.sourceId())
+                    && !activeGeneration.equals(item.generation()));
         }
 
         @Override

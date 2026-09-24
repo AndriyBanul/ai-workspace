@@ -14,8 +14,6 @@ dependencyManagement {
 
 dependencies {
 	implementation project(':shared')
-	implementation project(':knowledge')
-	implementation project(':workspaces')
 	compileOnly 'org.springframework:spring-beans'
 	compileOnly 'org.springframework:spring-context'
 	compileOnly 'org.springframework:spring-core'

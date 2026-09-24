@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
+import { Button, Group, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
+import { IconArrowRight } from '@tabler/icons-react';
 import { basicAuth, createApi } from './api.js';
-import { Icon, Notice, Submit, useAction } from './components.jsx';
+import { Notice, useAction } from './components.jsx';
+import { Brand, SourceIcon } from './design/shared.jsx';
+import s from './design/workspace.module.css';
 
 export default function Login({ onLogin }) {
   const [register, setRegister] = useState(false);
@@ -11,7 +15,6 @@ export default function Login({ onLogin }) {
     const form = new FormData(event.currentTarget);
     const email = form.get('email').trim();
     const password = form.get('password');
-
     await action.run(async () => {
       if (register) {
         await createApi()('/auth/register', {
@@ -25,36 +28,9 @@ export default function Login({ onLogin }) {
     });
   }
 
-  return <div className="login-shell">
-    <section className="login-story">
-      <a className="brand" href="#"><span className="brand-symbol"><Icon name="studio"/></span>AI Workspace</a>
-      <div>
-        <p className="eyebrow">A HOME FOR YOUR KNOWLEDGE</p>
-        <h1>Bring it all together.<br/><em>Make something new.</em></h1>
-        <p>Documents, conversations, images, and ideas.<br/>One thoughtful space to work with them.</p>
-        <div className="orbit" aria-hidden="true">
-          <span>DOCUMENTS</span><span>IMAGES</span><span>AUDIO</span><span>VIDEO</span><Icon name="studio" size={58}/>
-        </div>
-      </div>
-      <small>Organize · Explore · Create</small>
-    </section>
-    <main className="auth">
-      <p className="eyebrow">YOUR NEXT IDEA STARTS HERE</p>
-      <h2>{register ? 'Create your account' : 'Welcome back'}</h2>
-      <p>{register ? 'Set up your personal workspace.' : 'Sign in to continue your work.'}</p>
-      <form onSubmit={submit}>
-        <fieldset disabled={action.busy}>
-          {register && <label>Your name<input name="displayName" autoComplete="name" placeholder="Alex Morgan"/></label>}
-          <label>Email address<input name="email" type="email" required autoComplete="username" placeholder="you@example.com"/></label>
-          <label>Password<input name="password" type="password" required minLength={register ? 12 : undefined} maxLength={72} autoComplete={register ? 'new-password' : 'current-password'}/></label>
-          <Notice error={action.error}/>
-          <Submit busy={action.busy}>{register ? 'Create account' : 'Sign in'}<Icon name="arrow"/></Submit>
-        </fieldset>
-      </form>
-      <button className="text-button" onClick={() => setRegister(!register)}>
-        {register ? 'Already have an account? Sign in' : 'New here? Create an account'}
-      </button>
-      <small className="muted">Credentials stay in memory and are cleared when you sign out or reload.</small>
-    </main>
-  </div>;
+  return <div className={s.login}><section className={s.loginStory}><Brand light/><div><Text className={s.loginEyebrow}>YOUR IDEAS HAVE COMPANY.</Text><h1>Bring the pieces.<br/><em>Find the picture.</em></h1><Text c="#bed0cc" size="lg" maw={430} lh={1.8}>Documents, conversations, images, and videos. One place to understand what they mean together.</Text><div className={s.loginCards}>{['Document','Audio','Image'].map((type,index) => <div key={type} style={{transform:'rotate(' + (index === 1 ? 4 : -4) + 'deg) translateY(' + (index === 1 ? -12 : 0) + 'px)'}}><SourceIcon type={type}/><Text c="white" mt="lg" fw={600}>{['A useful idea','A new perspective','A different angle'][index]}</Text><div className={s.loginCardLines}><i/><i/><i/></div></div>)}</div></div><Text size="sm" c="#bed0cc">Gather. Understand. Create.</Text></section>
+    <main className={s.loginForm}><Paper withBorder={false} bg="transparent" p={0}><Text className={s.eyebrow}>AI WORKSPACE</Text><Title order={1} mt="sm">{register ? 'Make room for your ideas.' : 'Good to have you back.'}</Title><Text c="dimmed" mt="sm" mb={30}>{register ? 'Create your personal workspace.' : 'Sign in and pick up where you left off.'}</Text>
+      <form onSubmit={submit}><Stack gap="md">{register && <TextInput name="displayName" label="Your name" placeholder="Alex Chen" autoComplete="name" disabled={action.busy}/>}<TextInput name="email" type="email" label="Email address" placeholder="you@example.com" autoComplete="username" required disabled={action.busy}/><PasswordInput name="password" label="Password" placeholder={register ? 'At least 12 characters' : 'Enter your password'} autoComplete={register ? 'new-password' : 'current-password'} required minLength={register ? 12 : undefined} maxLength={72} disabled={action.busy}/>{register && <Text size="xs" c="dimmed">Use at least 12 characters, up to 72 UTF-8 bytes.</Text>}<Notice error={action.error}/><Button type="submit" rightSection={<IconArrowRight size={17}/>} loading={action.busy}>{register ? 'Create account' : 'Sign in'}</Button></Stack></form>
+      <Group gap={5} mt="lg"><Text size="sm" c="dimmed">{register ? 'Already have an account?' : 'New to AI Workspace?'}</Text><Button size="compact-sm" variant="subtle" onClick={() => setRegister(current => !current)}>{register ? 'Sign in' : 'Create an account'}</Button></Group><Text size="xs" c="dimmed" mt={35} lh={1.8}>Credentials stay in memory and are cleared when you sign out or reload.</Text>
+    </Paper><Text className={s.loginFooter}>A little context. A lot more possibility.</Text></main></div>;
 }

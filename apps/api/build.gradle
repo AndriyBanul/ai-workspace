@@ -69,12 +69,7 @@ tasks.register('frontendBuild', Exec) {
 
 tasks.named('processResources') {
 	dependsOn 'frontendBuild'
-	doLast { resourceTask ->
-		copy {
-			from frontendDist
-			into new File(resourceTask.destinationDir, 'static')
-		}
-	}
+	from(frontendDist) { into 'static' }
 }
 
 

@@ -1,0 +1,193 @@
+{
+  "checkedAt": "2026-09-23T03:13:16.895Z",
+  "browser": "153.0.4234.48",
+  "results": [
+    {
+      "screenshot": "01-library-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "02-library-empty-search.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "03-add-source-file.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "04-add-source-youtube.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "05-add-source-web.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "06-ask-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "07-ask-insufficient-evidence.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "08-source-transcript.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "09-source-recovery.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "10-studio-image.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "11-studio-video-processing.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "12-studio-speech.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "13-studio-analyze.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "14-studio-error.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "15-activity-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "16-login-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "17-registration-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "18-library-mobile.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "19-mobile-navigation.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "20-ask-mobile.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "21-studio-mobile.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "result": "captured"
+    },
+    {
+      "screenshot": "22-login-mobile.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "result": "captured"
+    }
+  ],
+  "checks": [
+    "Build verified separately",
+    "Source search and clear filters",
+    "Evidence selection",
+    "Import tabs and Escape dismissal",
+    "Studio tool/state switching",
+    "Mobile navigation exposes sign out",
+    "No horizontal page overflow: six routes at 390/768/1024/1440px",
+    "No browser runtime errors"
+  ],
+  "errors": []
+}

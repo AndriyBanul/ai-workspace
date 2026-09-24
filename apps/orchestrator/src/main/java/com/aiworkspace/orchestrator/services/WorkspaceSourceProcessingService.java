@@ -12,9 +12,11 @@ import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.models.ImageDescriptionResponse;
 import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
+import com.aiworkspace.knowledge.models.StagedKnowledgeIndex;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
 import com.aiworkspace.orchestrator.models.OrchestrationContent;
+import com.aiworkspace.orchestrator.models.SourceProcessingResult;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.models.VideoDescriptionResponse;
 import com.aiworkspace.videos.models.YouTubeVideoIngestionResponse;
@@ -48,7 +50,7 @@ public class WorkspaceSourceProcessingService {
         this.knowledgeService = knowledgeService;
     }
 
-    public Object process(IngestionJobDetails job, WorkspaceFile source, OrchestrationContent original)
+    public SourceProcessingResult process(IngestionJobDetails job, WorkspaceFile source, OrchestrationContent original)
             throws Exception {
         return switch (source.sourceType()) {
             case DOCUMENT -> processDocument(job, source, original);
@@ -60,76 +62,78 @@ public class WorkspaceSourceProcessingService {
         };
     }
 
-    private TextDocumentUploadResponse processDocument(IngestionJobDetails job, WorkspaceFile source,
+    private SourceProcessingResult.Document processDocument(IngestionJobDetails job, WorkspaceFile source,
             OrchestrationContent original) throws Exception {
         byte[] bytes = readContent(job.workspaceId(), source.id());
         ParsedTextDocument document = documentService.extractDocumentText(
                 original.filename(), original.contentType(), bytes);
-        knowledgeService.recordDocumentsInfo(
+        StagedKnowledgeIndex staged = knowledgeService.recordDocumentsInfo(
                 job.workspaceId(), original.filename(), job.jobId(), documentService.chunkForKnowledge(document),
                 new KnowledgeSourceMetadata(source.id(), null, document.extractedAt(), document.parserVersion()));
-        return new TextDocumentUploadResponse(
+        return new SourceProcessingResult.Document(new TextDocumentUploadResponse(
                 source.id(), document.filename(), document.detectedContentType(), document.title(), source.sizeBytes(),
-                document.content().length(), document.blocks().size(), document.extractedAt(), document.parserVersion());
+                document.content().length(), document.blocks().size(), document.extractedAt(), document.parserVersion()),
+                staged);
     }
 
-    private AudioTranscriptionResponse processAudio(IngestionJobDetails job, WorkspaceFile source,
+    private SourceProcessingResult.Audio processAudio(IngestionJobDetails job, WorkspaceFile source,
             OrchestrationContent original) throws Exception {
         AudioTranscription transcription = audioService.transcribe(
                 original.filename(), readContent(job.workspaceId(), source.id()));
-        knowledgeService.recordAudioInfo(
+        StagedKnowledgeIndex staged = knowledgeService.recordAudioInfo(
                 job.workspaceId(), original.filename(), job.jobId(), audioService.chunksForKnowledge(transcription),
                 audioService.knowledgeSourceMetadata(source.id()));
-        return new AudioTranscriptionResponse(
+        return new SourceProcessingResult.Audio(new AudioTranscriptionResponse(
                 transcription.filename(), source.sizeBytes(), transcription.language(), transcription.text(),
-                transcription.segments());
+                transcription.segments()), staged);
     }
 
-    private ImageDescriptionResponse processImage(IngestionJobDetails job, WorkspaceFile source,
+    private SourceProcessingResult.Image processImage(IngestionJobDetails job, WorkspaceFile source,
             OrchestrationContent original) throws Exception {
         ImageDescription description = imageService.describe(
                 original.filename(), original.contentType(), readContent(job.workspaceId(), source.id()));
-        knowledgeService.recordImagesInfo(
+        StagedKnowledgeIndex staged = knowledgeService.recordImagesInfo(
                 job.workspaceId(), original.filename(), job.jobId(), description.description(),
                 new KnowledgeSourceMetadata(source.id(), null, Instant.now(), "ai-workspace-image-description-v1"));
-        return new ImageDescriptionResponse(
-                description.filename(), source.sizeBytes(), description.mimeType(), description.description());
+        return new SourceProcessingResult.Image(new ImageDescriptionResponse(
+                description.filename(), source.sizeBytes(), description.mimeType(), description.description()), staged);
     }
 
-    private VideoDescriptionResponse processVideo(IngestionJobDetails job, WorkspaceFile source,
+    private SourceProcessingResult.Video processVideo(IngestionJobDetails job, WorkspaceFile source,
             OrchestrationContent original) throws Exception {
         VideoDescription description = videoService.describe(
                 original.filename(), original.contentType(), readContent(job.workspaceId(), source.id()));
-        knowledgeService.recordVideoInfo(
+        StagedKnowledgeIndex staged = knowledgeService.recordVideoInfo(
                 job.workspaceId(), original.filename(), job.jobId(), videoService.knowledgeText(description),
                 new KnowledgeSourceMetadata(source.id(), null, Instant.now(), "ai-workspace-video-analysis-v1"));
-        return new VideoDescriptionResponse(
+        return new SourceProcessingResult.Video(new VideoDescriptionResponse(
                 description.filename(), source.sizeBytes(), description.mimeType(), description.description(),
-                description.transcript(), description.language(), description.segments());
+                description.transcript(), description.language(), description.segments()), staged);
     }
 
-    private WebPageExtractResponse processWebPage(IngestionJobDetails job, WorkspaceFile source) throws IOException {
+    private SourceProcessingResult.WebPage processWebPage(IngestionJobDetails job, WorkspaceFile source)
+            throws IOException {
         ExtractedWebPage page = documentService.extractWebPage(source.sourceUrl());
-        knowledgeService.recordDocumentsInfo(
+        StagedKnowledgeIndex staged = knowledgeService.recordDocumentsInfo(
                 job.workspaceId(), page.title(), job.jobId(), documentService.chunkTextForKnowledge(page.content()),
                 new KnowledgeSourceMetadata(source.id(), page.url(), page.extractedAt(), page.parserVersion()));
         int characterCount = page.content().length();
-        return new WebPageExtractResponse(
+        return new SourceProcessingResult.WebPage(new WebPageExtractResponse(
                 source.id(), page.url(), page.contentType(), page.title(), characterCount, characterCount,
-                characterCount, false, page.extractedAt(), page.parserVersion());
+                characterCount, false, page.extractedAt(), page.parserVersion()), staged);
     }
 
-    private YouTubeVideoIngestionResponse processYouTube(IngestionJobDetails job, WorkspaceFile source)
+    private SourceProcessingResult.YouTube processYouTube(IngestionJobDetails job, WorkspaceFile source)
             throws IOException, InterruptedException {
         VideoDescription description = videoService.describeYouTube(source.sourceUrl());
         String canonicalUrl = videoService.canonicalYouTubeUrl(source.sourceUrl());
-        knowledgeService.recordVideoInfo(
+        StagedKnowledgeIndex staged = knowledgeService.recordVideoInfo(
                 job.workspaceId(), description.filename(), job.jobId(), videoService.knowledgeText(description),
                 new KnowledgeSourceMetadata(
                         source.id(), canonicalUrl, Instant.now(), "ai-workspace-youtube-video-analysis-v1"));
-        return new YouTubeVideoIngestionResponse(
+        return new SourceProcessingResult.YouTube(new YouTubeVideoIngestionResponse(
                 source.id(), videoService.youtubeVideoId(canonicalUrl), canonicalUrl, description.description(),
-                description.transcript(), description.language(), description.segments());
+                description.transcript(), description.language(), description.segments()), staged);
     }
 
     private byte[] readContent(String workspaceId, String sourceId) throws IOException {

@@ -24,6 +24,10 @@ import com.aiworkspace.orchestrator.models.IngestionJobStatus;
 import com.aiworkspace.orchestrator.models.IngestionJobStep;
 import com.aiworkspace.orchestrator.models.IngestionStepStatus;
 import com.aiworkspace.orchestrator.models.OrchestrationContent;
+import com.aiworkspace.orchestrator.models.RecoveryClaim;
+import com.aiworkspace.orchestrator.models.SourceOperationType;
+import com.aiworkspace.orchestrator.models.SourceRecoveryStatus;
+import com.aiworkspace.orchestrator.models.SourceRecoveryTask;
 import com.aiworkspace.orchestrator.repositories.IngestionJobRepository;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.services.VideoService;
@@ -46,8 +50,64 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class OrchestratorServiceTest {
+
+    @Test
+    void recoveredPendingSubmissionFinishesItsOriginalJob() throws IOException {
+        CapturingKnowledgeRepository knowledgeRepository = new CapturingKnowledgeRepository();
+        CapturingIngestionJobRepository jobRepository = new CapturingIngestionJobRepository();
+        TestWorkspaceFileService files = new TestWorkspaceFileService();
+        IngestionJobService jobs = new IngestionJobService(jobRepository, new IngestionJobDetailsMapperImpl());
+        KnowledgeService knowledge = new KnowledgeService(knowledgeRepository, (question, context) -> "Answer");
+        TestDocumentService documents = new TestDocumentService();
+        TestAudioService audio = new TestAudioService();
+        TestImageService images = new TestImageService();
+        TestVideoService videos = new TestVideoService();
+        SourceRecoveryTracker recovery = mock(SourceRecoveryTracker.class);
+        when(recovery.startAttempt(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(SourceOperationType.PROCESS)))
+                .thenReturn(new RecoveryClaim("lease-1", 1));
+        SourceLeaseKeeper keeper = mock(SourceLeaseKeeper.class);
+        SourceLeaseKeeper.Lease queuedLease = mock(SourceLeaseKeeper.Lease.class);
+        SourceLeaseKeeper.Lease processingLease = mock(SourceLeaseKeeper.Lease.class);
+        when(keeper.keep(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(SourceOperationType.PROCESS),
+                org.mockito.ArgumentMatchers.any())).thenReturn(queuedLease, processingLease);
+        SourceLifecycleCoordinator lifecycle = new SourceLifecycleCoordinator(jobs, files, recovery,
+                new SourceCompletionService(jobs, files, recovery), keeper, IngestionTelemetry.NOOP);
+        CapturingExecutor executor = new CapturingExecutor();
+        OrchestratorService service = new OrchestratorService(
+                documents, audio, images, videos, files, knowledge, jobs, new TestWorkspaceService(), executor,
+                new OrchestratorValidator(), lifecycle,
+                new WorkspaceSourceProcessingService(documents, audio, images, videos, files, knowledge));
+
+        var submission = service.process("owner-1", "workspace-1",
+                new OrchestrationContent("report.txt", "text/plain", "A stored report".getBytes()),
+                null, null, null);
+        String sourceId = submission.sourceIds().get("documents");
+        WorkspaceFile source = files.files.get(sourceId);
+        SourceRecoveryTask pending = new SourceRecoveryTask(
+                sourceId, "workspace-1", submission.jobId(), SourceOperationType.PROCESS,
+                SourceRecoveryStatus.SCHEDULED, 0, Instant.now(), null, null, null,
+                Instant.now(), Instant.now());
+
+        service.recoverSource(pending);
+        verify(keeper).keep(source, SourceOperationType.PROCESS, new RecoveryClaim("lease-1", 1));
+        verify(queuedLease, never()).close();
+        executor.runLast();
+        verify(queuedLease).close();
+        verify(processingLease).close();
+
+        assertEquals(IngestionJobStatus.COMPLETED, service.findJob("owner-1", submission.jobId()).status());
+        assertEquals(1, jobRepository.jobs.size());
+        assertEquals(WorkspaceFileStatus.PROCESSED, files.files.get(sourceId).status());
+        verify(recovery).startAttempt(source, SourceOperationType.PROCESS);
+    }
 
     @Test
     void retainsFailedSourceWhenAnEmptyDocumentCannotBeProcessed() throws IOException {
@@ -323,6 +383,11 @@ class OrchestratorServiceTest {
         }
 
         @Override
+        public WorkspaceFile getFile(String workspaceId, String fileId) {
+            return files.get(fileId);
+        }
+
+        @Override
         public WorkspaceFile markProcessing(String workspaceId, String fileId) {
             return updateStatus(fileId, WorkspaceFileStatus.PROCESSING);
         }
@@ -369,6 +434,10 @@ class OrchestratorServiceTest {
 
         private void runNext() {
             tasks.remove(0).run();
+        }
+
+        private void runLast() {
+            tasks.remove(tasks.size() - 1).run();
         }
     }
 

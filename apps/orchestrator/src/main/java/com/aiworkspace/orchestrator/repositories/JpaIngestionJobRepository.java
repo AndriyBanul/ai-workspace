@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.PageRequest;
 
 @Repository
 class JpaIngestionJobRepository implements IngestionJobRepository {
@@ -49,6 +50,12 @@ class JpaIngestionJobRepository implements IngestionJobRepository {
     public Optional<IngestionJob> findJob(String jobId) {
         return jobRepository.findById(jobId)
                 .map(mapper::toModel);
+    }
+
+    @Override
+    public List<IngestionJob> findRecentJobs(String workspaceId, int limit) {
+        return jobRepository.findByWorkspaceIdOrderByCreatedAtDesc(workspaceId, PageRequest.of(0, limit))
+                .stream().map(mapper::toModel).toList();
     }
 
     @Override

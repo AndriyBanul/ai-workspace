@@ -66,7 +66,7 @@ class SourceRecoverySchedulerTest {
     void completesScheduledProcessingTaskWhenSourceWasDeleted() throws IOException {
         TestContext context = context(scheduledTask());
         doThrow(new NoSuchElementException("missing"))
-                .when(context.orchestrator()).recoverSource("workspace-1", "source-1");
+                .when(context.orchestrator()).recoverSource(scheduledTask());
 
         context.scheduler().recoverDueSources();
 
@@ -96,14 +96,14 @@ class SourceRecoverySchedulerTest {
     private SourceRecoveryTask task() {
         Instant now = Instant.parse("2026-09-16T10:00:00Z");
         return new SourceRecoveryTask(
-                "source-1", "workspace-1", SourceOperationType.PROCESS, SourceRecoveryStatus.COMPLETED,
+                "source-1", "workspace-1", null, SourceOperationType.PROCESS, SourceRecoveryStatus.COMPLETED,
                 1, now, null, null, null, now.minusSeconds(60), now.minusSeconds(30));
     }
 
     private SourceRecoveryTask scheduledTask() {
         Instant now = Instant.parse("2026-09-16T10:00:00Z");
         return new SourceRecoveryTask(
-                "source-1", "workspace-1", SourceOperationType.PROCESS, SourceRecoveryStatus.SCHEDULED,
+                "source-1", "workspace-1", null, SourceOperationType.PROCESS, SourceRecoveryStatus.SCHEDULED,
                 1, now, null, "IOException", "temporary", now.minusSeconds(60), now.minusSeconds(30));
     }
 

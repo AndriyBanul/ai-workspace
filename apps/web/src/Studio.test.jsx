@@ -1,5 +1,6 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
+import { render } from './test-utils.jsx';
 import { describe, expect, it, vi } from 'vitest';
 import Studio from './Studio.jsx';
 
@@ -13,10 +14,10 @@ describe('Studio media workflows', () => {
       description: 'A presenter explains the workspace.',
       segments: [{ startMilliseconds: 1000, endMilliseconds: 3500, speaker: 'Speaker 1', text: 'Welcome to the workspace.' }],
     }));
-    render(<Studio api={api} workspace={workspace}/>);
+    const { container } = render(<Studio api={api} workspace={workspace}/>);
 
-    fireEvent.click(screen.getByRole('tab', { name: /analyze media/i }));
-    fireEvent.change(screen.getByLabelText('YouTube URL'), {
+    fireEvent.click(screen.getByText('Analyze media'));
+    fireEvent.change(screen.getByRole('textbox', { name: /YouTube URL/i }), {
       target: { value: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
     });
     fireEvent.click(screen.getByRole('button', { name: /import video/i }));
@@ -34,11 +35,11 @@ describe('Studio media workflows', () => {
 
   it('uploads audio for analysis and renders the transcript', async () => {
     const api = vi.fn(async () => ({ filename: 'meeting.mp3', language: 'en', text: 'The launch is Friday.' }));
-    render(<Studio api={api} workspace={workspace}/>);
-    fireEvent.click(screen.getByRole('tab', { name: /analyze media/i }));
+    const { container } = render(<Studio api={api} workspace={workspace}/>);
+    fireEvent.click(screen.getByText('Analyze media'));
     const audio = new File(['audio'], 'meeting.mp3', { type: 'audio/mpeg' });
-    fireEvent.change(screen.getByLabelText('audio file'), { target: { files: [audio] } });
-    fireEvent.submit(screen.getByRole('button', { name: 'Analyze audio' }).closest('form'));
+    fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [audio] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze audio' }));
 
     expect(await screen.findByText('The launch is Friday.')).toBeInTheDocument();
     expect(api).toHaveBeenCalledWith('/audio/transcriptions', expect.objectContaining({

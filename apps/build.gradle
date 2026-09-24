@@ -20,3 +20,50 @@ subprojects {
         testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
     }
 }
+
+def permittedModuleDependencies = [
+        api         : ['shared', 'documents', 'images', 'videos', 'audio', 'knowledge',
+                       'orchestrator', 'users', 'workspaces'],
+        shared      : [],
+        users       : [],
+        workspaces  : [],
+        knowledge   : ['shared', 'workspaces'],
+        images      : ['shared'],
+        audio       : ['shared', 'knowledge'],
+        videos      : ['shared'],
+        documents   : ['shared', 'images', 'knowledge'],
+        orchestrator: ['shared', 'audio', 'documents', 'images', 'videos', 'knowledge', 'workspaces']
+]
+
+tasks.register('verifyModuleBoundaries') {
+    group = 'verification'
+    description = 'Rejects accidental cross-module dependencies and HTTP controllers outside the API.'
+    doLast {
+        subprojects.each { module ->
+            def allowed = (permittedModuleDependencies[module.name] ?: []) as Set
+            def dependencies = ['api', 'implementation', 'compileOnly', 'runtimeOnly']
+                    .findAll { module.configurations.findByName(it) != null }
+                    .collectMany { configuration ->
+                        module.configurations.getByName(configuration).dependencies
+                                .withType(org.gradle.api.artifacts.ProjectDependency)
+                                .collect { it.name }
+                    } as Set
+            def unexpected = dependencies - allowed
+            if (!unexpected.empty) {
+                throw new GradleException("${module.name} has forbidden module dependencies: ${unexpected}")
+            }
+            if (module.name != 'api') {
+                def controllers = module.fileTree('src/main/java') { include '**/*Controller.java' }.files
+                if (!controllers.empty) {
+                    throw new GradleException("HTTP controllers belong in api, not ${module.name}: ${controllers}")
+                }
+            }
+        }
+    }
+}
+
+subprojects {
+    tasks.named('check') {
+        dependsOn rootProject.tasks.named('verifyModuleBoundaries')
+    }
+}

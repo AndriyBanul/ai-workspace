@@ -153,6 +153,8 @@ paths:
         then fails its documents step with EMPTY_DOCUMENT. An absent document part, or a browser file input
         with an empty filename and zero bytes, skips the documents step without creating a source.
       tags: [Orchestrator]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -191,6 +193,38 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency key was used for a different request or an identical request is still committing.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/orchestrator/jobs:
+    get:
+      summary: List recent jobs in an owned workspace
+      tags: [Orchestrator]
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Recent jobs, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IngestionJobDetails"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/orchestrator/jobs/{jobId}:
     get:
       summary: Get ingestion job status
@@ -224,6 +258,29 @@ paths:
         "502":
           $ref: "#/components/responses/BadGateway"
   /api/v1/knowledge/workspaces/{workspaceId}/answers:
+    get:
+      summary: List saved workspace answers
+      tags: [Knowledge]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Recent saved answers, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkspaceAnswerHistoryEntry"
+        "404":
+          $ref: "#/components/responses/NotFound"
     post:
       summary: Ask a workspace question
       tags: [Knowledge]
@@ -468,6 +525,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "502":
           $ref: "#/components/responses/BadGateway"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /api/v1/workspaces/{workspaceId}/sources:
     get:
       summary: List workspace ingestion sources
@@ -514,6 +573,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/WorkspaceId"
         - $ref: "#/components/parameters/FileId"
+        - $ref: "#/components/parameters/IdempotencyKey"
       responses:
         "202":
           description: Reprocessing job accepted.
@@ -525,6 +585,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           description: Source is already processing or cannot be reprocessed.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /api/v1/workspaces/{workspaceId}/sources/{fileId}/recovery:
     get:
       summary: Get durable recovery state for a workspace source
@@ -565,6 +627,14 @@ components:
       type: http
       scheme: basic
   parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Reusing this key with the same request returns the original accepted job.
+      schema:
+        type: string
+        maxLength: 128
     WorkspaceId:
       name: workspaceId
       in: path
@@ -821,6 +891,16 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WorkspaceKnowledgeSource"
+    WorkspaceAnswerHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        answer:
+          $ref: "#/components/schemas/WorkspaceKnowledgeAnswer"
     WorkspaceKnowledgeSourceFile:
       type: object
       properties:
@@ -907,6 +987,9 @@ components:
           type: string
         workspaceId:
           type: string
+        jobId:
+          type: string
+          nullable: true
         operationType:
           type: string
           enum: [PROCESS, DELETE]
