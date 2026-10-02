@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Workspace — Архітектурний документ</title>
+<style>
+:root{
+  --bg:#0d1117; --bg-elev:#151b23; --bg-elev2:#1c232d; --border:#30363d;
+  --text:#e6edf3; --text-dim:#8b949e; --text-faint:#6e7681;
+  --accent:#58a6ff; --accent-dim:#1f6feb; --green:#3fb950; --amber:#d29922;
+  --red:#f85149; --purple:#bc8cff; --cyan:#39c5cf; --pink:#f778ba;
+  --mono:ui-monospace,'Cascadia Code','JetBrains Mono',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+}
+*{box-sizing:border-box;scroll-behavior:smooth}
+html{scroll-padding-top:80px}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.65}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ---------- Header ---------- */
+header{position:sticky;top:0;z-index:100;background:rgba(13,17,23,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.hdr{max-width:1500px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;font-weight:650;font-size:16px;white-space:nowrap}
+.brand .badge{font-size:10px;background:var(--accent-dim);color:#fff;padding:2px 7px;border-radius:10px;font-weight:600;letter-spacing:.3px}
+.hdr-meta{color:var(--text-faint);font-size:11.5px;font-family:var(--mono);white-space:nowrap}
+.searchbox{position:relative;flex:1;min-width:220px;max-width:420px;margin-left:auto}
+.searchbox input{width:100%;background:var(--bg-elev);border:1px solid var(--border);color:var(--text);padding:7px 30px 7px 32px;border-radius:7px;font-size:13.5px;font-family:inherit;outline:none;transition:border-color .15s}
+.searchbox input:focus{border-color:var(--accent-dim)}
+.searchbox .ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-faint);font-size:14px;pointer-events:none}
+.searchbox .clr{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;display:none}
+.searchbox .clr:hover{color:var(--text)}
+.kbd{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:10px;color:var(--text-faint);border:1px solid var(--border);border-radius:4px;padding:1px 5px;pointer-events:none}
+input:focus ~ .kbd{display:none}
+
+/* ---------- Layout ---------- */
+.layout{max-width:1500px;margin:0 auto;display:grid;grid-template-columns:265px 1fr;gap:0;align-items:start}
+nav{position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto;padding:20px 14px 40px;border-right:1px solid var(--border);scrollbar-width:thin}
+nav::-webkit-scrollbar{width:7px}
+nav::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+nav .navgrp{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--text-faint);margin:16px 0 7px;padding-left:9px;font-weight:700}
+nav .navgrp:first-child{margin-top:0}
+nav a{display:block;padding:5.5px 9px;border-radius:6px;color:var(--text-dim);font-size:13px;border-left:2px solid transparent}
+nav a:hover{background:var(--bg-elev);color:var(--text);text-decoration:none}
+nav a.active{background:var(--bg-elev2);color:var(--accent);border-left-color:var(--accent);font-weight:500}
+nav a.sub{padding-left:20px;font-size:12.3px}
+
+main{padding:32px 40px 120px;min-width:0;max-width:1000px}
+
+/* ---------- Content ---------- */
+h1{font-size:31px;margin:0 0 6px;letter-spacing:-.4px;line-height:1.25}
+h2{font-size:22px;margin:52px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);letter-spacing:-.2px}
+h3{font-size:16.5px;margin:30px 0 10px;color:var(--text)}
+h4{font-size:14.5px;margin:22px 0 8px;color:var(--text-dim)}
+p{margin:11px 0}
+ul,ol{margin:11px 0;padding-left:24px}
+li{margin:5px 0}
+strong{color:#fff;font-weight:640}
+.lead{color:var(--text-dim);font-size:15.5px;margin-bottom:20px}
+section{scroll-margin-top:76px}
+
+code{font-family:var(--mono);font-size:12.8px;background:var(--bg-elev2);padding:1.5px 5px;border-radius:4px;color:#a5d6ff;border:1px solid rgba(48,54,61,.55)}
+pre{background:var(--bg-elev);border:1px solid var(--border);border-radius:9px;padding:15px 17px;overflow-x:auto;margin:15px 0;font-size:12.6px;line-height:1.62}
+pre code{background:none;border:none;padding:0;color:#c9d1d9;font-size:12.6px}
+pre.ascii{color:#7ee787;white-space:pre;overflow-x:auto}
+.ascii{font-family:var(--mono);font-size:12.2px;line-height:1.5;background:var(--bg-elev);border:1px solid var(--border);border-radius:9px;padding:15px 17px;overflow-x:auto;margin:15px 0;color:#7ee787}
+
+table{width:100%;border-collapse:collapse;margin:15px 0;font-size:13.4px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top}
+th{background:var(--bg-elev2);font-weight:640;white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.014)}
+td code{font-size:12px}
+
+blockquote{margin:15px 0;padding:11px 16px;border-left:3px solid var(--accent-dim);background:var(--bg-elev);color:var(--text-dim);border-radius:0 7px 7px 0}
+blockquote p{margin:5px 0}
+
+/* ---------- Mermaid ---------- */
+.mermaid{background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;padding:20px;margin:18px 0;text-align:center;overflow-x:auto;cursor:zoom-in;position:relative}
+.mermaid svg{max-width:100%;height:auto}
+.mermaid.loading::after{content:'рендер діаграми…';color:var(--text-faint);font-size:13px}
+.diag-cap{font-size:12.3px;color:var(--text-faint);margin:-9px 0 18px;padding-left:2px}
+.zoomed{position:fixed;inset:0;z-index:9999;background:rgba(3,6,10,.94);overflow:auto;cursor:zoom-out;display:flex;align-items:center;justify-content:center;padding:30px}
+.zoomed .mermaid{background:var(--bg);border:0;padding:26px;cursor:default;max-width:none}
+.zoomed .mermaid svg{width:auto;height:auto;max-height:none}
+
+.hint{font-size:11.5px;color:var(--text-faint);font-family:var(--mono);margin:-8px 0 16px}
+
+/* ---------- Badges / callouts ---------- */
+.pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:11px;font-weight:600;font-family:var(--mono);letter-spacing:.2px}
+.pill.ok{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3)}
+.pill.warn{background:rgba(210,153,34,.15);color:var(--amber);border:1px solid rgba(210,153,34,.3)}
+.pill.bad{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.3)}
+.pill.info{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid rgba(88,166,255,.3)}
+.pill.mut{background:var(--bg-elev2);color:var(--text-faint);border:1px solid var(--border)}
+
+.callout{border-radius:9px;padding:13px 17px;margin:17px 0;border:1px solid;font-size:13.8px}
+.callout .ct{font-weight:660;margin-bottom:5px;display:flex;align-items:center;gap:7px}
+.callout p{margin:6px 0}
+.callout p:last-child{margin-bottom:0}
+.co-info{background:rgba(88,166,255,.06);border-color:rgba(88,166,255,.28)}
+.co-info .ct{color:var(--accent)}
+.co-warn{background:rgba(210,153,34,.06);border-color:rgba(210,153,34,.3)}
+.co-warn .ct{color:var(--amber)}
+.co-bad{background:rgba(248,81,73,.06);border-color:rgba(248,81,73,.3)}
+.co-bad .ct{color:var(--red)}
+.co-ok{background:rgba(63,185,80,.06);border-color:rgba(63,185,80,.28)}
+.co-ok .ct{color:var(--green)}
+
+/* ---------- Cards ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin:17px 0}
+.card{background:var(--bg-elev);border:1px solid var(--border);border-radius:9px;padding:14px 16px}
+.card .cn{font-size:11px;font-family:var(--mono);color:var(--accent);margin-bottom:4px;letter-spacing:.4px}
+.card .cv{font-size:23px;font-weight:660;letter-spacing:-.5px}
+.card .cl{font-size:12px;color:var(--text-dim);margin-top:2px}
+
+.modcard{background:var(--bg-elev);border:1px solid var(--border);border-left:3px solid var(--accent-dim);border-radius:8px;padding:13px 16px;margin:11px 0}
+.modcard h4{margin:0 0 4px;font-size:15px;color:var(--text)}
+.modcard .meta{font-family:var(--mono);font-size:11.5px;color:var(--text-faint);margin-bottom:8px}
+.modcard p{margin:5px 0;font-size:13.6px;color:var(--text-dim)}
+
+.files{font-family:var(--mono);font-size:12.2px;line-height:1.75;background:var(--bg-elev2);border:1px solid var(--border);border-radius:8px;padding:12px 15px;overflow-x:auto;margin:11px 0;white-space:pre;color:#a5d6ff}
+.files .k{color:var(--text-faint)}
+.files .c{color:var(--text-faint);font-style:italic}
+
+/* ---------- TOC / anchors ---------- */
+.anchor{color:var(--text-faint);text-decoration:none;font-size:.72em;margin-left:9px;opacity:0;transition:opacity .12s;vertical-align:middle}
+h1:hover .anchor,h2:hover .anchor,h3:hover .anchor,.anchor:hover{opacity:1;text-decoration:none}
+
+/* ---------- Search ---------- */
+body.searching .sec-hidden{display:none}
+mark{background:rgba(210,153,34,.35);color:#fff;border-radius:2px;padding:0 1px}
+.nores{display:none;background:rgba(248,81,73,.07);border:1px solid rgba(248,81,73,.3);border-radius:8px;padding:16px;margin:22px 0;font-size:14px}
+body.searching .nores.show{display:block}
+
+/* ---------- Results badge ---------- */
+#rescount{font-size:11.5px;color:var(--text-faint);font-family:var(--mono);white-space:nowrap;min-width:66px;text-align:right}
+
+/* ---------- Progress ---------- */
+#prog{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--accent-dim),var(--cyan));z-index:1001;width:0;transition:width .1s}
+
+/* ---------- Responsive ---------- */
+@media(max-width:1000px){
+  .layout{grid-template-columns:1fr}
+  nav{position:static;height:auto;border-right:none;border-bottom:1px solid var(--border);max-height:none;padding:14px 16px}
+  nav .navgrp{display:none}
+  main{padding:22px 18px 90px}
+  .searchbox{max-width:none;margin-left:0;width:100%}
+  .hdr{padding:10px 16px;gap:10px}
+  h1{font-size:25px} h2{font-size:19px}
+}
+@media print{
+  header,nav,#prog{display:none}
+  .layout{grid-template-columns:1fr}
+  body{background:#fff;color:#000}
+  .mermaid{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div id="prog"></div>
+
+<header>
+  <div class="hdr">
+    <div class="brand">AI Workspace <span class="badge">ARCH DOC</span></div>
+    <div class="hdr-meta">develop · 2ff47eb · Java 25 / Spring Boot 4.1.1</div>
+    <div class="searchbox">
+      <span class="ico">⌕</span>
+      <input type="text" id="q" placeholder="Пошук по документації…" autocomplete="off" spellcheck="false">
+      <span class="kbd">/</span>
+      <button class="clr" id="clr" title="Очистити">✕</button>
+    </div>
+    <div id="rescount"></div>
+  </div>
+</header>
+
+<div class="layout">
+<nav id="nav">
+  <div class="navgrp">Початок</div>
+  <a href="#s1">1. Огляд</a>
+  <a href="#stack">Стек технологій</a>
+  <a href="#s2">2. Структура репозиторію</a>
+  <a href="#s3">3. Діаграми</a>
+  <a href="#d1" class="sub">System Context</a>
+  <a href="#d2" class="sub">Container Architecture</a>
+  <a href="#d3" class="sub">Потік інгестії</a>
+  <a href="#d4" class="sub">Потік RAG</a>
+  <a href="#d5" class="sub">Відновлення</a>
+  <div class="navgrp">Модулі</div>
+  <a href="#s4">4. Модулі</a>
+  <a href="#s5">5. Схема даних</a>
+  <a href="#pg" class="sub">PostgreSQL</a>
+  <a href="#os" class="sub">OpenSearch</a>
+  <div class="navgrp">Поведінка</div>
+  <a href="#s6">6. Як працює знання</a>
+  <a href="#s7">7. HTTP API</a>
+  <a href="#s8">8. Безпека</a>
+  <a href="#s9">9. Спостереження</a>
+  <a href="#s10">10. Інфраструктура</a>
+  <a href="#s11">11. Frontend</a>
+  <div class="navgrp">Процес</div>
+  <a href="#s12">12. Тестування</a>
+  <a href="#s13">13. Стан і наступні кроки</a>
+  <a href="#s14">14. Швидкий орієнтир</a>
+</nav>
+
+<main>
+
+<h1 id="top">Повна архітектура AI Workspace<a class="anchor" href="#top">#</a></h1>
+<p class="lead">
+Детальний опис системи: модулі, потоки даних, схема БД, контракти API, інфраструктура.
+Побудований на розборі реального коду репозиторію, а не лише на проєктних записах.
+</p>
+
+<div class="callout co-info">
+  <div class="ct">◆ Про джерело</div>
+  <p>Дані в цій сторінці знято з <code>develop</code>, останній коміт <code>2ff47eb</code>: розібрано 259 Java-файлів, 13 Flyway-міграцій, маппінг OpenSearch, 8 контролерів, <code>application.properties</code>, CI та фронтенд. Для намірів і обґрунтувань дивіться <code>docs/agent-context/architecture.md</code>, <code>docs/architecture-diagrams.md</code> та ADR у <code>docs/adr/</code>.</p>
+</div>
+
+<div class="grid">
+  <div class="card"><div class="cn">МОДУЛІ</div><div class="cv">10</div><div class="cl">Gradle, 1 executable</div></div>
+  <div class="card"><div class="cn">JAVA ФАЙЛІВ</div><div class="cv">259</div><div class="cl">218 main · 41 test</div></div>
+  <div class="card"><div class="cn">ТАБЛИЦЬ</div><div class="cv">10</div><div class="cl">PostgreSQL · V1–V13</div></div>
+  <div class="card"><div class="cn">ЕНДПОЇНТІВ</div><div class="cv">21</div><div class="cl">8 контролерів</div></div>
+  <div class="card"><div class="cn">ADR</div><div class="cv">9</div><div class="cl">0001–0010</div></div>
+  <div class="card"><div class="cn">ВЕКТОР</div><div class="cv">768</div><div class="cl">E5-base, HNSW</div></div>
+</div>
+
+<!-- ==================== 1 ==================== -->
+<section id="s1" class="sec">
+<h2>1. Огляд<a class="anchor" href="#s1">#</a></h2>
+
+<p>AI Workspace — мультимодальна RAG-платформа. Користувач створює workspace, завантажує документи, аудіо, зображення, відео або дає URL веб-сторінки чи YouTube. Система витягує знання, індексує його у векторному пошуку, і далі відповідає на запитання з доказовою базою — цитатами на рівні чанків.</p>
+
+<h3>Ключові характеристики</h3>
+<table>
+<tr><th>Аспект</th><th>Реалізація</th></tr>
+<tr><td>Стиль архітектури</td><td>Модульний моноліт <span class="pill info">ADR 0001</span></td></tr>
+<tr><td>Точка входу</td><td>Один Spring Boot застосунок <code>apps/api</code></td></tr>
+<tr><td>Стан</td><td>PostgreSQL + OpenSearch + файлове сховище</td></tr>
+<tr><td>Асинхронність</td><td>Власний пул воркерів + durable ledger відновлення</td></tr>
+<tr><td>Ідемпотентність</td><td>Версіонування індексів, fencing-токени, <code>Idempotency-Key</code></td></tr>
+<tr><td>Пошук</td><td>Hybrid (kNN + BM25) з RRF, query expansion, розширення сусідів</td></tr>
+<tr><td>Спільна відповідь</td><td>Цитати з таймкодами для аудіо/відео</td></tr>
+</table>
+
+<h3 id="stack">Стек технологій</h3>
+
+<h4>Backend</h4>
+<p>Java 25 (toolchain) · Spring Boot 4.1.1 · Spring AI 2.0.1 · Spring Data JPA · Flyway · Spring Security · Micrometer · Gradle 9 multi-module · MapStruct 1.6.3 · Lombok 1.18.42</p>
+
+<h4>Frontend</h4>
+<p>React 19.3 · Vite 8.3 · Mantine 9.6 · Tabler Icons · Vitest 5 · Testing Library · TypeScript 5.9 (JSDoc-checked)</p>
+
+<h4>Сховища</h4>
+<p>PostgreSQL · OpenSearch 3.8 (індекс <code>knowledge-items-v3</code>) · локальне файлове сховище</p>
+
+<h4>Зовнішні провайдери</h4>
+<p>Gemini (текст / зображення / відео / OCR / answers) · FLUX (генерація зображень) · Veo (генерація відео) · Hugging Face Inference</p>
+
+<h4>Локальні сервіси</h4>
+<p>Whisper (STT) · Piper (TTS) · локальний ONNX E5 (ембеддінги) · локальний ONNX cross-encoder (reranking, вимкнено)</p>
+
+<h4>Обробка документів</h4>
+<p>Apache Tika 3.2 · PDFBox 3.0.5 · Apache POI · Jsoup 1.18.3</p>
+</section>
+
+<!-- ==================== 2 ==================== -->
+<section id="s2" class="sec">
+<h2>2. Структура репозиторію<a class="anchor" href="#s2">#</a></h2>
+
+<div class="ascii">D:\ai-workspace
+├── apps/                          Gradle root (відкривати в IntelliJ IDEA)
+│   ├── settings.gradle            10 модулів
+│   ├── build.gradle               Java 25 toolchain, verifyModuleBoundaries
+│   ├── api/                       виконуваний Spring Boot застосунок
+│   ├── shared/                    спільні моделі (TranscriptSegment, UpstreamServiceException)
+│   ├── documents/                 парсинг документів, веб-сторінки, OCR-fallback
+│   ├── audio/                     Whisper / Piper
+│   ├── images/                    Gemini / FLUX, OCR-провайдер
+│   ├── videos/                    Gemini / Veo, YouTube
+│   ├── knowledge/                 OpenSearch, ембеддінги, пошук, відповіді
+│   ├── orchestrator/              асинхронна оркестрація, durable recovery
+│   ├── users/                     акаунти, ownership
+│   ├── workspaces/                workspace-метадані, сховище файлів
+│   └── web/                       React + Vite + Mantine
+├── docs/
+│   ├── agent-context/             довготривала пам'ять проєкту для агентів
+│   ├── adr/                       9 ADR (0001-0010)
+│   ├── design/mantine-workspace/  дизайн-прототип
+│   ├── evaluations/               результати оцінки retrieval
+│   ├── architecture-diagrams.md   існуючі Mermaid-діаграми
+│   └── end-to-end-test-specification.md
+├── infra/docker/                  opensearch, whisper, piper (compose + README)
+├── infra/nginx|sql|systemd/       порожні заготки (під майбутнє)
+├── .github/workflows/ci.yml       CI
+├── .env.example                   документований конфіг без секретів
+├── AGENTS.md                      інструкції для AI-агентів
+└── DEVELOPER_CODE_PREFERENCES.md  особисті вподобання</div>
+
+<h3>Правило меж модулів</h3>
+<p><code>apps/build.gradle</code> містить задачу <code>verifyModuleBoundaries</code>, яка <strong>падає на білді</strong>, якщо:</p>
+<ol>
+<li>модуль імпортує заборонений модуль;</li>
+<li>у бізнес-модулі (<code>!= api</code>) з'явиться <code>*Controller.java</code>.</li>
+</ol>
+<p>Задача підключена до <code>check</code>, тому CI не пропустить порушення.</p>
+
+<table>
+<tr><th>Модуль</th><th>Дозволені залежності</th><th>Java-файлів</th></tr>
+<tr><td><code>api</code></td><td>shared, documents, images, videos, audio, knowledge, orchestrator, users, workspaces</td><td>36</td></tr>
+<tr><td><code>knowledge</code></td><td>shared, workspaces</td><td>59</td></tr>
+<tr><td><code>orchestrator</code></td><td>shared, audio, documents, images, videos, knowledge, workspaces</td><td>51</td></tr>
+<tr><td><code>documents</code></td><td>shared, images, knowledge</td><td>30</td></tr>
+<tr><td><code>workspaces</code></td><td>—</td><td>28</td></tr>
+<tr><td><code>images</code> · <code>videos</code></td><td>shared</td><td>16 · 16</td></tr>
+<tr><td><code>audio</code></td><td>shared, knowledge</td><td>13</td></tr>
+<tr><td><code>users</code></td><td>—</td><td>8</td></tr>
+<tr><td><code>shared</code></td><td>—</td><td>2</td></tr>
+</table>
+
+<div class="callout co-ok">
+  <div class="ct">✓ Наслідок для майбутнього</div>
+  <p>Це робить поділ на мікросервіси механічним: кожен майбутній сервіс відповідає рівно одному наявному модулю, а залежність уже відсутня в дизайні.</p>
+</div>
+</section>
+
+<!-- ==================== 3 ==================== -->
+<section id="s3" class="sec">
+<h2>3. Діаграми<a class="anchor" href="#s3">#</a></h2>
+<p class="hint">Клікнувши на діаграму — збільшення на весь екран. Escape — закрити.</p>
+
+<h3 id="d1">3.1 System Context<a class="anchor" href="#d1">#</a></h3>
+<div class="mermaid">
+flowchart LR
+    user["Користувач"]
+    web["React 19 + Mantine<br/>статика всередині JAR"]
+    api["AI Workspace API<br/>Spring Boot модульний моноліт"]
+    pg[("PostgreSQL<br/>workspaces · jobs · recovery · quotas")]
+    os[("OpenSearch<br/>knowledge-items-v3")]
+    files[("Файлове сховище<br/>data/files")]
+    gemini["Gemini API"]
+    hf["FLUX · Veo<br/>HF Inference"]
+    local["Whisper · Piper<br/>ONNX E5"]
+
+    user --> web --> api
+    api --> pg
+    api --> os
+    api --> files
+    api --> gemini
+    api --> hf
+    api --> local
+    gemini --> api
+    hf --> api
+</div>
+<p class="diag-cap">Фронтенд збирається у <code>bootJar</code>, тому один процес Spring Boot віддає повний застосунок.</p>
+
+<h3 id="d2">3.2 Container Architecture<a class="anchor" href="#d2">#</a></h3>
+<div class="mermaid">
+flowchart TB
+    subgraph apiLayer["apps/api — HTTP шар"]
+        ctrl["8 контролерів"]
+        cfg["SecurityConfig<br/>GlobalExceptionHandler<br/>RestClientConfig · ObjectMapperConfig"]
+        sec["Фільтри: CorrelationId · ApiRateLimit<br/>UserQuota · SecurityAudit"]
+    end
+
+    subgraph biz["Бізнес-модулі"]
+        orch["orchestrator<br/>OrchestratorService<br/>SourceLifecycleCoordinator<br/>SourceRecoveryScheduler"]
+        ws["workspaces<br/>WorkspaceService · WorkspaceFileService<br/>LocalFileStorage"]
+        kn["knowledge<br/>KnowledgeService + 5 focused services"]
+        doc["documents<br/>DocumentService · DocumentChunker"]
+        aud["audio<br/>AudioService"]
+        img["images<br/>ImageService"]
+        vid["videos<br/>VideoService"]
+        usr["users<br/>UserAccountService"]
+        shd["shared<br/>TranscriptSegment"]
+    end
+
+    subgraph ext["Зовнішні системи"]
+        pg[("PostgreSQL")]
+        os[("OpenSearch")]
+        fsv[("Файли")]
+    end
+
+    ctrl --> orch
+    ctrl --> kn
+    ctrl --> usr
+    ctrl --> ws
+    ctrl --> doc
+    ctrl --> aud
+    ctrl --> img
+    ctrl --> vid
+    sec -.-> ctrl
+    cfg -.-> ctrl
+
+    orch --> ws
+    orch --> doc
+    orch --> aud
+    orch --> img
+    orch --> vid
+    orch --> kn
+
+    ws --> pg
+    ws --> fsv
+    usr --> pg
+    orch --> pg
+    kn --> pg
+    kn --> os
+
+    aud --> shd
+
+    classDef http fill:#1f3d5c,stroke:#58a6ff,color:#e6edf3
+    classDef orch fill:#3d2a5c,stroke:#bc8cff,color:#e6edf3
+    classDef biz fill:#1c232d,stroke:#8b949e,color:#e6edf3
+    class ctrl,cfg,sec http
+    class orch orch
+    class ws,kn,doc,aud,img,vid,usr,shd biz
+</div>
+<p class="diag-cap">Стрілки = дозволені залежності з <code>verifyModuleBoundaries</code>. Зелені — бізнес, сині — HTTP, фіолетовий — orchestrator.</p>
+
+<h3 id="d3">3.3 Потік інгестії — асинхронний і durable<a class="anchor" href="#d3">#</a></h3>
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor U as Користувач
+    participant C as OrchestratorController
+    participant OS as OrchestratorService
+    participant SL as SourceLifecycleCoordinator
+    participant PG as PostgreSQL
+    participant EX as orchestratorTaskExecutor
+    participant MOD as Модуль-медіа
+    participant KS as KnowledgeService
+    participant OSCH as OpenSearch
+
+    U->>C: POST /api/v1/orchestrator/ingestions
+    C->>OS: ingest*(ownerId, workspaceId, files)
+    Note over OS,PG: validate + перевірка ownership
+
+    rect rgb(24,32,44)
+        Note over OS,PG: Одна транзакція
+        OS->>PG: workspace_files (source_url для URL-джерел)
+        OS->>PG: ingestion_jobs + ingestion_job_steps
+        OS->>PG: source_recovery_tasks (PROCESS/SCHEDULED)
+        OS->>PG: orchestration_submission_requests
+        OS->>PG: COMMIT
+    end
+
+    OS-->>C: 202 OrchestrationSubmission
+    C-->>U: jobId + submitted/skipped
+
+    OS-->>EX: submit(sourceId) — лише ID, не байти
+    EX->>SL: process(job, contentType, source)
+    SL->>PG: claim recovery lease + fencing token
+    EX->>MOD: extract / transcribe / describe
+    MOD-->>EX: типізований результат
+    EX->>KS: recordChunks(..., generation=G)
+    KS->>OSCH: bulk index усі чанки з generation=G
+    KS-->>EX: StagedKnowledgeIndex
+    EX->>PG: source_index_manifests.publish(G)
+    Note over OSCH: staged-генерації невидимі для пошуку
+    SL->>PG: status=COMPLETED
+</div>
+
+<div class="callout co-ok">
+  <div class="ct">✓ Гарантії цього потоку</div>
+  <ul>
+    <li>Job, кроки й recovery-рядки створюються <strong>в одній транзакції</strong> до dispatch — після рестарту scheduler підхопить роботу.</li>
+    <li>Воркер черги <strong>ID джерел</strong>, а не байти; вміст читається зі сховища в момент виконання.</li>
+    <li><code>generation</code> пишеться в кожен документ індексу; <code>source_index_manifests</code> перемикає активну версію транзакційно.</li>
+    <li>Fencing-токен не дає застарілому воркеру закомітити результат.</li>
+  </ul>
+</div>
+
+<h3 id="d4">3.4 Потік відповіді (RAG)<a class="anchor" href="#d4">#</a></h3>
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor U as Користувач
+    participant C as KnowledgeController
+    participant KS as KnowledgeService
+    participant RS as KnowledgeRetrievalService
+    participant QE as GeminiKnowledgeAnswerClient<br/>SearchQueryProvider
+    participant EMB as SpringAiTextEmbeddingClient
+    participant OSCH as OpenSearch
+    participant AN as KnowledgeAnswerService
+    participant GA as GeminiKnowledgeAnswerClient<br/>KnowledgeAnswerProvider
+
+    U->>C: POST /knowledge/workspaces/{id}/answers
+    C->>KS: answerWorkspaceQuestion(ownerId, wsId, question)
+
+    rect rgb(26,32,48)
+        Note over RS,QE: Фаза 1 — розширення запиту
+        opt query expansion увімкнено
+            RS->>QE: proposeSearchQueries(question)
+            QE-->>RS: до 2 додаткових формулювань
+        end
+    end
+
+    rect rgb(22,34,28)
+        Note over RS,OSCH: Фаза 2 — пошук
+        RS->>EMB: embed(питання + розширення)
+        EMB-->>RS: 768-вимірні вектори
+        RS->>OSCH: hybridSearch kNN cosinesimil + BM25 multi_match
+        Note over OSCH: filter workspaceId + лише активна generation
+        OSCH-->>RS: кандидати
+        RS->>RS: RRF k=30 зводить rankings
+        opt reranking увімкнено
+            RS->>RS: OnnxTextReranker
+        end
+        RS->>RS: 12 seed + 1 наступний = до 24
+    end
+
+    rect rgb(38,26,40)
+        Note over AN,GA: Фаза 3 — генерація
+        KS->>AN: answer(wsId, question, evidence)
+        AN->>AN: контекст + вимога переглянути всі чанки
+        AN->>GA: prompt + контекст
+        GA-->>AN: відповідь
+        AN->>AN: KnowledgeCitationService → цитати з таймкодами
+        AN-->>KS: WorkspaceKnowledgeAnswer
+    end
+
+    KS->>KS: workspace_answer_history (серверна історія)
+    KS-->>C: відповідь + джерела
+    C-->>U: 200 OK
+</div>
+
+<h3 id="d5">3.5 Відновлення та реконсиляція<a class="anchor" href="#d5">#</a></h3>
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> SCHEDULED: джерело зареєстровано
+    SCHEDULED --> RUNNING: claim + lease + fencing token
+    RUNNING --> COMPLETED: індекс опубліковано
+    RUNNING --> SCHEDULED: transient помилка<br/>next_attempt_at з backoff
+    RUNNING --> DEAD_LETTER: permanent помилка<br/>або attempts ≥ 5
+    RUNNING --> RUNNING: lease keeper продовжує lease
+    DEAD_LETTER --> SCHEDULED: ручний retry
+    COMPLETED --> SCHEDULED: реконсиляція після розбіжності
+    COMPLETED --> [*]
+    DEAD_LETTER --> [*]
+</div>
+
+<p><code>SourceRecoveryScheduler</code> має два таймери, а <code>OrchestrationSubmissionService</code> — окремий cron на прибирання:</p>
+<table>
+<tr><th>Таймер</th><th>Інтервал</th><th>Призначення</th></tr>
+<tr><td><code>recoverDueSources</code></td><td>30s <span class="pill mut">fixedDelay</span></td><td>due або lease-expired робота</td></tr>
+<tr><td>reconciliation</td><td>6h <span class="pill mut">deferred</span></td><td>звіряє завершені джерела з файловим сховищем і OpenSearch</td></tr>
+<tr><td><code>purgeSubmissions</code></td><td>03:10daily <span class="pill mut">cron</span></td><td>видалення протухлих idempotency-записів (30 днів)</td></tr>
+</table>
+
+<p>Реконсиляція перевіряє: чи є байти у сховищі, чи є active generation в індексі, чи збігається <code>expected_items</code>. За розбіжності — переіндексація, повідомлення про відсутні байти або прибирання «осиротілих» knowledge item.</p>
+
+<pre><code>ai-workspace.orchestrator.recovery.max-attempts=5
+ai-workspace.orchestrator.recovery.initial-backoff=30s
+ai-workspace.orchestrator.recovery.max-backoff=15m
+ai-workspace.orchestrator.recovery.lease-duration=30m
+ai-workspace.orchestrator.recovery.reconciliation-interval=6h
+ai-workspace.orchestrator.recovery.poll-interval=30s
+ai-workspace.orchestrator.recovery.batch-size=50
+ai-workspace.orchestrator.executor.threads=4
+ai-workspace.orchestrator.executor.queue-capacity=100</code></pre>
+</section>
+
+<!-- ==================== 4 ==================== -->
+<section id="s4" class="sec">
+<h2>4. Модулі<a class="anchor" href="#s4">#</a></h2>
+
+<h3>apps/api — HTTP шар</h3>
+<p>Тільки адаптація запитів/відповідей, без бізнес-логіки.</p>
+<div class="files"><span class="c">com.aiworkspace</span>
+├── AiWorkspaceApplication
+├── config/
+│   ├── SecurityConfig, SecurityProperties
+│   ├── GlobalExceptionHandler
+│   ├── RestClientConfig, HttpClientProperties
+│   ├── ObjectMapperConfig
+│   └── EmbeddingWindowConfig
+├── controllers/
+│   ├── AuthController          <span class="k">/api/v1/auth</span>
+│   ├── WorkspaceController     <span class="k">/api/v1/workspaces</span>
+│   ├── OrchestratorController  <span class="k">/api/v1/orchestrator</span>
+│   ├── KnowledgeController     <span class="k">/api/v1/knowledge</span>
+│   ├── DocumentController      <span class="k">/api/v1/documents</span>
+│   ├── AudioController         <span class="k">/api/v1/audio</span>
+│   ├── ImageController         <span class="k">/api/v1/images</span>
+│   └── VideoController         <span class="k">/api/v1/videos</span>
+├── models/ApiErrorResponse
+└── security/
+    ├── CorrelationIdFilter, SecurityFingerprint
+    ├── ApiRateLimitFilter, InMemoryRateLimiter
+    ├── UserQuotaFilter, UserQuotaService, UserQuotaUsage*
+    └── SecurityAuditFilter, SecurityAuditService</div>
+
+<p>Усі чотири фільтри реєструються як <code>setEnabled(false)</code>, тобто <strong>не</strong> дублюються в контейнерному ланцюгу й працюють лише всередині Spring Security, у такому порядку:</p>
+<div class="ascii">CorrelationIdFilter
+  → ApiRateLimitFilter        (before BasicAuthenticationFilter)
+    → BasicAuthenticationFilter   ← справжня автентифікація
+      → UserQuotaFilter           (after BasicAuthenticationFilter)
+        → SecurityAuditFilter     (after BasicAuthenticationFilter)</div>
+
+<h3>apps/shared</h3>
+<p>Дві сутності — навмисно мінімально:</p>
+<ul>
+<li><code>media/TranscriptSegment</code> — таймкодований сегмент транскрипту (ms, speaker, text)</li>
+<li><code>exceptions/UpstreamServiceException</code> — єдина оболонка для помилок зовнішніх сервісів</li>
+</ul>
+
+<h3>apps/orchestrator — серце системи</h3>
+<div class="files">services/
+├── OrchestratorService              <span class="c">публічний фасад: ingest* для кожного типу</span>
+├── SourceLifecycleCoordinator       <span class="c">create → process → index → complete/fail</span>
+├── WorkspaceSourceProcessingService <span class="c">реалізація SourceProcessingOperation</span>
+├── SourceRecoveryScheduler          <span class="c">poll + reconciliation</span>
+├── SourceRecoveryTaskService        <span class="c">ledger CRUD</span>
+├── SourceRecoveryTracker            <span class="c">запис спроб і результатів</span>
+├── SourceLeaseKeeper                <span class="c">продовження lease</span>
+├── SourceRetryPolicy                <span class="c">exponential backoff</span>
+├── SourceCompletionService          <span class="c">публікація generation</span>
+├── IngestionJobService              <span class="c">стан job і кроків</span>
+├── OrchestrationSubmissionService   <span class="c">idempotency-key replay</span>
+├── WorkspaceLifecycleService         <span class="c">видалення workspace</span>
+├── IngestionTelemetry               <span class="c">Micrometer</span>
+└── OrchestratorValidator, IngestionJobValidator</div>
+<p>Стан у БД: <code>IngestionJobEntity</code>, <code>IngestionJobStepEntity</code>, <code>SourceRecoveryTaskEntity</code>, <code>OrchestrationSubmissionRequestEntity</code>.</p>
+
+<h4>Як влаштований контролер потоку</h4>
+<p><code>SourceLifecycleCoordinator.process()</code> — це єдине місце, де відбуваються переходи стану, для всіх шести типів джерел:</p>
+<div class="files">claim recovery lease (якщо claim ще не було)
+  → ingestionJobService.markStepRunning()      <span class="c">кинути IllegalStateException,</span>
+                                                <span class="c">якщо крок уже не pending</span>
+  → workspaceFileService.markProcessing()      <span class="c">sourceTransitioned = true</span>
+  → try (leaseKeeper.keep(...)) { operation.process() }
+  → completionService.complete(..., stagedIndex)
+  → telemetry.recordAttempt(PROCESS, "success", duration)
+<span class="c">catch:</span>
+  → failRecoveryAttempt → backoff або DEAD_LETTER
+  → якщо sourceTransitioned — відкат у UPLOADED</div>
+
+<h3>apps/knowledge — пошук і відповіді</h3>
+<p><code>KnowledgeService</code> — стабільний фасад; внутрішньо розкладається на:</p>
+<table>
+<tr><th>Сервіс</th><th>Відповідальність</th></tr>
+<tr><td><code>KnowledgeIndexingService</code></td><td>генерація ембеддінгів, версіонуані записи, видалення</td></tr>
+<tr><td><code>KnowledgeRetrievalService</code></td><td>query expansion, hybrid пошук, RRF, reranking, сусіди</td></tr>
+<tr><td><code>KnowledgeAnswerService</code></td><td>побудова контексту, виклик провайдера</td></tr>
+<tr><td><code>KnowledgeCitationService</code></td><td>форматування цитат, таймкоди, спікери</td></tr>
+<tr><td><code>SourceIndexManifestService</code></td><td>публікація активної generation</td></tr>
+<tr><td><code>WorkspaceAnswerHistoryService</code></td><td>серверна історія відповідей</td></tr>
+<tr><td><code>KnowledgeValidator</code></td><td>валідація</td></tr>
+<tr><td><code>ReciprocalRankFusion</code></td><td>RRF (статична утиліта)</td></tr>
+<tr><td><code>TokenWindowSplitter</code></td><td>безпечне розбиття довгих речень на токени</td></tr>
+</table>
+
+<p>Репозиторій розділений на співпрацівників:</p>
+<div class="files">OpenSearchKnowledgeClient          <span class="c">публічний адаптер</span>
+├── OpenSearchKnowledgeSearchReader  <span class="c">запити читання: search, get, count</span>
+├── OpenSearchKnowledgeIndexWriter   <span class="c">записи: bulk, delete, delete_by_query</span>
+└── OpenSearchKnowledgeStore         <span class="c">спільне: індекс, мапінг, HTTP, десеріалізація</span></div>
+
+<p>Порти провайдерів у <code>interfaces/</code>: <code>TextEmbeddingProvider</code>, <code>EmbeddingTextSplitter</code>, <code>TextReranker</code>, <code>SearchQueryProvider</code>, <code>KnowledgeAnswerProvider</code>.</p>
+
+<h4>Три режими запису</h4>
+<p><code>KnowledgeIndexingService.writeItems()</code> реалізує сувору градацію — від неідемпотентної до повністю версіонованої:</p>
+<table>
+<tr><th>Умова</th><th>Дія</th><th>Повертає</th></tr>
+<tr><td><code>sourceId == null</code></td><td><code>addKnowledgeItems</code></td><td><code>null</code></td></tr>
+<tr><td>без generation</td><td><code>replaceKnowledgeItems</code></td><td><code>null</code></td></tr>
+<tr><td>з generation</td><td><code>stageKnowledgeItems</code></td><td><code>StagedKnowledgeIndex</code></td></tr>
+</table>
+
+<h3>apps/workspaces</h3>
+<p><code>WorkspaceService</code>, <code>WorkspaceFileService</code>, <code>LocalFileStorage</code> за портом <code>FileStorage</code>, валідатори, MapStruct-мапери. Тут живуть метадані джерел, статуси (<code>UPLOADED</code>/<code>PROCESSING</code>/<code>PROCESSED</code>/<code>FAILED</code>) і байти.</p>
+<p><code>workspace_files</code> універсальний: завантажені файли мають <code>storage_key</code> + <code>checksum_sha256</code>, URL-джерела — <code>source_url</code> зі nullable-полями (зміна V6).</p>
+
+<h3>apps/documents</h3>
+<p><code>DocumentService</code> + <code>DocumentChunker</code> (структурний чанінг), <code>DocxStructureExtractor</code>, <code>PdfOcrFallback</code>, <code>WebPageContentExtractor</code>, <code>DocumentStructuredTextRenderer</code>. Витягування через Tika, PDFBox, POI; веб-сторінки через Jsoup з обмеженнями (5 редиректів, 2 МБ, 1 млн символів, 10 тис. блоків).</p>
+
+<h3>apps/audio · images · videos</h3>
+<p>Тонкі модулі: сервіс-фасад + валідатор + клієнти + порти. Жодної логіки бізнес-процесу.</p>
+<table>
+<tr><th>Модуль</th><th>Порти</th><th>Клієнти</th></tr>
+<tr><td>audio</td><td><code>SpeechToTextProvider</code>, <code>TextToSpeechProvider</code></td><td><code>WhisperClient</code>, <code>PiperClient</code></td></tr>
+<tr><td>images</td><td><code>ImageUnderstandingProvider</code>, <code>ImageGenerationProvider</code>, <code>ImageOcrProvider</code></td><td><code>GeminiImageClient</code>, <code>FluxImageClient</code>, <code>GeminiOcrClient</code></td></tr>
+<tr><td>videos</td><td><code>VideoUnderstandingProvider</code>, <code>VideoGenerationProvider</code>, <code>YouTubeVideoUnderstandingProvider</code></td><td><code>GeminiVideoClient</code>, <code>VeoVideoClient</code></td></tr>
+</table>
+
+<h3>apps/users</h3>
+<p><code>UserAccountService</code>, <code>UserAccountValidator</code>, <code>UserAccountEntity</code>, <code>UserAccountMapper</code>. BCrypt strength 12 за замовчуванням.</p>
+</section>
+
+<!-- ==================== 5 ==================== -->
+<section id="s5" class="sec">
+<h2>5. Схема даних<a class="anchor" href="#s5">#</a></h2>
+
+<h3 id="pg">5.1 PostgreSQL — 10 таблиць, 13 міграцій</h3>
+<div class="ascii">user_accounts ──────────┬──&lt; workspaces (owner_id)
+                         │
+                         ├──&lt; workspace_files (source_type, status)
+                         │        │  storage_key, checksum_sha256  (завантаження)
+                         │        │  source_url                   (URL-джерела)
+                         │        │
+                         │        ├──&lt; source_recovery_tasks      (1:1 з джерелом)
+                         │        │      operation_type, status, attempt_count,
+                         │        │      next_attempt_at, lease_expires_at,
+                         │        │      lease_token, job_id
+                         │        │
+                         │        └──&lt; source_index_manifests     (1:1 з джерелом)
+                         │               active_generation, expected_items
+                         │
+                         ├──&lt; ingestion_jobs (workspace_id, status)
+                         │        └──&lt; ingestion_job_steps
+                         │             (content_type, status, error_code, timestamps)
+                         │
+                         ├──&lt; workspace_answer_history (question, answer_json)
+                         ├──&lt; orchestration_submission_requests (idempotency)
+                         └──&lt; user_daily_quota_usage (action, window_start, consumed)</div>
+
+<table>
+<tr><th>Таблиця</th><th>Міксація</th><th>Ключові моменти</th></tr>
+<tr><td><code>user_accounts</code></td><td>V3</td><td><code>email</code>, BCrypt hash</td></tr>
+<tr><td><code>workspaces</code></td><td>V2 + owner у V3</td><td>унікальний індекс <code>(owner_id, created_at)</code></td></tr>
+<tr><td><code>workspace_files</code></td><td>V4 + V6</td><td>FK → workspaces cascade; у V6 додано <code>WEB_PAGE</code>, <code>YOUTUBE</code></td></tr>
+<tr><td><code>ingestion_jobs</code></td><td>V1</td><td>статус + timestamps завершення</td></tr>
+<tr><td><code>ingestion_job_steps</code></td><td>V1 + <code>error_code</code> у V5</td><td>unique <code>(job_id, content_type)</code></td></tr>
+<tr><td><code>source_recovery_tasks</code></td><td>V7, V8, V9</td><td>PK = <code>source_id</code>; backfill існуючих джерел у V7</td></tr>
+<tr><td><code>source_index_manifests</code></td><td>V10</td><td>CHECK <code>expected_items &gt; 0</code></td></tr>
+<tr><td><code>orchestration_submission_requests</code></td><td>V11</td><td><code>response_json</code> для replay; retention 30 днів</td></tr>
+<tr><td><code>workspace_answer_history</code></td><td>V12</td><td><code>answer_json</code></td></tr>
+<tr><td><code>user_daily_quota_usage</code></td><td>V13</td><td>ключ <code>(user_id, action, window_start)</code></td></tr>
+</table>
+
+<p>Індекси, важливі для продуктивності:</p>
+<ul>
+<li><code>idx_source_recovery_due (status, next_attempt_at)</code> — основний запит планувальника</li>
+<li><code>idx_source_recovery_lease (status, lease_expires_at)</code> — пошук прострочених lease</li>
+<li><code>idx_workspace_files_workspace_deleted_at</code> — список активних джерел</li>
+<li><code>idx_answer_history_workspace_created</code> — сторінкова історія</li>
+<li><code>idx_quota_window</code> — очищення старих вікон</li>
+</ul>
+
+<h3 id="os">5.2 OpenSearch — індекс knowledge-items-v3</h3>
+<p>Індекс <code>knn: true</code>. HNSW: <code>m=16</code>, <code>ef_construction=128</code>, <code>cosinesimil</code> через Lucene.</p>
+
+<table>
+<tr><th>Поле</th><th>Тип</th><th>Призначення</th></tr>
+<tr><td><code>id</code></td><td>keyword</td><td><code>sourceId:generation:sequence</code></td></tr>
+<tr><td><code>workspaceId</code></td><td>keyword</td><td>головний filter</td></tr>
+<tr><td><code>sourceId</code></td><td>keyword</td><td>стабільний ID джерела</td></tr>
+<tr><td><code>sourceGeneration</code></td><td>keyword</td><td>версія індексу</td></tr>
+<tr><td><code>sourceType</code> · <code>sourceName</code> · <code>jobId</code></td><td>keyword</td><td>проvenance</td></tr>
+<tr><td><code>sourceUrl</code></td><td>keyword, ignore_above 2048</td><td>canonical URL</td></tr>
+<tr><td><code>content</code></td><td>text</td><td>текст чанка</td></tr>
+<tr><td><code>heading</code></td><td>text</td><td>вага у BM25 — за замовчуванням ×2</td></tr>
+<tr><td><code>chunkId</code> · <code>chunkSequence</code> · <code>sectionId</code></td><td>keyword · integer · keyword</td><td>структура документа</td></tr>
+<tr><td><code>pageNumber</code> · <code>slideNumber</code> · <code>sheetName</code></td><td>integer · integer · keyword</td><td>локація</td></tr>
+<tr><td><code>startMilliseconds</code> · <code>endMilliseconds</code> · <code>speaker</code></td><td>long · long · keyword</td><td>таймкод аудіо/відео</td></tr>
+<tr><td><code>extractedAt</code> · <code>createdAt</code></td><td>date</td><td>часові мітки</td></tr>
+<tr><td><code>parserVersion</code> · <code>contentHash</code> · <code>embeddingModel</code> · <code>embeddingDimensions</code></td><td>keyword · keyword · keyword · integer</td><td>діагностика</td></tr>
+<tr><td><code>embedding</code></td><td>knn_vector(768)</td><td>HNSW</td></tr>
+</table>
+
+<h4>Фільтр пошуку — не просто workspaceId</h4>
+<p>Це головний прийом версіонування: читачі бачать тільки опубліковані генерації, але legacy-джерела без маніфестів лишаються пошуковими.</p>
+<pre><code>bool.filter:
+  - term: workspaceId = {wsId}
+  - bool.should:
+      - terms: sourceGeneration ∈ activeGenerations(manifests)   <span class="c"># прямий шлях</span>
+      - bool.must_not: terms: sourceId ∈ managedSourceIds        <span class="c"># спадок без маніфеста</span>
+    minimum_should_match: 1</code></pre>
+
+<div class="callout co-info">
+  <div class="ct">◆ Чому так</div>
+  <p>Якщо фільтрувати лише за <code>sourceGeneration</code>, усі джерела, індексовані до впровадження маніфестів, зникли б з пошуку. Умова <code>must_not</code> зберігає їхню видимість, не відкриваючи staged-генерацій для керованих джерел.</p>
+</div>
+</section>
+
+<!-- ==================== 6 ==================== -->
+<section id="s6" class="sec">
+<h2>6. Як працює знання<a class="anchor" href="#s6">#</a></h2>
+
+<h3>Чанінг</h3>
+<p><code>DocumentChunker</code> ріже на <strong>повні речення</strong> (5 за замовчуванням), зберігаючи:</p>
+<ul>
+<li><code>sectionId</code> та <code>headingPath</code> — структурний контекст;</li>
+<li>абзацні межі — абзац не розривається без потреби;</li>
+<li><code>pageNumber</code>, <code>slideNumber</code>, <code>sheetName</code> — локація;</li>
+<li>довжина речення не обмежена: надто великі речення діляться на token-safe вікна, потім вектори усереднюються і L2-нормалізуються в <strong>один вектор на чанк</strong>.</li>
+</ul>
+<p>Для аудіо кожен непорожній таймкодований сегмент стає окремим knowledge item. Відео та YouTube зараз дають один підсумковий item.</p>
+
+<h3>Ембеддінги</h3>
+<p><code>intfloat/multilingual-e5-base</code> через Spring AI ONNX, <strong>768 вимірів</strong>, кеш у <code>data/models/spring-ai</code>. E5-префікси (<code>passage:</code> / <code>query:</code>), батчінг 32, L2-нормалізація, перевірка розмірності перед пошуком.</p>
+<div class="callout co-ok">
+  <div class="ct">✓ Атомарність</div>
+  <p><strong>Усі</strong> вектори створюються до того, як чанк-сет індексується. Якщо ембеддінг запиту падає — пошук деградує до BM25, але індекс не залишається напівзаписаним.</p>
+</div>
+
+<h3>Пошук — повний конвеєр</h3>
+<div class="ascii">question
+  → [опціонально] Gemini пропонує до 2 запитів
+  → embed(питання + розширення)
+  → для кожного запиту: hybridSearch
+        kNN(embedding, k = candidateLimit = 100)
+        BM25 multi_match(content^1, heading^2)
+  → ReciprocalRankFusion(rankings, rankConstant = 30)
+  → [опціонально] cross-encoder rerank   <span class="c">← вимкнено, див. нижче</span>
+  → 12 seed-матчів + наступний чанк
+  → до 24 унікальних джерел, ізольованих у межах ws/source/section</div>
+
+<p>Режим перемикається змінною: <code>KNOWLEDGE_SEARCH_MODE=HYBRID|VECTOR</code>.</p>
+
+<div class="callout co-info">
+  <div class="ct">◆ Кожен крок має fallback</div>
+  <p><code>KnowledgeRetrievalService</code> обгортає кожну фазу в <code>try/catch</code> і при помилці переходить на BM25, фіксуючи причину в <code>knowledge.search.fallbacks</code>. Тому недоступність ембеддінгів, розширення запитів або самого розширеного пошуку деградує систему, а не ламає її.</p>
+</div>
+
+<h3>Якість retrieval — зафіксовані експерименти</h3>
+<p>Нормативні оцінки вручну на 20 питаннях щодо збірки «Sherlock Holmes» (<code>docs/evaluations/retrieval-baseline.md</code>):</p>
+<table>
+<tr><th>Конфігурація</th><th>Правильно</th><th>Неповно</th><th>Помилка</th></tr>
+<tr><td>Hybrid + 5 речень + сусіди</td><td>12</td><td>5</td><td>3</td></tr>
+<tr><td>Vector-only, 12+1</td><td>14</td><td>5</td><td>1</td></tr>
+<tr><td>E5-base 768D</td><td>16</td><td>3</td><td>1</td></tr>
+<tr><td>+ посилення промпту</td><td>17</td><td>3</td><td>0</td></tr>
+<tr><td>+ query expansion</td><td><strong>18</strong></td><td>2</td><td>0</td></tr>
+<tr><td>+ reranking <span class="pill bad">вимкнено</span></td><td>~13</td><td>5</td><td>2</td></tr>
+</table>
+<div class="callout co-warn">
+  <div class="ct">⚠ Чому reranking вимкнено</div>
+  <p>Cross-encoder <em>технічно</em> працював, але на реальних 20 питаннях якість <strong>впала</strong> з 18/2/0 до ~13/5/2, а пам'ять при інгестії зросла до ~4.8 ГБ. Цо зафіксовано в <code>application.properties</code> і handoff, а не забуто — це свідомий вибір на основі вимірювань.</p>
+</div>
+</section>
+
+<!-- ==================== 7 ==================== -->
+<section id="s7" class="sec">
+<h2>7. HTTP API<a class="anchor" href="#s7">#</a></h2>
+
+<div class="callout co-info">
+  <div class="ct">◆ Ownership</div>
+  <p>Усі workspace-скошені ендпоїнти перевіряють ownership; кросс-власник повертає <strong>404</strong>, а не 403, щоб не розкривати існування ресурсу.</p>
+</div>
+
+<div class="ascii"><span class="k">POST</span>   /api/v1/auth/register
+<span class="k">GET</span>    /api/v1/auth/me
+
+<span class="k">POST</span>   /api/v1/workspaces
+<span class="k">GET</span>    /api/v1/workspaces
+<span class="k">GET</span>    /api/v1/workspaces/{workspaceId}
+<span class="k">DELETE</span> /api/v1/workspaces/{workspaceId}
+
+<span class="k">GET</span>    /api/v1/workspaces/{id}/files            <span class="c">alias: /sources</span>
+<span class="k">GET</span>    /api/v1/workspaces/{id}/files/{fileId}   <span class="c">alias: /sources/{fileId}</span>
+<span class="k">DELETE</span> /api/v1/workspaces/{id}/files/{fileId}   <span class="c">alias: /sources/{fileId}</span>
+<span class="k">POST</span>   /api/v1/workspaces/{id}/files/{fileId}/reprocess
+<span class="k">GET</span>    /api/v1/workspaces/{id}/files/{fileId}/recovery
+
+<span class="k">POST</span>   /api/v1/orchestrator/ingestions   <span class="c">multipart → 202 + jobId</span>
+<span class="k">GET</span>    /api/v1/orchestrator/jobs/{jobId}
+<span class="k">GET</span>    /api/v1/orchestrator/jobs?workspaceId=
+
+<span class="k">GET</span>    /api/v1/knowledge/workspaces/{id}
+<span class="k">POST</span>   /api/v1/knowledge/workspaces/{id}/answers
+<span class="k">GET</span>    /api/v1/knowledge/workspaces/{id}/answers
+
+<span class="k">POST</span>   /api/v1/documents/text             <span class="c">multipart, прямий витяг</span>
+<span class="k">POST</span>   /api/v1/documents/web-page
+
+<span class="k">POST</span>   /api/v1/audio/transcriptions       <span class="c">multipart</span>
+<span class="k">POST</span>   /api/v1/audio/speech               <span class="c">WAV на виході</span>
+
+<span class="k">POST</span>   /api/v1/images/descriptions        <span class="c">multipart</span>
+<span class="k">POST</span>   /api/v1/images/generations         <span class="c">JSON</span>
+
+<span class="k">POST</span>   /api/v1/videos/descriptions        <span class="c">multipart</span>
+<span class="k">POST</span>   /api/v1/videos/generations         <span class="c">JSON</span>
+<span class="k">POST</span>   /api/v1/videos/youtube             <span class="c">JSON</span></div>
+
+<p>OpenAPI-специфікація: <code>apps/api/src/main/resources/static/openapi.yaml</code>.</p>
+
+<div class="callout co-warn">
+  <div class="ct">⚠ Два різні сценарії, два набори ендпоїнтів</div>
+  <p>Прямі медіа-ендпоїнти (<code>/documents</code>, <code>/audio</code>, <code>/images</code>, <code>/videos</code>) дають <strong>негайний</strong> результат <em>без індексації</em>. Інгестія для пошуку йде через orchestrator. Це два різних призначення, і API це відображає — не дублювання.</p>
+</div>
+</section>
+
+<!-- ==================== 8 ==================== -->
+<section id="s8" class="sec">
+<h2>8. Безпека<a class="anchor" href="#s8">#</a></h2>
+
+<table>
+<tr><th>Механізм</th><th>Реалізація</th></tr>
+<tr><td>Автентифікація</td><td>HTTP Basic, stateless — без серверних сесій</td></tr>
+<tr><td>Хешування</td><td>BCrypt strength 12</td></tr>
+<tr><td>Парольна політика</td><td>≥12 символів, ≤72 UTF-8 байт — уникає тихий truncate</td></tr>
+<tr><td>Ownership</td><td>перевірка в <code>WorkspaceService</code>, 404 при кросс-доступі</td></tr>
+<tr><td>Rate limit</td><td>process-local fixed window; окремий ліміт на реєстрацію</td></tr>
+<tr><td>Квоти</td><td>PostgreSQL, денне вікно на ingestion / answer / generation</td></tr>
+<tr><td>HTTPS</td><td><code>SECURITY_REQUIRE_HTTPS</code> — у prod увімкнено</td></tr>
+<tr><td>Аудит</td><td><code>SECURITY_AUDIT</code>: хеш актора, без тіл запитів і паролів</td></tr>
+<tr><td>Фільтрація</td><td>upload ≤25 МБ, ліміти на розмір і сторінки PDF/OCR</td></tr>
+</table>
+
+<pre><code>SECURITY_RATE_LIMIT_REQUESTS_PER_MINUTE=300
+SECURITY_REGISTRATION_RATE_LIMIT_REQUESTS_PER_MINUTE=10
+USER_INGESTIONS_PER_DAY=100
+USER_ANSWERS_PER_DAY=500
+USER_GENERATIONS_PER_DAY=25</code></pre>
+
+<h3>Відомі прогалини для продакшену</h3>
+<div class="callout co-bad">
+  <div class="ct">✗ Що ще не зроблено</div>
+  <ol>
+    <li><strong>HTTP Basic замість керованої identity.</strong> Немає OAuth2/OIDC — пароль лишається довіреним каналом користувача.</li>
+    <li><strong>Rate limit у процесі.</strong> Для кількох інстанс потрібен shared edge або розподілений limiter; зараз ліміт дублюється на кожному інстансі.</li>
+    <li><strong>Немає централізованої revocation.</strong> Браузер просто чистить креденшли при 401 — це не механізм відкликання сесій.</li>
+  </ol>
+  <p>Ці пункти узгоджені з handoff і не є несподіванками — вони позначені як deployment work.</p>
+</div>
+</section>
+
+<!-- ==================== 9 ==================== -->
+<section id="s9" class="sec">
+<h2>9. Спостереження<a class="anchor" href="#s9">#</a></h2>
+
+<ul>
+<li><code>X-Request-ID</code> валідується або генерується на вході, повертається в відповіді, потрапляє в MDC.</li>
+<li>Лог-формат: <code>%5p [requestId:%X{requestId:-}]</code>.</li>
+<li>Micrometer: спроби/тривалість інгестії, переходи recovery, gauge на активних воркерах і глибині черги.</li>
+<li><code>knowledge.search.fallbacks</code> — лічильник причин деградації пошуку за стадіями.</li>
+<li>Actuator: <code>/actuator/health</code>, <code>/info</code>, <code>/metrics</code> — метрики за автентифікацією.</li>
+</ul>
+<div class="callout co-info">
+  <div class="ct">◆ Обмеження кардинальності</div>
+  <p>У метриках <strong>немає</strong> тегів із source ID, email чи промптами — інакше часовий ряд роздувся б до мільйонів серій. Актори в аудиті зберігаються лише у вигляді хешів.</p>
+</div>
+
+<h3>Ліміти обробки</h3>
+<table>
+<tr><th>Джерело</th><th>Обмеження</th></tr>
+<tr><td>Upload</td><td>25 МБ</td></tr>
+<tr><td>Web page</td><td>5 редиректів, 2 097 152 байт</td></tr>
+<tr><td>Extraction</td><td>1 000 000 символів, 10 000 блоків</td></tr>
+<tr><td>PDF OCR</td><td>50 сторінок, 150 DPI, 4 млн пікселів/сторінка, макс. сторона рендеру 4096 px</td></tr>
+<tr><td>PDF main memory</td><td>67 108 864 байт</td></tr>
+</table>
+</section>
+
+<!-- ==================== 10 ==================== -->
+<section id="s10" class="sec">
+<h2>10. Інфраструктура<a class="anchor" href="#s10">#</a></h2>
+
+<div class="ascii">infra/docker/
+├── opensearch/compose.yml       локальний кластер 127.0.0.1:9200, persistent
+├── opensearch/compose.test.yml  ізольований тестовий кластер на 19200
+├── opensearch/test.sh           тест-кластер + tagged-тести + прибирання
+├── opensearch/evaluate.sh       реальне чаніння + ембеддінги + пошук, 16 доків
+├── whisper/compose.yml          faster-whisper STT на :9000
+└── piper/compose.yml            TTS на :10200
+
+infra/nginx/                     <span class="c">заготка reverse proxy</span>
+infra/sql/                       <span class="c">заготка</span>
+infra/systemd/                   <span class="c">заготка</span></div>
+
+<p>Політика деплою за вашими вподобаннями: <strong>нативні системні сервіси</strong> для застосунку; Docker лише для Whisper і Piper (явний запит) та локальної розробки.</p>
+
+<h3>CI — три джоби</h3>
+<table>
+<tr><th>Job</th><th>Що робить</th></tr>
+<tr><td><code>frontend</code></td><td><code>npm ci</code>, <code>npm test</code>, <code>npm run typecheck</code>, <code>npm run build</code> — Node 24</td></tr>
+<tr><td><code>backend</code></td><td><code>./gradlew clean test :api:bootJar</code> — Java 25, Gradle cache</td></tr>
+<tr><td><code>whitespace</code></td><td><code>git diff --check</code> на змінених рядках PR і push у <code>develop</code></td></tr>
+</table>
+<p><code>verifyModuleBoundaries</code> підключений до <code>check</code>, тому CI падає на порушенні меж модулів.</p>
+</section>
+
+<!-- ==================== 11 ==================== -->
+<section id="s11" class="sec">
+<h2>11. Frontend<a class="anchor" href="#s11">#</a></h2>
+
+<div class="files">apps/web/src/
+├── main.jsx, App.jsx          <span class="c">App лише обирає authenticated / unauthenticated</span>
+├── Login.jsx
+├── WorkspaceApp.jsx           <span class="c">shell + маршрутизація контенту</span>
+├── WorkspaceSidebar.jsx
+├── WorkspaceContent.jsx       <span class="c">Library / Ask / Studio / Activity</span>
+├── useWorkspaceRoute.js       <span class="c">URL-адресований стан воркспейсу</span>
+├── api.js                     <span class="c">єдина точка HTTP-викликів</span>
+├── components.jsx             <span class="c">спільні візуальні примітиви</span>
+├── Library.jsx, Ask.jsx, Studio.jsx, Activity.jsx
+├── library/                   <span class="c">AddSource · SourceList · SourceDetails</span>
+│                              <span class="c">SourceMenu · DeleteSourceConfirmation</span>
+│                              <span class="c">sourcePresentation</span>
+├── studio/                    <span class="c">AnalyzeMedia · AnalysisResult</span>
+│                              <span class="c">GenerateTool · YouTubeImport · tools</span>
+├── design/                    <span class="c">theme.js · shared.jsx</span>
+└── *.test.jsx                 <span class="c">Vitest + Testing Library</span></div>
+
+<h3>Принципи, які варто зберігати</h3>
+<ul>
+<li><code>App</code> не містить бізнес-логіки, тільки розгалуження за автентифікацією.</li>
+<li>API-виклики — на межі workflow-контейнерів, щоб дочірні компоненти тестувалися без бекенду.</li>
+<li>Воркспейс адресується URL; історія відповідей і job IDs — серверні, не в браузері.</li>
+<li>Workflow-представлення завантажуються лениво.</li>
+<li>Темизація в окремому <code>design/theme.js</code>, а не розкидана по компонентах.</li>
+</ul>
+<div class="callout co-warn">
+  <div class="ct">⚠ TypeScript-міграція неповна</div>
+  <p><code>npm run typecheck</code> перевіряє лише модулі API та маршрутизації. Решта — JSX з JSDoc. Це зафіксовано в handoff як свідоме часткове рішення, а не помилка.</p>
+</div>
+</section>
+
+<!-- ==================== 12 ==================== -->
+<section id="s12" class="sec">
+<h2>12. Тестування<a class="anchor" href="#s12">#</a></h2>
+
+<table>
+<tr><th>Рівень</th><th>Команда</th><th>Що покриває</th></tr>
+<tr><td>Юніт + інтеграція</td><td><code>cd apps &amp;&amp; ./gradlew test</code></td><td>усі модулі, H2 для JPA</td></tr>
+<tr><td>Spring bootJar</td><td><code>./gradlew :api:bootJar</code></td><td>runtime wiring, assets</td></tr>
+<tr><td>Межі модулів</td><td><code>./gradlew verifyModuleBoundaries</code></td><td>правило залежностей</td></tr>
+<tr><td>OpenSearch</td><td><code>./gradlew :knowledge:openSearchIntegrationTest</code></td><td>реальний кластер, тег <code>opensearch</code></td></tr>
+<tr><td>Оцінка retrieval</td><td><code>./gradlew :retrievalEvaluation</code></td><td>54 hybrid + 9 BM25 конфігурацій</td></tr>
+<tr><td>Frontend</td><td><code>cd apps/web &amp;&amp; npm test</code></td><td>10 тестів у 5 файлах</td></tr>
+<tr><td>E2E</td><td><code>docs/end-to-end-test-specification.md</code></td><td>58 кейсів — <span class="pill warn">ще не запускався</span></td></tr>
+</table>
+
+<h3>Правила з DEVELOPER_CODE_PREFERENCES.md</h3>
+<table>
+<tr><th>Після чого</th><th>Команда</th></tr>
+<tr><td>Зміни коду</td><td><code>test</code></td></tr>
+<tr><td>Рефакторинг annotation processing, MapStruct, Lombok, переїзд пакетів</td><td><code>clean test</code></td></tr>
+<tr><td>Зміни wiring, конфігу, залежностей, переїзд</td><td><code>:api:bootJar</code></td></tr>
+<tr><td>Перед комітом</td><td><code>git diff --check</code></td></tr>
+</table>
+</section>
+
+<!-- ==================== 13 ==================== -->
+<section id="s13" class="sec">
+<h2>13. Стан і наступні кроки<a class="anchor" href="#s13">#</a></h2>
+
+<h3>Незакрите</h3>
+<ol>
+<li><strong>Live end-to-end регрес</strong> не запускався. Потрібні disposable-залежності, контрольовані HTML/YouTube фікстури і <em>ліміт витрат на провайдерів</em>.</li>
+<li><strong>Спостереження пошуку</strong> (<code>SearchTelemetry</code>) існує, але handoff кілька разів фіксує його як незавершене.</li>
+<li><strong>Identity і distributed rate limiting</strong> для чутливого multi-node продакшену.</li>
+<li><strong>TypeScript-міграція фронтенду</strong> часткова.</li>
+</ol>
+
+<h3>Інфраструктура з roadmap, яка ще не введена</h3>
+<p>Kafka · Redis · Kubernetes · Object Storage · Knowledge Graph · multi-agent. За <code>roadmap.md</code> — тільки коли вирішує конкретну продуктову потребу, не раніше.</p>
+</section>
+
+<!-- ==================== 14 ==================== -->
+<section id="s14" class="sec">
+<h2>14. Швидкий орієнтир<a class="anchor" href="#s14">#</a></h2>
+
+<table>
+<tr><th>Питання</th><th>Де дивитися</th></tr>
+<tr><td>Як проходить інгестія</td><td><code>orchestrator/services/OrchestratorService</code>, <code>SourceLifecycleCoordinator</code></td></tr>
+<tr><td>Як працює пошук</td><td><code>knowledge/services/KnowledgeRetrievalService</code>, <code>OpenSearchKnowledgeSearchReader</code></td></tr>
+<tr><td>Як влаштований індекс</td><td><code>knowledge/client/OpenSearchKnowledgeStore</code></td></tr>
+<tr><td>Як реконсилювати</td><td><code>orchestrator/services/SourceRecoveryScheduler</code></td></tr>
+<tr><td>Які межі модулів</td><td><code>apps/build.gradle</code>, <code>docs/agent-context/module-boundaries.md</code></td></tr>
+<tr><td>Які рішення ухвалено</td><td><code>docs/adr/</code>, <code>docs/adr/README.md</code></td></tr>
+<tr><td>Проєктна пам'ять</td><td><code>docs/agent-context/handoff.md</code></td></tr>
+<tr><td>Вподобання розробника</td><td><code>DEVELOPER_CODE_PREFERENCES.md</code></td></tr>
+</table>
+
+<p style="margin-top:40px;color:var(--text-faint);font-size:12.5px;border-top:1px solid var(--border);padding-top:16px">
+Згенеровано з <code>develop</code> @ <code>2ff47eb</code>. Джерело Markdown: <code>docs/architecture/project-architecture.md</code>.
+</p>
+
+<div class="nores">Нічого не знайдено за вашим запитом.</div>
+</main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  // ---------- Mermaid ----------
+  if (window.mermaid) {
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'loose',
+      fontFamily: 'ui-monospace, Consolas, monospace',
+      flowchart:{ htmlLabels:true, curve:'basis', padding:14 },
+      sequence:{ useMaxWidth:true, wrap:true, actorMargin:46 },
+      state:{ useMaxWidth:true },
+      themeVariables:{
+        darkMode:true,
+        background:'#151b23',
+        primaryColor:'#1c232d',
+        primaryTextColor:'#e6edf3',
+        primaryBorderColor:'#30363d',
+        lineColor:'#8b949e',
+        secondaryColor:'#1f6feb',
+        tertiaryColor:'#1c232d',
+        fontSize:'13px',
+        actorBkg:'#1c232d',
+        actorBorder:'#58a6ff',
+        actorTextColor:'#e6edf3',
+        signalColor:'#8b949e',
+        signalTextColor:'#e6edf3',
+        labelBoxBkgColor:'#1c232d',
+        labelBoxBorderColor:'#30363d',
+        labelTextColor:'#e6edf3',
+        noteBkgColor:'#1f3d5c',
+        noteBorderColor:'#58a6ff',
+        noteTextColor:'#e6edf3',
+        activationBkgColor:'#3d2a5c',
+        activationBorderColor:'#bc8cff',
+        edgeLabelBackground:'#151b23'
+      }
+    });
+    // Re-render diagrams after injection when needed
+    if (typeof mermaid.run === 'function') {
+      mermaid.run({ querySelector: '.mermaid' });
+    }
+  } else {
+    document.querySelectorAll('.mermaid').forEach(function(el){
+      el.innerHTML = '<div style="color:var(--amber);font-size:13px">Mermaid не завантажився з CDN — діаграми показані як код у вихідному Markdown-файлі.</div>';
+    });
+  }
+
+  // ---------- Diagram zoom ----------
+  var zoom = null;
+  document.addEventListener('click', function(e){
+    var m = e.target.closest ? e.target.closest('.mermaid') : null;
+    if (!m || zoom) return;
+    zoom = document.createElement('div');
+    zoom.className = 'zoomed';
+    zoom.appendChild(m.cloneNode(true));
+    zoom.addEventListener('click', function(){ zoom.remove(); zoom = null; });
+    document.body.appendChild(zoom);
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && zoom) { zoom.remove(); zoom = null; }
+  });
+
+  // ---------- Scroll progress ----------
+  var prog = document.getElementById('prog');
+  function onScroll(){
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    prog.style.width = (h > 0 ? (window.scrollY / h) * 100 : 0) + '%';
+  }
+  window.addEventListener('scroll', onScroll, { passive:true });
+  onScroll();
+
+  // ---------- Scrollspy ----------
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav a'));
+  var targets = links.map(function(a){
+    var id = a.getAttribute('href').slice(1);
+    return document.getElementById(id);
+  }).filter(Boolean);
+
+  function spy(){
+    var best = 0, y = window.scrollY + 90;
+    for (var i = 0; i < targets.length; i++) {
+      if (targets[i].offsetTop <= y) best = i;
+    }
+    // bottom of page → last
+    if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 4) {
+      best = targets.length - 1;
+    }
+    links.forEach(function(a, i){ a.classList.toggle('active', i === best); });
+    var act = links[best];
+    if (act && act.offsetParent !== null) {
+      var nav = document.getElementById('nav');
+      var nr = nav.getBoundingClientRect(), ar = act.getBoundingClientRect();
+      if (ar.top < nr.top + 40 || ar.bottom > nr.bottom - 40) {
+        nav.scrollTop += (ar.top - nr.top) - nr.height / 3;
+      }
+    }
+  }
+  window.addEventListener('scroll', spy, { passive:true });
+  // На перезавантаженні браузер може відновити позицію скролу —
+  // тоді події scroll не буде, а виділення має бути правильним одразу.
+  window.addEventListener('load', spy);
+  window.addEventListener('resize', spy);
+  spy();
+
+  // ---------- Search ----------
+  var q = document.getElementById('q');
+  var clr = document.getElementById('clr');
+  var count = document.getElementById('rescount');
+  var nores = document.querySelector('.nores');
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section'));
+  var markers = [];
+
+  function clearMarks(){
+    markers.forEach(function(m){
+      var p = m.parentNode;
+      p.replaceChild(document.createTextNode(m.textContent), m);
+      p.normalize();
+    });
+    markers = [];
+  }
+
+  function runSearch(raw){
+    var term = raw.trim().toLowerCase();
+    clearMarks();
+    document.body.classList.toggle('searching', term.length > 0);
+    clr.style.display = term.length > 0 ? 'block' : 'none';
+
+    if (term.length < 2) {
+      sections.forEach(function(s){ s.classList.remove('sec-hidden'); });
+      count.textContent = '';
+      nores.classList.remove('show');
+      return;
+    }
+
+    var hits = 0;
+    sections.forEach(function(sec){
+      var text = sec.textContent.toLowerCase();
+      var match = text.indexOf(term) !== -1;
+      sec.classList.toggle('sec-hidden', !match);
+      if (match) {
+        hits++;
+        var walker = document.createTreeWalker(sec, NodeFilter.SHOW_TEXT, null);
+        var nodes = [], n;
+        while ((n = walker.nextNode())) nodes.push(n);
+        nodes.forEach(function(node){
+          if (node.parentElement && node.parentElement.closest('.mermaid')) return;
+          var idx = node.nodeValue.toLowerCase().indexOf(term);
+          if (idx === -1) return;
+          var range = document.createRange();
+          range.setStart(node, idx);
+          range.setEnd(node, idx + term.length);
+          var mk = document.createElement('mark');
+          try { range.surroundContents(mk); markers.push(mk); } catch (err) {}
+        });
+      }
+    });
+    count.textContent = hits + ' секц.';
+    nores.classList.toggle('show', hits === 0);
+  }
+
+  var timer = null;
+  q.addEventListener('input', function(){
+    clearTimeout(timer);
+    var v = q.value;
+    timer = setTimeout(function(){ runSearch(v); }, 140);
+  });
+
+  clr.addEventListener('click', function(){ q.value = ''; runSearch(''); q.focus(); });
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === '/' && document.activeElement !== q && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault(); q.focus(); q.select();
+    }
+    if (e.key === 'Escape' && document.activeElement === q) { q.blur(); }
+  });
+})();
+</script>
+</body>
+</html>
