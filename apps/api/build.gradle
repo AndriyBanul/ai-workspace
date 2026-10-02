@@ -1,0 +1,86 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.aiworkspace'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation project(':shared')
+	implementation project(':documents')
+	implementation project(':images')
+	implementation project(':videos')
+	implementation project(':audio')
+	implementation project(':knowledge')
+	implementation project(':orchestrator')
+	implementation project(':users')
+	implementation project(':workspaces')
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.ai:spring-ai-starter-model-transformers:2.0.1'
+	implementation 'org.flywaydb:flyway-database-postgresql'
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+	runtimeOnly 'org.postgresql:postgresql'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testRuntimeOnly 'com.h2database:h2'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+	useJUnitPlatform { excludeTags 'retrieval-evaluation' }
+}
+
+// The API owns the production static bundle so one Spring Boot process serves the complete app.
+def frontendDir = file('../web')
+def frontendDist = file('../web/dist')
+def npmExecutable = org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'npm.cmd' : 'npm'
+
+tasks.register('frontendInstall', Exec) {
+	workingDir frontendDir
+	commandLine npmExecutable, 'ci'
+	inputs.file file('../web/package-lock.json')
+	outputs.dir file('../web/node_modules')
+}
+
+tasks.register('frontendBuild', Exec) {
+	dependsOn 'frontendInstall'
+	workingDir frontendDir
+	commandLine npmExecutable, 'run', 'build'
+	inputs.dir file('../web/src')
+	inputs.files file('../web/index.html'), file('../web/package.json'), file('../web/package-lock.json'), file('../web/vite.config.js')
+	outputs.dir frontendDist
+}
+
+tasks.named('processResources') {
+	dependsOn 'frontendBuild'
+	from(frontendDist) { into 'static' }
+}
+
+
+tasks.register('retrievalEvaluation', Test) {
+    description = 'Evaluates real chunking, local embeddings and OpenSearch retrieval.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform { includeTags 'retrieval-evaluation' }
+    maxHeapSize = '2g'
+    systemProperty 'evaluation.applicationProperties', file('src/main/resources/application.properties').absolutePath
+    systemProperty 'evaluation.output', layout.buildDirectory.dir('reports/retrieval').get().asFile.absolutePath
+    outputs.upToDateWhen { false }
+}

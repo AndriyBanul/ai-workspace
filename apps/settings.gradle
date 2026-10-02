@@ -1,0 +1,12 @@
+rootProject.name = 'ai-workspace'
+
+include 'api'
+include 'shared'
+include 'documents'
+include 'images'
+include 'videos'
+include 'audio'
+include 'knowledge'
+include 'orchestrator'
+include 'users'
+include 'workspaces'

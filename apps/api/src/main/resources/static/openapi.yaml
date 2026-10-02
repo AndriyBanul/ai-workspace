@@ -1,0 +1,1255 @@
+openapi: 3.1.0
+info:
+  title: AI Workspace API
+  version: 0.1.0
+  description: >-
+    Workspace-scoped multimodal ingestion, knowledge retrieval, and generation API.
+    Authenticated endpoints use stateless HTTP Basic authentication and can return
+    a structured 429 response when the configured per-client rate limit is exceeded.
+servers:
+  - url: /
+security:
+  - BasicAuth: []
+paths:
+  /api/v1/auth/register:
+    post:
+      summary: Register user account
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Registered user account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAccount"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/auth/me:
+    get:
+      summary: Get current user account
+      tags: [Auth]
+      responses:
+        "200":
+          description: Current authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAccount"
+  /api/v1/workspaces:
+    get:
+      summary: List workspaces
+      tags: [Workspaces]
+      responses:
+        "200":
+          description: Workspaces ordered by creation time.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Workspace"
+    post:
+      summary: Create workspace
+      tags: [Workspaces]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkspaceRequest"
+      responses:
+        "201":
+          description: Created workspace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/workspaces/{workspaceId}:
+    get:
+      summary: Get workspace
+      tags: [Workspaces]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "200":
+          description: Workspace metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete workspace and its stored files and knowledge
+      tags: [Workspaces]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "204":
+          description: Workspace deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/workspaces/{workspaceId}/files:
+    get:
+      summary: List workspace files
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "200":
+          description: Workspace files ordered by creation time.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkspaceFile"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/workspaces/{workspaceId}/files/{fileId}:
+    get:
+      summary: Get workspace file
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: Workspace file metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceFile"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete workspace file
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "204":
+          description: Workspace file deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/orchestrator/ingestions:
+    post:
+      summary: Submit multimodal ingestion job
+      description: >-
+        Document inputs support plain text (TXT), PDF, DOC/DOCX, XLS/XLSX, and PPT/PPTX, detected from file content.
+        Document processing failures are reported on the documents step through errorCode and errorMessage
+        when polling the job. Scanned PDFs without extractable text require OCR before upload; this endpoint
+        does not perform automatic OCR. A named document upload with zero bytes creates a traceable source,
+        then fails its documents step with EMPTY_DOCUMENT. An absent document part, or a browser file input
+        with an empty filename and zero bytes, skips the documents step without creating a source.
+      tags: [Orchestrator]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [workspaceId]
+              properties:
+                workspaceId:
+                  type: string
+                document:
+                  type: string
+                  format: binary
+                  description: TXT, PDF, DOC/DOCX, XLS/XLSX, or PPT/PPTX. The filename and declared MIME type do not determine the format.
+                audio:
+                  type: string
+                  format: binary
+                image:
+                  type: string
+                  format: binary
+                video:
+                  type: string
+                  format: binary
+      responses:
+        "202":
+          description: Ingestion job submitted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrchestrationSubmission"
+        "400":
+          description: Invalid request that prevents creation of an ingestion job. Processing failures after acceptance are reported by the job steps.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency key was used for a different request or an identical request is still committing.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/orchestrator/jobs:
+    get:
+      summary: List recent jobs in an owned workspace
+      tags: [Orchestrator]
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Recent jobs, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IngestionJobDetails"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/orchestrator/jobs/{jobId}:
+    get:
+      summary: Get ingestion job status
+      tags: [Orchestrator]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Job status and step details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestionJobDetails"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/knowledge/workspaces/{workspaceId}:
+    get:
+      summary: Get workspace memory
+      tags: [Knowledge]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "200":
+          description: Aggregated workspace knowledge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceKnowledge"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+  /api/v1/knowledge/workspaces/{workspaceId}/answers:
+    get:
+      summary: List saved workspace answers
+      tags: [Knowledge]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Recent saved answers, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkspaceAnswerHistoryEntry"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      summary: Ask a workspace question
+      tags: [Knowledge]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkspaceQuestionRequest"
+      responses:
+        "200":
+          description: LLM answer with source snippets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceKnowledgeAnswer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+  /api/v1/documents/text:
+    post:
+      summary: Upload and extract a document directly
+      description: >-
+        Supports plain text (TXT), PDF, DOC/DOCX, XLS/XLSX, and PPT/PPTX, detected from the file content rather than
+        the filename or declared MIME type. Other formats, including images,
+        archives, and macro-enabled OOXML documents, are unsupported. Password-protected documents
+        must be unlocked before upload. Scanned PDFs without extractable text require OCR before upload;
+        automatic OCR is disabled. Uploads that fail processing remain listed as FAILED
+        workspace sources and are not added to workspace knowledge, including empty uploads.
+        Extracted text is limited to 1,000,000 characters by default, and embedded attachments are excluded
+        unless enabled in server configuration. The extraction result preserves ordered headings, paragraphs,
+        list items, and table rows. Knowledge text includes page, slide, and sheet markers where the source
+        format exposes those locations.
+      tags: [Documents]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [workspaceId, file]
+              properties:
+                workspaceId:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+                  description: Plain text, PDF, DOC/DOCX, XLS/XLSX, or PPT/PPTX document.
+      responses:
+        "200":
+          description: Extracted document text summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TextDocumentUploadResponse"
+        "400":
+          description: Invalid request. An empty file returns code EMPTY_DOCUMENT.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "415":
+          description: File content is not a supported document format. Returns code UNSUPPORTED_DOCUMENT_FORMAT.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: >-
+            Supported document cannot be processed. Returns code PASSWORD_PROTECTED_DOCUMENT for encrypted
+            files, CORRUPT_DOCUMENT for unreadable or malformed files, EXTRACTION_LIMIT_EXCEEDED when
+            extracted text exceeds the configured limit, or NO_EXTRACTABLE_TEXT when parsing produces no
+            meaningful text after enabled OCR, or when OCR is disabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+  /api/v1/documents/web-page:
+    post:
+      summary: Extract and store web page text
+      description: >-
+        Imports HTML, XHTML, and text responses. Declared response charsets are respected; HTML meta charset
+        declarations are used when the HTTP response omits a charset. For HTML, article or main content is
+        preferred over navigation and page chrome, and paragraph, heading, list, and table-row boundaries are
+        preserved. The full extracted content is stored, so truncated is false and loggedCharacterCount equals
+        characterCount.
+      tags: [Documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebPageExtractRequest"
+      responses:
+        "200":
+          description: Web page extraction summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebPageExtractResponse"
+  /api/v1/audio/transcriptions:
+    post:
+      summary: Transcribe audio with timed segments
+      tags: [Audio]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [workspaceId, file]
+              properties:
+                workspaceId:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Audio transcription with detected language and timed segments when supplied by Whisper.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudioTranscriptionResponse"
+  /api/v1/audio/speech:
+    post:
+      summary: Synthesize speech
+      tags: [Audio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TextToSpeechRequest"
+      responses:
+        "200":
+          description: WAV audio file.
+          content:
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+  /api/v1/images/descriptions:
+    post:
+      summary: Describe image directly
+      tags: [Images]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [workspaceId, file]
+              properties:
+                workspaceId:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Image description.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImageDescriptionResponse"
+  /api/v1/images/generations:
+    post:
+      summary: Generate image
+      tags: [Images]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerationRequest"
+      responses:
+        "200":
+          description: Generated image.
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+  /api/v1/videos/descriptions:
+    post:
+      summary: Analyze video and transcribe speech
+      tags: [Videos]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [workspaceId, file]
+              properties:
+                workspaceId:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Video visual summary and spoken transcript with timed segments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoDescriptionResponse"
+  /api/v1/videos/youtube:
+    post:
+      summary: Ingest a public YouTube video
+      description: >-
+        Analyzes one public YouTube video through the configured video-understanding provider.
+        The application stores derived visual and spoken knowledge with the canonical YouTube URL;
+        it does not download or store the source video bytes. Private and unlisted videos are unsupported.
+      tags: [Videos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YouTubeVideoIngestionRequest"
+      responses:
+        "200":
+          description: YouTube video analysis stored in workspace knowledge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YouTubeVideoIngestionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/workspaces/{workspaceId}/sources:
+    get:
+      summary: List workspace ingestion sources
+      description: Lists uploaded files, imported web pages, and YouTube sources with their lifecycle status.
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+      responses:
+        "200":
+          description: Workspace sources ordered by creation time.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkspaceFile"
+  /api/v1/workspaces/{workspaceId}/sources/{fileId}:
+    get:
+      summary: Get workspace ingestion source
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: Workspace source metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceFile"
+    delete:
+      summary: Delete source, indexed knowledge, and stored bytes when present
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "204":
+          description: Workspace source deleted.
+  /api/v1/workspaces/{workspaceId}/sources/{fileId}/reprocess:
+    post:
+      summary: Reprocess an existing workspace source
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: Reprocessing job accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrchestrationSubmission"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Source is already processing or cannot be reprocessed.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/workspaces/{workspaceId}/sources/{fileId}/recovery:
+    get:
+      summary: Get durable recovery state for a workspace source
+      tags: [Files]
+      parameters:
+        - $ref: "#/components/parameters/WorkspaceId"
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: Current retry, lease, reconciliation, or dead-letter state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceRecoveryTask"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/videos/generations:
+    post:
+      summary: Generate video
+      tags: [Videos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerationRequest"
+      responses:
+        "200":
+          description: Generated video.
+          content:
+            video/*:
+              schema:
+                type: string
+                format: binary
+components:
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Reusing this key with the same request returns the original accepted job.
+      schema:
+        type: string
+        maxLength: 128
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      schema:
+        type: string
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+    FileId:
+      name: fileId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    NotFound:
+      description: Resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+    BadGateway:
+      description: Upstream or storage dependency failed.
+      content:
+        application/json:
+          schema:
+              $ref: "#/components/schemas/ApiErrorResponse"
+    TooManyRequests:
+      description: The per-client request limit was exceeded. Retry-After contains the remaining window duration.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds until the current rate-limit window expires.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErrorResponse"
+  schemas:
+    ApiErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        detail:
+          type: string
+        path:
+          type: string
+        code:
+          description: Optional stable failure code. Present for document processing errors; omitted for other errors.
+          allOf:
+            - $ref: "#/components/schemas/DocumentFailureCode"
+    DocumentFailureCode:
+      type: string
+      description: >-
+        EMPTY_DOCUMENT means no uploaded bytes; UNSUPPORTED_DOCUMENT_FORMAT means an unsupported detected format;
+        PASSWORD_PROTECTED_DOCUMENT means the document needs to be unlocked;
+        CORRUPT_DOCUMENT means a recognized document cannot be parsed;
+        EXTRACTION_LIMIT_EXCEEDED means extracted text exceeded the configured maximum;
+        NO_EXTRACTABLE_TEXT means parsing found no meaningful text. Documents needing OCR must be processed
+        externally before upload.
+      enum:
+        - EMPTY_DOCUMENT
+        - UNSUPPORTED_DOCUMENT_FORMAT
+        - PASSWORD_PROTECTED_DOCUMENT
+        - CORRUPT_DOCUMENT
+        - EXTRACTION_LIMIT_EXCEEDED
+        - NO_EXTRACTABLE_TEXT
+    Workspace:
+      type: object
+      properties:
+        id:
+          type: string
+        ownerId:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    WorkspaceFile:
+      type: object
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        originalFilename:
+          type: string
+        contentType:
+          type: string
+          nullable: true
+        sizeBytes:
+          type: integer
+          format: int64
+        storageKey:
+          type: string
+          nullable: true
+        checksumSha256:
+          type: string
+          nullable: true
+        sourceUrl:
+          type: string
+          format: uri
+          nullable: true
+        sourceType:
+          type: string
+          enum: [DOCUMENT, AUDIO, IMAGE, VIDEO, WEB_PAGE, YOUTUBE]
+        status:
+          type: string
+          enum: [UPLOADED, PROCESSING, PROCESSED, FAILED, DELETED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    CreateWorkspaceRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+    OrchestrationSubmission:
+      type: object
+      properties:
+        jobId:
+          type: string
+        workspaceId:
+          type: string
+        status:
+          type: string
+        submitted:
+          type: array
+          items:
+            type: string
+        skipped:
+          type: array
+          items:
+            type: string
+        sourceIds:
+          type: object
+          additionalProperties:
+            type: string
+          description: Workspace file IDs keyed by submitted content type.
+    IngestionJobDetails:
+      type: object
+      properties:
+        jobId:
+          type: string
+        workspaceId:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/IngestionJobStepDetails"
+    IngestionJobStepDetails:
+      type: object
+      properties:
+        type:
+          type: string
+        status:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        errorCode:
+          type: string
+          nullable: true
+          description: >-
+            Stable document failure code when a documents step fails: EMPTY_DOCUMENT,
+            UNSUPPORTED_DOCUMENT_FORMAT, PASSWORD_PROTECTED_DOCUMENT, CORRUPT_DOCUMENT,
+            EXTRACTION_LIMIT_EXCEEDED, or NO_EXTRACTABLE_TEXT.
+            Null when the step has no coded failure, including other processing failures.
+    WorkspaceKnowledge:
+      type: object
+      properties:
+        workspaceId:
+          type: string
+        documentsInfo:
+          type: string
+          nullable: true
+        audioInfo:
+          type: string
+          nullable: true
+        videoInfo:
+          type: string
+          nullable: true
+        imagesInfo:
+          type: string
+          nullable: true
+    WorkspaceQuestionRequest:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+    WorkspaceKnowledgeAnswer:
+      type: object
+      properties:
+        workspaceId:
+          type: string
+        question:
+          type: string
+        answer:
+          type: string
+        sourceFiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkspaceKnowledgeSourceFile"
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkspaceKnowledgeSource"
+    WorkspaceAnswerHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        answer:
+          $ref: "#/components/schemas/WorkspaceKnowledgeAnswer"
+    WorkspaceKnowledgeSourceFile:
+      type: object
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        jobId:
+          type: string
+          nullable: true
+        sourceId:
+          type: string
+          nullable: true
+          description: Durable workspace file or imported-source identifier.
+        sourceUrl:
+          type: string
+          format: uri
+          nullable: true
+        extractedAt:
+          type: string
+          format: date-time
+          nullable: true
+        parserVersion:
+          type: string
+          nullable: true
+        sourceCount:
+          type: integer
+          description: Number of matching knowledge chunks returned for this source.
+    WorkspaceKnowledgeSource:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        sourceName:
+          type: string
+          nullable: true
+        jobId:
+          type: string
+          nullable: true
+        sourceId:
+          type: string
+          nullable: true
+          description: Durable workspace file or imported-source identifier.
+        sourceUrl:
+          type: string
+          format: uri
+          nullable: true
+        extractedAt:
+          type: string
+          format: date-time
+          nullable: true
+        parserVersion:
+          type: string
+          nullable: true
+        chunkId:
+          type: string
+          nullable: true
+          description: Stable identifier of the matched source chunk.
+        chunkSequence:
+          type: integer
+          nullable: true
+          description: One-based chunk position within the source.
+        heading:
+          type: string
+          nullable: true
+        pageNumber:
+          type: integer
+          nullable: true
+        slideNumber:
+          type: integer
+          nullable: true
+        sheetName:
+          type: string
+          nullable: true
+    SourceRecoveryTask:
+      type: object
+      required: [sourceId, workspaceId, operationType, status, attemptCount, createdAt, updatedAt]
+      properties:
+        sourceId:
+          type: string
+        workspaceId:
+          type: string
+        jobId:
+          type: string
+          nullable: true
+        operationType:
+          type: string
+          enum: [PROCESS, DELETE]
+        status:
+          type: string
+          enum: [SCHEDULED, RUNNING, COMPLETED, DEAD_LETTER]
+        attemptCount:
+          type: integer
+          minimum: 0
+        nextAttemptAt:
+          type: string
+          format: date-time
+          nullable: true
+        leaseExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastErrorCode:
+          type: string
+          nullable: true
+        lastErrorMessage:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        startMilliseconds:
+          type: integer
+          format: int64
+          nullable: true
+          description: Start of the matching audio or video passage.
+        endMilliseconds:
+          type: integer
+          format: int64
+          nullable: true
+          description: End of the matching audio or video passage.
+        speaker:
+          type: string
+          nullable: true
+        snippet:
+          type: string
+        sourceFileKey:
+          type: string
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 12
+          maxLength: 72
+          description: Must be at least 12 characters and no more than 72 UTF-8 bytes.
+        displayName:
+          type: string
+          nullable: true
+    UserAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    TextDocumentUploadResponse:
+      type: object
+      properties:
+        sourceId:
+          type: string
+          description: Durable workspace file ID used by stored knowledge metadata.
+        filename:
+          type: string
+        detectedContentType:
+          type: string
+          description: Server-detected media type based on file content.
+        title:
+          type: string
+          nullable: true
+          description: Document title when supplied by the format metadata.
+        sizeBytes:
+          type: integer
+          format: int64
+        characterCount:
+          type: integer
+        blockCount:
+          type: integer
+          description: Number of extracted structural text blocks.
+        extractedAt:
+          type: string
+          format: date-time
+          description: Time at which extraction completed.
+        parserVersion:
+          type: string
+          description: Versioned extraction implementation used to produce the text.
+    WebPageExtractRequest:
+      type: object
+      required: [workspaceId, url]
+      properties:
+        workspaceId:
+          type: string
+        url:
+          type: string
+          format: uri
+    WebPageExtractResponse:
+      type: object
+      properties:
+        sourceId:
+          type: string
+          description: Durable identifier assigned to this web import.
+        url:
+          type: string
+        contentType:
+          type: string
+          nullable: true
+          description: Normalized HTTP response media type when supplied by the origin server.
+        title:
+          type: string
+        characterCount:
+          type: integer
+        storedCharacterCount:
+          type: integer
+          description: Number of extracted characters persisted to workspace knowledge.
+        loggedCharacterCount:
+          type: integer
+          deprecated: true
+          description: Retained for compatibility and equal to characterCount because the full content is stored.
+        truncated:
+          type: boolean
+          description: False while web imports store the full extracted content.
+        extractedAt:
+          type: string
+          format: date-time
+          description: Time at which extraction completed.
+        parserVersion:
+          type: string
+          description: Versioned extraction implementation used to produce the text.
+    AudioTranscriptionResponse:
+      type: object
+      properties:
+        filename:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        language:
+          type: string
+        text:
+          type: string
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptSegment"
+    TextToSpeechRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+    ImageDescriptionResponse:
+      type: object
+      properties:
+        filename:
+          type: string
+        size:
+          type: integer
+          format: int64
+        mimeType:
+          type: string
+        description:
+          type: string
+    VideoDescriptionResponse:
+      type: object
+      properties:
+        filename:
+          type: string
+        size:
+          type: integer
+          format: int64
+        mimeType:
+          type: string
+        description:
+          type: string
+          description: Visual summary of the video.
+        transcript:
+          type: string
+          description: Verbatim spoken transcript, or an empty string when no speech is detected.
+        language:
+          type: string
+          nullable: true
+          description: Detected spoken-language code when available.
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptSegment"
+    YouTubeVideoIngestionRequest:
+      type: object
+      required: [workspaceId, url]
+      properties:
+        workspaceId:
+          type: string
+        url:
+          type: string
+          format: uri
+          description: HTTPS URL identifying one public YouTube video.
+    YouTubeVideoIngestionResponse:
+      type: object
+      properties:
+        sourceId:
+          type: string
+          description: Durable imported-source identifier stored with workspace knowledge.
+        videoId:
+          type: string
+        url:
+          type: string
+          format: uri
+          description: Canonical YouTube watch URL.
+        description:
+          type: string
+          description: Visual summary of the video.
+        transcript:
+          type: string
+        language:
+          type: string
+          nullable: true
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptSegment"
+    TranscriptSegment:
+      type: object
+      required: [startMilliseconds, endMilliseconds, text]
+      properties:
+        startMilliseconds:
+          type: integer
+          format: int64
+          minimum: 0
+        endMilliseconds:
+          type: integer
+          format: int64
+          minimum: 0
+        speaker:
+          type: string
+          nullable: true
+          description: Provider-supplied speaker label when diarization is available.
+        text:
+          type: string
+    GenerationRequest:
+      type: object
+      required: [description]
+      properties:
+        description:
+          type: string

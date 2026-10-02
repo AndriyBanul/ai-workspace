@@ -24,3 +24,5 @@ Build a production-quality MVP.
 Focus on building a solid foundation.
 
 Do not optimize for enterprise scale before it is required.
+
+For the current MVP foundation, prefer a simple multi-module Gradle build with one executable `api` subproject. Add additional physical modules only when the implementation needs a real boundary.

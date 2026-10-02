@@ -24,10 +24,50 @@ Prioritize architecture, maintainability, production readiness, testing, deploym
 
 ## Project Context
 
+Application code lives in a Gradle multi-module build rooted at `apps`.
+
+Open `apps` in IntelliJ IDEA and run Gradle commands from `apps`, for example:
+
+```bash
+cd apps
+./gradlew test
+```
+
+Current application module:
+
+- `apps/api` - executable Spring Boot API subproject using base package `com.aiworkspace`.
+- `apps/shared` - shared data model library subproject using base package `com.aiworkspace.shared`.
+- `apps/documents` - document business logic module using base package `com.aiworkspace.documents`.
+- `apps/images` - image business logic module using base package `com.aiworkspace.images`.
+- `apps/videos` - video business logic module using base package `com.aiworkspace.videos`.
+- `apps/audio` - audio business logic module using base package `com.aiworkspace.audio`.
+- `apps/knowledge` - knowledge business logic module using base package `com.aiworkspace.knowledge`.
+- `apps/orchestrator` - async multimodal orchestration module using base package `com.aiworkspace.orchestrator`.
+- `apps/users` - user accounts, authentication support, and ownership identity using base package `com.aiworkspace.users`.
+- `apps/workspaces` - workspace metadata, workspace file lifecycle, and workspace-owned file storage using base package `com.aiworkspace.workspaces`.
+
+Initial package areas inside `apps/api`:
+
+- `config`
+- `controllers`
+
+Use `apps/shared` for data models that are genuinely shared across application modules.
+
+Use `apps/api` as the HTTP entrypoint. Keep business logic in the relevant business module.
+
+Do not add nested Gradle roots or Gradle wrappers inside subprojects.
+
 Read `docs/agent-context/README.md` before making architecture-level decisions.
+
+Read `DEVELOPER_CODE_PREFERENCES.md` before making code changes.
+
+Read `docs/agent-context/handoff.md` when continuing work from a previous chat or when a previous chat failed to compact.
+
+`DEVELOPER_CODE_PREFERENCES.md` captures Andrii's code-writing preferences and has higher priority than the general guidance in `docs/agent-context/`. If it conflicts with other project guidance, follow `DEVELOPER_CODE_PREFERENCES.md` first unless Andrii explicitly says otherwise.
 
 Use the detailed project guidance in `docs/agent-context/` as long-term project memory:
 
+- `docs/agent-context/handoff.md`
 - `docs/agent-context/vision.md`
 - `docs/agent-context/development-philosophy.md`
 - `docs/agent-context/architecture.md`

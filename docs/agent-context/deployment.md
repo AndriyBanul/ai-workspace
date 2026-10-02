@@ -4,6 +4,11 @@ Default server deployment should use native/system services.
 
 Docker may be used only when explicitly requested or when it is clearly the better local development option.
 
+Current explicit Docker exception:
+
+- Whisper speech-to-text service for the `audio` module, defined in `infra/docker/whisper/compose.yml`.
+- Piper text-to-speech service, defined in `infra/docker/piper/compose.yml`.
+
 Deployment-related changes should consider:
 
 - Service startup and restart behavior.

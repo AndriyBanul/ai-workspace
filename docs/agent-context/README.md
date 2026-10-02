@@ -9,15 +9,79 @@ Use it together with the root `AGENTS.md` file.
 Before making changes, read:
 
 1. `AGENTS.md`
-2. `docs/agent-context/README.md`
-3. The specific files in this directory that are relevant to the task.
+2. `DEVELOPER_CODE_PREFERENCES.md`
+3. `docs/agent-context/README.md`
+4. `docs/agent-context/handoff.md`
+5. The specific files in this directory that are relevant to the task.
+
+`DEVELOPER_CODE_PREFERENCES.md` has higher priority than the general files in this directory. If it conflicts with this directory, follow `DEVELOPER_CODE_PREFERENCES.md` unless Andrii explicitly says otherwise.
 
 Act as a senior engineer working on a long-term commercial AI Platform product, not as a coding assistant generating isolated snippets.
 
 Make maintainable, production-oriented decisions.
 
+## Current Application Structure
+
+The application code is a Gradle multi-module build rooted at `apps`.
+
+Open `apps` in IntelliJ IDEA when working on application modules.
+
+Current module layout:
+
+```text
+apps
+  settings.gradle
+  build.gradle
+  api
+  shared
+  documents
+  images
+  videos
+  audio
+  knowledge
+  orchestrator
+  storage
+  files
+  users
+  workspaces
+```
+
+Run build commands from `apps`:
+
+```bash
+./gradlew test
+```
+
+`apps/api` is the executable Spring Boot application.
+
+`apps/shared` is a Java library module for data models that are genuinely shared across application modules.
+
+Business logic modules:
+
+- `apps/documents` - document ingestion, metadata, text extraction, and document lifecycle.
+- `apps/images` - image ingestion, OCR, image analysis, and image metadata.
+- `apps/videos` - video ingestion, frame extraction, scene analysis, and video understanding.
+- `apps/audio` - audio ingestion, speech-to-text, text-to-speech, diarization, and audio metadata.
+- `apps/knowledge` - knowledge organization, retrieval, and future knowledge-base workflows.
+- `apps/orchestrator` - async coordination across multimodal business modules.
+- `apps/users` - user accounts, authentication support, and ownership identity.
+- `apps/workspaces` - workspace metadata, workspace lifecycle, workspace file metadata/status, and workspace-owned file storage.
+
+The initial Java package is `com.aiworkspace`.
+
+Start with these package areas inside `apps/api`:
+
+```text
+com.aiworkspace
+  config
+  controllers
+```
+
+Keep `apps/api` as the HTTP entrypoint and put business logic in the relevant business module.
+
 ## Reading Order
 
+- `handoff.md` - active session handoff, current work state, and continuity notes.
 - `vision.md` - product vision and long-term platform direction.
 - `development-philosophy.md` - engineering mindset and current MVP stage.
 - `architecture.md` - modular monolith architecture and module boundaries.
@@ -49,8 +113,12 @@ You are working on this repository as a senior engineer building a long-term com
 Before making changes, read:
 
 1. AGENTS.md
-2. docs/agent-context/README.md
-3. The specific files in docs/agent-context/ that are relevant to the task.
+2. DEVELOPER_CODE_PREFERENCES.md
+3. docs/agent-context/README.md
+4. docs/agent-context/handoff.md
+5. The specific files in docs/agent-context/ that are relevant to the task.
+
+DEVELOPER_CODE_PREFERENCES.md captures Andrii's code-writing preferences and has higher priority than the general docs/agent-context guidance unless Andrii explicitly says otherwise.
 
 Follow the architecture, coding standards, testing rules, database rules, API guidelines, AI-layer guidelines, security rules, Git workflow, and definition of done described there.
 
@@ -60,5 +128,5 @@ Do not treat this as a one-off code generation task. Make maintainable, producti
 Short version:
 
 ```text
-Use AGENTS.md as your primary instruction file. Then read docs/agent-context/README.md and relevant project guidance files before coding. Act as a senior engineer on a long-term commercial product, not as a snippet generator.
+Use AGENTS.md as your primary instruction file. Then read DEVELOPER_CODE_PREFERENCES.md, docs/agent-context/README.md, docs/agent-context/handoff.md, and relevant project guidance files before coding. Act as a senior engineer on a long-term commercial product, not as a snippet generator.
 ```

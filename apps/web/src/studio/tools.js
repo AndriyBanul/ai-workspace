@@ -1,0 +1,32 @@
+export const studioTools = {
+  image: {
+    title: 'Generate an image',
+    description: 'Describe a scene and bring it to life.',
+    endpoint: '/images/generations',
+    field: 'description',
+    mime: 'image',
+    filename: 'generated-image.png',
+    placeholder: 'A sunlit reading room, warm oak shelves, editorial photography…',
+    dependency: 'Uses the configured image generation provider.',
+  },
+  video: {
+    title: 'Generate a video',
+    description: 'Create a moving story from a prompt.',
+    endpoint: '/videos/generations',
+    field: 'description',
+    mime: 'video',
+    filename: 'generated-video.mp4',
+    placeholder: 'A slow camera move through a quiet forest at sunrise…',
+    dependency: 'Video generation may take several minutes and requires a configured provider.',
+  },
+  speech: {
+    title: 'Text to speech',
+    description: 'Give your words a voice.',
+    endpoint: '/audio/speech',
+    field: 'text',
+    mime: 'audio',
+    filename: 'speech.wav',
+    placeholder: 'Enter the text you want to hear…',
+    dependency: 'Requires the configured speech synthesis service.',
+  },
+};

@@ -1,0 +1,226 @@
+package com.aiworkspace.documents.services;
+
+import com.aiworkspace.documents.client.GenericRestClient;
+import com.aiworkspace.documents.config.DocumentExtractionProperties;
+import com.aiworkspace.documents.exceptions.DocumentProcessingException;
+import com.aiworkspace.documents.models.DocumentFailureCode;
+import com.aiworkspace.documents.models.ExtractedWebPage;
+import com.aiworkspace.documents.models.ParsedTextDocument;
+import com.aiworkspace.documents.models.WebPageExtractRequest;
+import com.aiworkspace.knowledge.models.KnowledgeChunk;
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.Instant;
+import java.util.List;
+import org.apache.tika.exception.EncryptedDocumentException;
+import org.apache.tika.exception.TikaException;
+import org.apache.tika.exception.WriteLimitReachedException;
+import org.apache.tika.extractor.EmbeddedDocumentExtractor;
+import org.apache.tika.io.TikaInputStream;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.TikaCoreProperties;
+import org.apache.tika.mime.MediaType;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.parser.ParseContext;
+import org.apache.tika.parser.ocr.TesseractOCRConfig;
+import org.apache.tika.parser.pdf.PDFParserConfig;
+import org.apache.tika.sax.BodyContentHandler;
+import org.apache.tika.sax.WriteOutContentHandler;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.xml.sax.SAXException;
+
+@Service
+public class DocumentService {
+
+    private static final String DOCX_MEDIA_TYPE =
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    private static final String TIKA_PARSER_VERSION =
+            parserVersion("ai-workspace-document-structure-v1/tika", AutoDetectParser.class);
+
+    private final GenericRestClient restClient;
+    private final DocumentValidator documentValidator;
+    private final DocumentExtractionProperties extractionProperties;
+    private final DocxStructureExtractor docxStructureExtractor;
+    private final WebPageContentExtractor webPageContentExtractor;
+    private final DocumentChunker documentChunker;
+    private final PdfOcrFallback pdfOcrFallback;
+    private final AutoDetectParser parser = new AutoDetectParser();
+
+    public DocumentService(GenericRestClient restClient) {
+        this(restClient, new DocumentExtractionProperties(null, null, null, null, null));
+    }
+
+    DocumentService(GenericRestClient restClient, DocumentExtractionProperties extractionProperties) {
+        this(
+                restClient,
+                new DocumentValidator(),
+                extractionProperties,
+                new DocxStructureExtractor(),
+                new WebPageContentExtractor(),
+                new DocumentChunker(),
+                null
+        );
+    }
+
+    @Autowired
+    public DocumentService(
+            GenericRestClient restClient,
+            DocumentValidator documentValidator,
+            DocumentExtractionProperties extractionProperties,
+            DocxStructureExtractor docxStructureExtractor,
+            WebPageContentExtractor webPageContentExtractor,
+            DocumentChunker documentChunker,
+            PdfOcrFallback pdfOcrFallback
+    ) {
+        this.restClient = restClient;
+        this.documentValidator = documentValidator;
+        this.extractionProperties = extractionProperties;
+        this.docxStructureExtractor = docxStructureExtractor;
+        this.webPageContentExtractor = webPageContentExtractor;
+        this.documentChunker = documentChunker;
+        this.pdfOcrFallback = pdfOcrFallback;
+    }
+
+    public ParsedTextDocument parseTextDocument(String filename, byte[] bytes) throws IOException {
+        return extractDocumentText(filename, null, bytes);
+    }
+
+    public ParsedTextDocument extractDocumentText(String filename, String contentType, byte[] bytes) throws IOException {
+        documentValidator.validateUploadContent(bytes);
+
+        // Detect from bytes only: filenames and client MIME types must not select a parser.
+        Metadata metadata = new Metadata();
+        DocumentStructureContentHandler structureHandler = new DocumentStructureContentHandler(
+                extractionProperties.maxExtractedBlocks()
+        );
+        BodyContentHandler handler = new BodyContentHandler(new WriteOutContentHandler(
+                structureHandler,
+                extractionProperties.maxExtractedCharacters()
+        ));
+        String detectedContentType;
+        try (TikaInputStream input = TikaInputStream.get(bytes)) {
+            MediaType detectedType = parser.getDetector().detect(input, metadata).getBaseType();
+            if ("application/x-tika-ooxml-protected".equals(detectedType.toString())) {
+                throw new DocumentProcessingException(DocumentFailureCode.PASSWORD_PROTECTED_DOCUMENT);
+            }
+            documentValidator.validateDetectedContentType(detectedType.toString());
+            detectedContentType = detectedType.toString();
+            if (DOCX_MEDIA_TYPE.equals(detectedContentType)) {
+                ExtractedDocumentStructure structure = docxStructureExtractor.extract(bytes, extractionProperties);
+                documentValidator.validateExtractedText(structure.content());
+                return new ParsedTextDocument(
+                        filename,
+                        detectedContentType,
+                        structure.title(),
+                        structure.content(),
+                        structure.blocks(),
+                        Instant.now(),
+                        docxStructureExtractor.parserVersion()
+                );
+            }
+            structureHandler.detectedContentType(detectedContentType);
+            metadata.set(Metadata.CONTENT_TYPE, detectedContentType);
+            parser.parse(input, handler, metadata, textExtractionContext());
+        } catch (TikaException | SAXException | IOException exception) {
+            throw documentFailure(exception);
+        }
+
+        var blocks = structureHandler.blocks();
+        boolean ocrApplied = false;
+        if ("application/pdf".equals(detectedContentType) && pdfOcrFallback != null) {
+            var expanded = pdfOcrFallback.apply(bytes, blocks);
+            ocrApplied = expanded != blocks;
+            blocks = expanded;
+        }
+        String content = DocumentStructuredTextRenderer.render(blocks, extractionProperties.maxExtractedCharacters());
+        documentValidator.validateExtractedText(content);
+        return new ParsedTextDocument(
+                filename,
+                detectedContentType,
+                normalizedOptionalValue(metadata.get(TikaCoreProperties.TITLE)),
+                content,
+                blocks,
+                Instant.now(),
+                TIKA_PARSER_VERSION + (ocrApplied ? "/image-ocr-v1" : "")
+        );
+    }
+
+    private ParseContext textExtractionContext() {
+        PDFParserConfig pdfConfig = new PDFParserConfig();
+        pdfConfig.setOcrStrategy(PDFParserConfig.OCR_STRATEGY.NO_OCR);
+        pdfConfig.setCatchIntermediateIOExceptions(false);
+        pdfConfig.setMaxMainMemoryBytes(extractionProperties.maxPdfMainMemoryBytes());
+        TesseractOCRConfig ocrConfig = new TesseractOCRConfig();
+        ocrConfig.setSkipOcr(true);
+        ParseContext context = new ParseContext();
+        context.set(PDFParserConfig.class, pdfConfig);
+        context.set(TesseractOCRConfig.class, ocrConfig);
+        if (!extractionProperties.extractEmbeddedDocuments()) {
+            context.set(EmbeddedDocumentExtractor.class, SkipEmbeddedDocumentExtractor.INSTANCE);
+        }
+        return context;
+    }
+
+    private DocumentProcessingException documentFailure(Exception exception) {
+        if (WriteLimitReachedException.isWriteLimitReached(exception)) {
+            return new DocumentProcessingException(DocumentFailureCode.EXTRACTION_LIMIT_EXCEEDED, exception);
+        }
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof DocumentProcessingException documentException) {
+                return documentException;
+            }
+            if (cause instanceof EncryptedDocumentException) {
+                return new DocumentProcessingException(DocumentFailureCode.PASSWORD_PROTECTED_DOCUMENT, exception);
+            }
+        }
+        return new DocumentProcessingException(DocumentFailureCode.CORRUPT_DOCUMENT, exception);
+    }
+
+    private enum SkipEmbeddedDocumentExtractor implements EmbeddedDocumentExtractor {
+        INSTANCE;
+
+        @Override
+        public boolean shouldParseEmbedded(Metadata metadata) {
+            return false;
+        }
+
+        @Override
+        public void parseEmbedded(InputStream stream, org.xml.sax.ContentHandler handler, Metadata metadata,
+                boolean outputHtml) {
+            // Embedded attachments are deliberately excluded unless explicitly enabled.
+        }
+    }
+
+    public ExtractedWebPage extractWebPage(String rawUrl) throws IOException {
+        return webPageContentExtractor.extract(restClient.get(rawUrl));
+    }
+
+    public void validateWebPageRequest(WebPageExtractRequest request) {
+        documentValidator.validateWebPageExtractRequest(request);
+    }
+
+    public List<KnowledgeChunk> chunkForKnowledge(ParsedTextDocument document) {
+        return documentChunker.chunk(
+                document.blocks(),
+                document.content(),
+                extractionProperties.maxChunkSentences()
+        );
+    }
+
+    public List<KnowledgeChunk> chunkTextForKnowledge(String content) {
+        return documentChunker.chunkText(content, extractionProperties.maxChunkSentences());
+    }
+
+    private String normalizedOptionalValue(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private static String parserVersion(String parserName, Class<?> libraryType) {
+        String libraryVersion = libraryType.getPackage().getImplementationVersion();
+        return parserName + "-" + (libraryVersion == null ? "unknown" : libraryVersion);
+    }
+}

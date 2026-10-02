@@ -1,0 +1,40 @@
+plugins {
+	id 'java-library'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.aiworkspace'
+version = '0.0.1-SNAPSHOT'
+
+dependencyManagement {
+	imports {
+		mavenBom 'org.springframework.boot:spring-boot-dependencies:4.1.1'
+	}
+}
+
+dependencies {
+	implementation project(':shared')
+	implementation project(':images')
+	implementation project(':knowledge')
+	compileOnly 'org.springframework.boot:spring-boot'
+	compileOnly 'org.springframework:spring-context'
+	compileOnly 'org.springframework:spring-web'
+	compileOnly 'org.slf4j:slf4j-api'
+	implementation 'org.jsoup:jsoup:1.18.3'
+	implementation 'org.apache.tika:tika-core:3.2.3'
+	implementation 'org.apache.tika:tika-parsers-standard-package:3.2.3'
+	implementation 'org.apache.poi:poi-ooxml'
+	implementation 'org.apache.pdfbox:pdfbox:3.0.5'
+	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testImplementation 'org.apache.poi:poi-scratchpad'
+	testImplementation 'org.hamcrest:hamcrest'
+	testImplementation 'org.springframework:spring-context'
+	testImplementation 'org.springframework:spring-test'
+	testImplementation 'org.springframework:spring-web'
+	testImplementation 'org.slf4j:slf4j-api'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}

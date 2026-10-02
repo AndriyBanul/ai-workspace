@@ -1,0 +1,6 @@
+plugins {
+	id 'java-library'
+}
+
+group = 'com.aiworkspace'
+version = '0.0.1-SNAPSHOT'
