@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Workspace — Компоненти та потоки даних</title>
+<style>
+:root{
+  --bg:#0d1117; --bg-elev:#151b23; --bg-elev2:#1c232d; --border:#30363d;
+  --text:#e6edf3; --text-dim:#8b949e; --text-faint:#6e7681;
+  --accent:#58a6ff; --accent-dim:#1f6feb; --green:#3fb950; --amber:#d29922;
+  --red:#f85149; --purple:#bc8cff; --cyan:#39c5cf; --pink:#f778ba; --orange:#ff9b52;
+  --mono:ui-monospace,'Cascadia Code','JetBrains Mono',Consolas,monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+}
+*{box-sizing:border-box;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.65}
+
+header{position:sticky;top:0;z-index:100;background:rgba(13,17,23,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.hdr{max-width:1560px;margin:0 auto;padding:11px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;font-weight:650;font-size:16px;white-space:nowrap}
+.brand .badge{font-size:10px;background:var(--purple);color:#fff;padding:2px 7px;border-radius:10px;font-weight:600;letter-spacing:.3px}
+.brand a{color:var(--text-dim);font-weight:400;font-size:13px;border-left:1px solid var(--border);padding-left:12px;margin-left:2px}
+.hdr-meta{color:var(--text-faint);font-size:11.5px;font-family:var(--mono);white-space:nowrap}
+.legend{margin-left:auto;display:flex;gap:12px;flex-wrap:wrap;font-size:11px;font-family:var(--mono);color:var(--text-faint)}
+.legend span{display:flex;align-items:center;gap:5px}
+.dot{width:9px;height:9px;border-radius:2px;display:inline-block}
+
+main{max-width:1560px;margin:0 auto;padding:30px 32px 120px}
+
+h1{font-size:30px;margin:0 0 6px;letter-spacing:-.4px;line-height:1.25}
+h2{font-size:21px;margin:48px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);letter-spacing:-.2px}
+h3{font-size:16px;margin:28px 0 10px}
+h4{font-size:14px;margin:20px 0 8px;color:var(--text-dim)}
+p{margin:11px 0}
+ul{margin:11px 0;padding-left:23px}
+li{margin:5px 0}
+strong{color:#fff;font-weight:640}
+.lead{color:var(--text-dim);font-size:15.5px;margin-bottom:18px}
+code{font-family:var(--mono);font-size:12.8px;background:var(--bg-elev2);padding:1.5px 5px;border-radius:4px;color:#a5d6ff;border:1px solid rgba(48,54,61,.55)}
+pre{background:var(--bg-elev);border:1px solid var(--border);border-radius:9px;padding:15px 17px;overflow-x:auto;margin:15px 0}
+pre code{background:none;border:none;padding:0;color:#c9d1d9}
+table{width:100%;border-collapse:collapse;margin:15px 0;font-size:13.4px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top}
+th{background:var(--bg-elev2);font-weight:640;white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.014)}
+
+/* Tabs */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:20px 0 6px;border-bottom:1px solid var(--border);padding-bottom:0}
+.tab{background:none;border:none;color:var(--text-dim);font-family:inherit;font-size:13.5px;padding:9px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .12s,border-color .12s;border-radius:6px 6px 0 0}
+.tab:hover{color:var(--text);background:var(--bg-elev)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tabpanel{display:none;padding-top:8px}
+.tabpanel.active{display:block}
+
+.mermaid{background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;padding:20px;margin:16px 0;text-align:center;overflow-x:auto;cursor:zoom-in}
+.mermaid svg{max-width:100%;height:auto}
+.diag-cap{font-size:12.3px;color:var(--text-faint);margin:-9px 0 20px;padding-left:2px}
+.zoomed{position:fixed;inset:0;z-index:9999;background:rgba(3,6,10,.95);overflow:auto;cursor:zoom-out;display:flex;align-items:center;justify-content:center;padding:30px}
+.zoomed .mermaid{background:var(--bg);border:0;padding:26px;cursor:default}
+.zoomed .mermaid svg{width:auto;height:auto;max-height:none}
+
+.hint{font-size:11.5px;color:var(--text-faint);font-family:var(--mono);margin:10px 0 0;padding-left:2px}
+
+.callout{border-radius:9px;padding:13px 17px;margin:17px 0;border:1px solid;font-size:13.8px}
+.callout .ct{font-weight:660;margin-bottom:5px}
+.callout p{margin:6px 0}
+.callout p:last-child{margin-bottom:0}
+.callout ul{margin:8px 0 0}
+.co-info{background:rgba(88,166,255,.06);border-color:rgba(88,166,255,.28)}
+.co-info .ct{color:var(--accent)}
+.co-warn{background:rgba(210,153,34,.06);border-color:rgba(210,153,34,.3)}
+.co-warn .ct{color:var(--amber)}
+.co-ok{background:rgba(63,185,80,.06);border-color:rgba(63,185,80,.28)}
+.co-ok .ct{color:var(--green)}
+.co-bad{background:rgba(248,81,73,.06);border-color:rgba(248,81,73,.3)}
+.co-bad .ct{color:var(--red)}
+
+.files{font-family:var(--mono);font-size:12.2px;line-height:1.75;background:var(--bg-elev2);border:1px solid var(--border);border-radius:8px;padding:12px 15px;overflow-x:auto;margin:11px 0;white-space:pre;color:#a5d6ff}
+.files .k{color:var(--text-faint)}
+.files .c{color:var(--text-faint);font-style:italic}
+.ascii{font-family:var(--mono);font-size:12.2px;line-height:1.5;background:var(--bg-elev);border:1px solid var(--border);border-radius:9px;padding:15px 17px;overflow-x:auto;margin:15px 0;color:#7ee787}
+
+.chip{display:inline-block;font-family:var(--mono);font-size:11px;padding:1.5px 7px;border-radius:5px;margin:0 3px 3px 0;border:1px solid}
+.c-http{background:rgba(31,61,92,.4);color:var(--accent);border-color:rgba(88,166,255,.4)}
+.c-orch{background:rgba(61,42,92,.4);color:var(--purple);border-color:rgba(188,140,255,.4)}
+.c-store{background:rgba(26,46,38,.5);color:var(--green);border-color:rgba(63,185,80,.4)}
+.c-ext{background:rgba(46,40,20,.5);color:var(--amber);border-color:rgba(210,153,34,.4)}
+.c-shared{background:var(--bg-elev2);color:var(--text-dim);border-color:var(--border)}
+
+.flowlist{counter-reset:fl;list-style:none;padding-left:0}
+.flowlist li{counter-increment:fl;position:relative;padding-left:38px;margin:9px 0}
+.flowlist li::before{content:counter(fl);position:absolute;left:0;top:1px;width:24px;height:24px;background:var(--bg-elev2);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11.5px;color:var(--accent);font-weight:600}
+.flowlist li b{color:#fff}
+
+.split{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:1100px){.split{grid-template-columns:1fr}}
+
+@media(max-width:800px){
+  main{padding:22px 16px 90px}
+  .hdr{padding:10px 16px}
+  .legend{display:none}
+  h1{font-size:24px} h2{font-size:18px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr">
+    <div class="brand">
+      AI Workspace
+      <span class="badge">COMPONENT &amp; FLOW MAP</span>
+      <a href="architecture-doc.html">← Архітектурний документ</a>
+    </div>
+    <div class="hdr-meta">develop · 2ff47eb · class-level</div>
+    <div class="legend">
+      <span><i class="dot" style="background:#1f3d5c;border:1px solid #58a6ff"></i> HTTP</span>
+      <span><i class="dot" style="background:#3d2a5c;border:1px solid #bc8cff"></i> Orchestrator</span>
+      <span><i class="dot" style="background:#1c232d;border:1px solid #8b949e"></i> Бізнес</span>
+      <span><i class="dot" style="background:#1a2e26;border:1px solid #3fb950"></i> Сховище</span>
+      <span><i class="dot" style="background:#2e2814;border:1px solid #d29922"></i> Зовнішній</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<h1>Компоненти та потоки даних</h1>
+<p class="lead">
+Діаграми на рівні класів і методів — з реальними іменами з репозиторію.
+Компаньйон до <a href="architecture-doc.html">архітектурного документа</a>, де описані модулі, схема БД і експлуатація.
+</p>
+
+<div class="callout co-info">
+  <div class="ct">◆ Як читати</div>
+  <p>Діаграми показують <strong>фактичні виклики</strong> між класами, а не концептуальні зв'язки. Де є кілька шляхів для одного сценарію — вони всі показані. Кожна діаграма масштабується кліком.</p>
+</div>
+
+<!-- ============ COMPONENT OVERVIEW ============ -->
+<h2 id="comp">Компонентна карта системи</h2>
+<p>Хто кого викликає на рівні модулів. Суцільні стрілки — синхронні виклики, пунктирні — події та таймери.</p>
+
+<div class="mermaid">
+flowchart TB
+    subgraph api["apps/api — HTTP boundary"]
+        AC["AuthController"]
+        WC["WorkspaceController"]
+        OC["OrchestratorController"]
+        KC["KnowledgeController"]
+        DC["DocumentController"]
+        AUC["AudioController"]
+        IC["ImageController"]
+        VC["VideoController"]
+        EXH["GlobalExceptionHandler"]
+    end
+
+    subgraph orch["apps/orchestrator — координація"]
+        OS["OrchestratorService<br/><i>фасад</i>"]
+        OSS["OrchestrationSubmissionService<br/><i>idempotency</i>"]
+        SLC["SourceLifecycleCoordinator<br/><i>переходи стану</i>"]
+        WSPS["WorkspaceSourceProcessingService<br/><i>диспетчер медіа</i>"]
+        SCHED["SourceRecoveryScheduler"]
+        SCS["SourceCompletionService"]
+        SRT["SourceRecoveryTaskService"]
+        SLK["SourceLeaseKeeper"]
+        SRP["SourceRetryPolicy"]
+        IJS["IngestionJobService"]
+        WLS["WorkspaceLifecycleService"]
+    end
+
+    subgraph media["Медіа-модулі — витягування"]
+        DS["DocumentService"]
+        AS["AudioService"]
+        IS["ImageService"]
+        VS["VideoService"]
+    end
+
+    subgraph kn["apps/knowledge — знання"]
+        KSV["KnowledgeService<br/><i>фасад</i>"]
+        KIS["KnowledgeIndexingService"]
+        KRS["KnowledgeRetrievalService"]
+        KAS["KnowledgeAnswerService"]
+        KCS["KnowledgeCitationService"]
+        SIMS["SourceIndexManifestService"]
+        WAHS["WorkspaceAnswerHistoryService"]
+        KREPO["KnowledgeRepository<br/><i>порт</i>"]
+        RRF["ReciprocalRankFusion"]
+    end
+
+    subgraph ws["apps/workspaces"]
+        WSV["WorkspaceService<br/><i>ownership</i>"]
+        WFS["WorkspaceFileService"]
+        LFS["LocalFileStorage"]
+        FSC["FileStorage<br/><i>порт</i>"]
+    end
+
+    PG[("PostgreSQL")]
+    OSCH[("OpenSearch")]
+    FS[("Файли")]
+
+    AC --> US
+    OC --> OSS
+    OC --> OS
+    WC --> WSV
+    KC --> KSV
+    DC --> DS
+    AUC --> AS
+    IC --> IS
+    VC --> VS
+
+    OS -.->|"@Scheduled 30s"| SCHED
+    SCHED --> SRT
+    SCHED --> OS
+    SCHED --> WFS
+    SCHED --> KREPO
+
+    OSS --> OS
+    OS --> SLC
+    OS --> IJS
+    OS --> WFS
+    OS --> WSV
+    OS --> WLS
+
+    SLC --> IJS
+    SLC --> WFS
+    SLC --> SCS
+    SLC --> SLK
+    SLC --> SRP
+    SLC --> WSPS
+
+    WSPS --> DS
+    WSPS --> AS
+    WSPS --> IS
+    WSPS --> VS
+    WSPS --> WFS
+    WSPS --> KSV
+
+    SCS --> IJS
+    SCS --> WFS
+    SCS --> SIMS
+    SCS --> SRT
+    SCS --> KREPO
+
+    KSV --> KIS
+    KSV --> KRS
+    KSV --> KAS
+    KSV --> KCS
+    KSV --> SIMS
+    KSV --> WAHS
+    KSV --> WSV
+
+    KRS --> KREPO
+    KRS --> RRF
+    KIS --> KREPO
+    KAS --> KCS
+
+    WSV --> WFS
+    WFS --> FSC
+    FSC -.-> LFS
+    LFS --> FS
+
+    IJS --> PG
+    SRT --> PG
+    SIMS --> PG
+    WAHS --> PG
+    WSV --> PG
+    WFS --> PG
+    KREPO --> OSCH
+    LFS --> FS
+
+    classDef http fill:#1f3d5c,stroke:#58a6ff,color:#e6edf3
+    classDef orch fill:#3d2a5c,stroke:#bc8cff,color:#e6edf3
+    classDef biz fill:#1c232d,stroke:#8b949e,color:#e6edf3
+    classDef store fill:#1a2e26,stroke:#3fb950,color:#e6edf3
+    class AC,WC,OC,KC,DC,AUC,IC,VC,EXH http
+    class OS,OSS,SLC,WSPS,SCHED,SCS,SRT,SLK,SRP,IJS,WLS orch
+    class DS,AS,IS,VS,KSV,KIS,KRS,KAS,KCS,SIMS,WAHS,KREPO,RRF,WSV,WFS,LFS,FSC biz
+    class PG,OSCH,FS store
+</div>
+<p class="diag-cap">Спільний клас <code>UserAccountService</code> намальований скорочено (<code>AC --> US</code>). Mermaid-редактор не показує його в підграфіку заради читабельності — реально це <code>users/services/UserAccountService</code>.</p>
+
+<h3>Розподілення обов'язків</h3>
+<table>
+<tr><th>Компонент</th><th>Відповідальність</th><th>Ключова деталь реалізації</th></tr>
+<tr><td><code>OrchestratorService</code></td><td>Публічний фасад усіх шляхів інгестії</td><td>4 конструктори для тестів + <code>@Autowired</code> на канонічному</td></tr>
+<tr><td><code>OrchestrationSubmissionService</code></td><td>Idempotency-Key для upload і reprocess</td><td>fingerprint = SHA-256 від власника + операції + payload; cron-прибирання 03:10</td></tr>
+<tr><td><code>SourceLifecycleCoordinator</code></td><td>Єдине місце переходів стану</td><td><code>process()</code> — шаблонний метод для всіх 6 типів джерел</td></tr>
+<tr><td><code>WorkspaceSourceProcessingService</code></td><td>Диспетчер «тип джерела → модуль-медіа»</td><td><code>switch</code> на <code>WorkspaceFileSourceType</code>, повертає <code>SourceProcessingResult</code></td></tr>
+<tr><td><code>SourceRecoveryScheduler</code></td><td>Поллінг + реконсиляція</td><td><code>fixedDelay</code> 30s; реконсиляція відкладена на 6h</td></tr>
+<tr><td><code>SourceCompletionService</code></td><td>Публікація generation, завершення кроку</td><td><code>fail()</code> при помилці публікації лише логує prune</td></tr>
+<tr><td><code>KnowledgeService</code></td><td>Стабільний фасад знань</td><td>Делегує 6 сервісам; сам не містить логіки пошуку</td></tr>
+<tr><td><code>KnowledgeRetrievalService</code></td><td>Єдина точка retrieval-конвеєра</td><td>Кожна фаза має fallback на BM25</td></tr>
+<tr><td><code>WorkspaceService</code></td><td>Ownership-guard для всіх шляхів</td><td>Кросс-власник → 404, не 403</td></tr>
+</table>
+
+<!-- ============ TABS: FLOWS ============ -->
+<h2 id="flows">Потоки даних</h2>
+<p class="hint">Вкладки перемикають потік. Клік на діаграму — збільшення, Escape — закрити.</p>
+
+<div class="tabs" role="tablist">
+  <button class="tab active" data-tab="t1">1. Async-інгестія</button>
+  <button class="tab" data-tab="t2">2. Sync-медіа API</button>
+  <button class="tab" data-tab="t3">3. Retrieval → відповідь</button>
+  <button class="tab" data-tab="t4">4. Версіонування індексу</button>
+  <button class="tab" data-tab="t5">5. Відновлення</button>
+  <button class="tab" data-tab="t6">6. Idempotent replay</button>
+  <button class="tab" data-tab="t7">7. Видалення</button>
+</div>
+
+<!-- ---- TAB 1 ---- -->
+<div class="tabpanel active" id="t1">
+<h3>1. Асинхронна інгестія — головний потік</h3>
+<p>Композиція <code>OrchestrationSubmissionService</code> та <code>OrchestratorService</code>. Ключова особливість: dispatch відбувається <strong>після коміту</strong> транзакції, а не в її межах.</p>
+
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor U as Клієнт
+    participant OC as OrchestratorController
+    participant OSS as OrchestrationSubmissionService
+    participant OS as OrchestratorService
+    participant WSV as WorkspaceService
+    participant WFS as WorkspaceFileService
+    participant SLC as SourceLifecycleCoordinator
+    participant IJS as IngestionJobService
+    participant PG as PostgreSQL
+    participant EX as orchestratorExecutor
+    participant WSPS as WorkspaceSourceProcessingService
+    participant KSV as KnowledgeService
+    participant OSCH as OpenSearch
+
+    U->>OC: POST /orchestrator/ingestions<br/>Idempotency-Key
+    OC->>OSS: submitUploads(ownerId, wsId, key, files)
+    OSS->>OSS: fingerprint = SHA-256(op, owner, payload)
+    OSS->>PG: findById(fingerprint)
+    alt запис є
+        OSS-->>U: replay збереженої відповіді
+    end
+
+    OSS->>OS: process(ownerId, wsId, doc, audio, image, video)
+    OS->>WSV: getWorkspace(ownerId, wsId)
+    Note over WSV: ownership → 404 якщо не власник
+
+    rect rgb(24,34,30)
+        Note over OS,PG: Транзакція queueSubmission
+        OS->>WFS: createSource(...) × N
+        OS->>SLC: queueSubmission(wsId, submitted, skipped, sources)
+        SLC->>IJS: createJob(wsId, submittedTypes, skippedTypes)
+        IJS->>PG: INSERT ingestion_jobs + ingestion_job_steps
+        SLC->>PG: INSERT source_recovery_tasks (PROCESS/SCHEDULED)
+    end
+
+    OS->>OSS: OrchestrationSubmission
+
+    rect rgb(38,30,48)
+        Note over OS,EX: Після коміту транзакції
+        OS->>OS: afterCommit(...)
+        OS->>EX: CompletableFuture.runAsync(runTask(...), executor)
+        Note over EX: RejectedExecutionException<br/>→ лише WARN, recovery підхопить
+    end
+
+    OS-->>OC: 202 { jobId, submitted, skipped, sourceIds }
+    OC-->>U: 202 Accepted
+
+    rect rgb(28,26,44)
+        Note over EX,OSCH: Фонова робота
+        EX->>SLC: process(job, contentType, source, operation)
+        SLC->>IJS: markStepRunning(jobId, contentType)
+        SLC->>WFS: markProcessing(wsId, sourceId)
+        EX->>WSPS: operation.process()
+        WSPS->>WSPS: switch(sourceType)
+        WSPS->>KSV: recordDocumentsInfo / recordAudioInfo / ...
+        KSV->>OSCH: stageKnowledgeItems(sourceId, generation, chunks)
+        WSPS-->>SLC: SourceProcessingResult
+        SLC->>SLC: completionService.complete(...)
+        SLC->>PG: manifests.publish + status=COMPLETED
+    end
+</div>
+<p class="diag-cap">Диспетчеризація — <code>CompletableFuture.runAsync</code> на спільному <code>ThreadPoolExecutor</code> з <code>AbortPolicy</code>. Черга черпає <strong>ID джерел</strong>, а не байти.</p>
+
+<div class="callout co-ok">
+  <div class="ct">✓ Чому dispatch після коміту</div>
+  <p>Якщо б воркер стартував до коміту, він не знайшов би ще не видимих рядків <code>workspace_files</code> та <code>source_recovery_tasks</code>. Вихід — <code>afterCommit()</code> з <code>TransactionSynchronizationManager</code>: якщо транзакції немає, задача виконується негайно.</p>
+</div>
+
+<div class="callout co-warn">
+  <div class="ct">⚠ Переповнення черги не вбиває дані</div>
+  <p><code>ThreadPoolExecutor.AbortPolicy</code> кидає <code>RejectedExecutionException</code>. Оркестратор цього <strong>не</strong> проковтує помилку — він логує WARN і йде далі. Джерело вже збережене в БД зі статусом <code>SCHEDULED</code>, тому <code>SourceRecoveryScheduler</code> підхопить його за 30 секунд. Відмова в обслуговуванні деградує до черги повторних спроб, а не до втрати роботи.</p>
+</div>
+
+<h4>Чому <code>SourceProcessingResult</code>, а не просто відповідь</h4>
+<p>Кожен медіа-модуль повертає власний тип відповіді (<code>TextDocumentUploadResponse</code>, <code>AudioTranscriptionResponse</code>, …), але <code>WorkspaceSourceProcessingService</code> додає до нього <strong>staged-індекс</strong>. Це дозволяє <code>SourceCompletionService</code> опублікувати generation, не знаючи типу медіа:</p>
+<div class="files">SourceProcessingResult.Document(response, stagedIndex)
+SourceProcessingResult.Audio(response, stagedIndex)
+SourceProcessingResult.Image(response, stagedIndex)
+SourceProcessingResult.Video(response, stagedIndex)
+SourceProcessingResult.WebPage(response, stagedIndex)
+SourceProcessingResult.YouTube(response, stagedIndex)</div>
+</div>
+
+<!-- ---- TAB 2 ---- -->
+<div class="tabpanel" id="t2">
+<h3>2. Синхронні медіа-ендпоїнти</h3>
+<p>Прямі виклики <code>/documents</code>, <code>/audio</code>, <code>/images</code>, <code>/videos</code>. Вони створюють джерело й обробляють його <strong>у потоці запиту</strong>, але не індексують у OpenSearch.</p>
+
+<div class="mermaid">
+flowchart TB
+    C["DocumentController / AudioController<br/>ImageController / VideoController"]
+    OS["OrchestratorService<br/>ingestDocument / ingestAudio / ingestImage / ingestVideo"]
+    WSV["WorkspaceService<br/>ownership guard"]
+    WFS["WorkspaceFileService<br/>createSource"]
+    CRE["createUploadedSource()<br/>реєстрація джерела"]
+    SYNC["processSynchronously()<br/>Future.get() — блокує потік"]
+    SLC["SourceLifecycleCoordinator<br/>process(job, type, source, op)"]
+    WSPS["WorkspaceSourceProcessingService"]
+    MOD["DocumentService / AudioService<br/>ImageService / VideoService"]
+    KSV["KnowledgeService.record*Info"]
+    STAGE["stageKnowledgeItems"]
+    PG[("PostgreSQL")]
+    OSCH[("OpenSearch")]
+    RESP["Response DTO<br/>повертається клієнту"]
+
+    C --> OS
+    OS --> WSV
+    OS --> WFS
+    WFS --> CRE
+    CRE --> PG
+    OS --> SYNC
+    SYNC --> SLC
+    SLC --> PG
+    SLC --> WSPS
+    WSPS --> MOD
+    WSPS --> KSV
+    KSV --> STAGE
+    STAGE --> OSCH
+    WSPS --> RESP
+    RESP --> C
+
+    classDef http fill:#1f3d5c,stroke:#58a6ff,color:#e6edf3
+    classDef orch fill:#3d2a5c,stroke:#bc8cff,color:#e6edf3
+    classDef store fill:#1a2e26,stroke:#3fb950,color:#e6edf3
+    classDef biz fill:#1c232d,stroke:#8b949e,color:#e6edf3
+    class C http
+    class OS,SLC,WSPS,CRE,SYNC orch
+    class MOD,KSV,STAGE,RESP biz
+    class PG,OSCH store
+</div>
+<p class="diag-cap">Той самий <code>SourceLifecycleCoordinator</code>, що й в async-шляху — різниця лише в способі очікування результату.</p>
+
+<div class="callout co-info">
+  <div class="ct">◆ Два сценарії, не дублювання</div>
+  <p>Sync-ендпоїнт дає результат <strong>зараз</strong> (користувач бачить витягнутий текст) і потрібний для Studio-аналізу. Async-ендпоїнт індексує у пошук. Обидва створюють джерело — тому reprocess і delete працюють однаково для обох шляхів.</p>
+</div>
+</div>
+
+<!-- ---- TAB 3 ---- -->
+<div class="tabpanel" id="t3">
+<h3>3. Retrieval → відповідь</h3>
+<p>Найскладніший конвеєр проєкту. Кожна фаза має власний fallback, тому деградація одного етапу не ламає відповідь.</p>
+
+<div class="mermaid">
+flowchart TB
+    KC["KnowledgeController<br/>POST /knowledge/workspaces/{id}/answers"]
+    KSV["KnowledgeService<br/>answerWorkspaceQuestion"]
+    KRS["KnowledgeRetrievalService<br/>retrieveWithNeighbors"]
+
+    subgraph phase0["Фаза 0 — перевірка можливостей"]
+        CHK{"textEmbeddingProvider<br/>isConfigured()?"}
+        BM25ONLY["Одразу BM25<br/>telemetry.fallback('unconfigured')"]
+    end
+
+    subgraph phase1["Фаза 1 — розширення запиту"]
+        SQP["SearchQueryProvider.expand()<br/>GeminiKnowledgeAnswerClient"]
+        QEXP{"enabled()?"}
+    end
+
+    subgraph phase2["Фаза 2 — пошук"]
+        MODE{"KNOWLEDGE_SEARCH_MODE"}
+        EMB["TextEmbeddingProvider.embedQuery()<br/>768d, L2-нормалізований"]
+        VEC["searchKnowledgeItemsByVector<br/>kNN cosinesimil"]
+        HYB["searchKnowledgeItems<br/>kNN + BM25 multi_match"]
+        RRF["ReciprocalRankFusion.fuse<br/>rankConstant = 30"]
+    end
+
+    subgraph phase3["Фаза 3 — постилювання"]
+        RR{"reranking<br/>enabled?"}
+        XENC["TextReranker<br/>OnnxTextReranker"]
+        NEIGH["expandNeighbors<br/>12 seed + наступний = до 24"]
+    end
+
+    KAS["KnowledgeAnswerService.answer"]
+    KCS["KnowledgeCitationService<br/>answerContext + sourceFiles + sources"]
+    KAP["KnowledgeAnswerProvider<br/>GeminiKnowledgeAnswerClient"]
+    WH["WorkspaceAnswerHistoryService"]
+    RESP["WorkspaceKnowledgeAnswer"]
+
+    KC --> KSV --> KRS
+    KRS --> CHK
+    CHK -- нет --> BM25ONLY
+    CHK -- так --> QEXP
+    QEXP -- так --> SQP
+    QEXP -- нет --> MODE
+    SQP --> MODE
+    MODE -- HYBRID --> EMB --> HYB
+    MODE -- VECTOR --> EMB --> VEC
+    HYB --> RRF
+    VEC --> RRF
+    RRF --> RR
+    BM25ONLY --> NEIGH
+    RR -- так --> XENC --> NEIGH
+    RR -- нет --> NEIGH
+
+    NEIGH --> KAS
+    KAS --> KCS
+    KCS --> KAP
+    KAP -- текст --> KAS
+    KAS --> WH
+    KAS --> RESP
+    RESP --> KC
+
+    classDef http fill:#1f3d5c,stroke:#58a6ff,color:#e6edf3
+    classDef gate fill:#2e2814,stroke:#d29922,color:#e6edf3
+    classDef biz fill:#1c232d,stroke:#8b949e,color:#e6edf3
+    classDef ext fill:#3a2a1c,stroke:#ff9b52,color:#e6edf3
+    class KC http
+    class CHK,QEXP,MODE,RR gate
+    class KSV,KRS,SQP,EMB,VEC,HYB,RRF,XENC,NEIGH,KAS,KCS biz
+    class KAP,WH ext
+</div>
+<p class="diag-cap">Ромби — точки прийняття рішень на конфігурації та наявності провайдера. Жодна з них не може зупинити запит.</p>
+
+<h4>Три рівні деградації</h4>
+<table>
+<tr><th>Що зламалося</th><th>Результат</th><th>Метрика</th></tr>
+<tr><td>Ембеддінг не сконфігурований</td><td>одразу BM25</td><td><code>knowledge.search.fallbacks{reason=unconfigured}</code></td></tr>
+<tr><td>Падіння <code>embedQuery</code></td><td>BM25 на оригінальне питання</td><td><code>{reason=embedding}</code></td></tr>
+<tr><td>Падіння векторного пошуку</td><td>BM25 на оригінальне питання</td><td><code>{reason=vector_search}</code></td></tr>
+<tr><td>Падіння hybrid-пошуку</td><td>BM25 на оригінальне питання</td><td><code>{reason=hybrid_search}</code></td></tr>
+<tr><td>Падіння query expansion</td><td>продовження без розширення</td><td><code>{reason=query_expansion}</code></td></tr>
+<tr><td>Падіння розширеного пошуку</td><td>BM25 на оригінальне питання</td><td><code>{reason=expanded_search}</code></td></tr>
+</table>
+
+<h4>Ізоляція сусідів</h4>
+<p><code>expandNeighbors</code> будує <code>bool.should</code> з клозів, кожен з яких одночасно фільтрує:</p>
+<div class="ascii">term  sourceId    = &lt;match.sourceId&gt;
+term  sectionId   = &lt;match.sectionId&gt;
+range chunkSequence gte &lt;n&gt; lte &lt;n+1&gt;</div>
+<p>Тому сусідський чанк ніколи не прийде з іншого документа, розділу або workspace. Ліміт — 12 матчів на виклик, 24 документи на запит.</p>
+</div>
+
+<!-- ---- TAB 4 ---- -->
+<div class="tabpanel" id="t4">
+<h3>4. Версіонування індексу — як ховаються staged-дані</h3>
+<p>Найважливіший механізм цілісності системи. Без нього читачі бачили б напівзаписані індекси під час ре-індексації.</p>
+
+<h4>Запис: три режими</h4>
+<div class="mermaid">
+flowchart LR
+    KIS["KnowledgeIndexingService<br/>recordChunks()"]
+    DEC{"sourceId<br/>присутній?"}
+    G{"versionedWrites<br/>&& sourceId?"}
+    ADD["addKnowledgeItems<br/><b>додає</b>"]
+    REPL["replaceKnowledgeItems<br/><b>замінює</b> джерело"]
+    STAGE["stageKnowledgeItems<br/><b>стейджить</b> generation"]
+    RET1["return null"]
+    RET2["return StagedKnowledgeIndex"]
+
+    KIS --> DEC
+    DEC -- нет --> ADD --> RET1
+    DEC -- так --> G
+    G -- нет --> REPL --> RET1
+    G -- так --> STAGE --> RET2
+
+    classDef biz fill:#1c232d,stroke:#8b949e,color:#e6edf3
+    classDef store fill:#1a2e26,stroke:#3fb950,color:#e6edf3
+    class KIS,ADD,REPL biz
+    class STAGE store
+</div>
+
+<h4>Читання: фільтр із двома гілками</h4>
+<div class="mermaid">
+flowchart TB
+    subgraph readers["Будь-який пошук: bm25 / kNN / count / expandNeighbors"]
+        F["sourceFilters(workspaceId)"]
+    end
+
+    F --> WS["filter: term workspaceId = wsId"]
+    F --> MG{"manifests<br/>відсутні?"}
+    MG -- так --> WSONLY["лише workspaceId<br/><i>legacy-режим</i>"]
+    MG -- ні --> BR["bool.should"]
+    BR --> PUB["terms: sourceGeneration ∈ active"]
+    BR --> LEG["bool.must_not: terms: sourceId ∈ managed"]
+    BR --> MSQ["minimum_should_match: 1"]
+
+    OSCH[("knowledge-items-v3")]
+    WSONLY --> OSCH
+    MSQ --> OSCH
+
+    PUB --- NOTE["керовані джерела:<br/>видно лише опубліковане"]
+    LEG --- NOTE2["спадкові джерела:<br/>видно повністю"]
+
+    classDef store fill:#1a2e26,stroke:#3fb950,color:#e6edf3
+    classDef biz fill:#1c232d,stroke:#8b949e,color:#e6edf3
+    class F,MG,BR biz
+    class OSCH store
+</div>
+
+<div class="callout co-info">
+  <div class="ct">◆ Чому дві гілки, а не просто <code>sourceGeneration</code></div>
+  <p>Якщо фільтрувати лише за <code>sourceGeneration</code>, усі джерела, проіндексовані <strong>до</strong> впровадження маніфестів, зникли б з пошуку — у них немає ні generation, ні маніфеста. Гілка <code>must_not</code> зі списком керованих <code>sourceId</code> тримає їхню видимість, не відкриваючи staged-генерацій для керованих джерел.</p>
+</div>
+
+<h4>Публікація та прибирання</h4>
+<div class="ascii">SourceCompletionService.complete()  @Transactional
+  ├── manifests.publish(stagedIndex)     <span class="c">← source_index_manifests, нова active generation</span>
+  ├── jobs.markStepCompleted(jobId, type)
+  └── recovery.complete(source, PROCESS, claim)
+
+SourceRecoveryScheduler.reconcile()
+  ├── expected_items == фактичний count активної generation?
+  │     ├── так  → pruneInactiveSourceGenerations()
+  │     └── ні   → відкласти на наступний цикл
+  ├── є байти у сховищі?
+  │     ├── так → переіндексувати
+  │     └── ні  → повідомити про відсутні байти
+  └── knowledge без source? → delete-if-present</div>
+
+<p>Якщо публікація вдалася, а запис у БД упав, <code>afterCommit()</code> логує WARN про необхідність prune — <strong>без винятку</strong>, бо стан індексу вже коректний, а транзакція БД — ні.</p>
+</div>
+
+<!-- ---- TAB 5 ---- -->
+<div class="tabpanel" id="t5">
+<h3>5. Відновлення та реконсиляція</h3>
+<div class="mermaid">
+flowchart TB
+    SCHED["SourceRecoveryScheduler<br/>@Scheduled fixedDelay 30s"]
+    EN{"recovery<br/>enabled?"}
+    DUE["findDueTasks:<br/>status= SCHEDULED<br/>AND next_attempt_at ≤ now<br/>OR lease_expires_at &lt; now"]
+    BATCH["limit batchSize = 50"]
+    LOOP{"є ще?"}
+
+    SUB1["SourceRecoveryTaskService<br/>claim з fencing token"]
+    FENCE["lease_token = новий UUID<br/>atomic UPDATE ... WHERE lease_token = старий"]
+    TYPED{"operation_type"}
+    RP["retryProcess()"]
+    RD["retryDelete()"]
+    OSR["OrchestratorService<br/>recoverSource(task)"]
+    TRK["SourceRecoveryTracker<br/>recordAttempt"]
+    SRP["SourceRetryPolicy<br/>exponential backoff<br/>30s → 15m, max 5"]
+    DL["DEAD_LETTER"]
+    DONE["COMPLETED"]
+
+    SCHED --> EN
+    EN -- нет --> STOP(["вихід"])
+    EN -- так --> DUE --> BATCH --> LOOP
+    LOOP -- так --> SUB1 --> FENCE --> TYPED
+    TYPED -- PROCESS --> RP
+    TYPED -- DELETE --> RD
+    RP --> OSR
+    RD --> OSR
+    OSR --> TRK
+    TRK --> SRT{"успіх?"}
+    SRT -- так --> DONE
+    SRT -- transient --> SRP
+    SRP --> NEXT["status=SCHEDULED<br/>next_attempt_at = backoff"]
+    SRT -- permanent або вичерпано --> DL
+    LOOP -- ні --> RECON
+    NEXT --> RECON
+    DL --> RECON
+
+    RECON["deferReconciliation:<br/>next_attempt_at = now + 6h"]
+    RECON --> STOP
+
+    classDef biz fill:#1c232d,stroke:#8b949e,color:#e6edf3
+    classDef gate fill:#2e2814,stroke:#d29922,color:#e6edf3
+    classDef ok fill:#1a2e26,stroke:#3fb950,color:#e6edf3
+    classDef bad fill:#3d1f1c,stroke:#f85149,color:#e6edf3
+    class SCHED,SUB1,RP,RD,OSR,TRK,SRP,BATCH,DUE,RECON biz
+    class EN,LOOP,TYPED,SRT gate
+    class DONE,NEXT ok
+    class DL bad
+</div>
+
+<div class="callout co-ok">
+  <div class="ct">✓ Fencing-токен захищає від двох інстанс</div>
+  <p>Claim оновлює <code>lease_token</code> атомарно з умовою <code>WHERE lease_token = старе значення</code>. Якщо воркер на іншому інстансі встиг усе одночасно, його commit не збігається — і він не зможе записати результат. Це те, що робить безпечний запуск кількох API-інстанс без координації між ними.</p>
+</div>
+
+<div class="callout co-warn">
+  <div class="ct">⚠ Lease продовжується під час роботи</div>
+  <p><code>SourceLeaseKeeper</code> тримає lease 30 хвилин, але довгий витяг PDF або транскрипція відео може тривати довше. Lease продовжується <code>AutoCloseable</code>-обгорткою навколо <code>operation.process()</code> — за задумом черга очікування теж не «з'їдає» lease.</p>
+</div>
+</div>
+
+<!-- ---- TAB 6 ---- -->
+<div class="tabpanel" id="t6">
+<h3>6. Ідемпотентний replay</h3>
+<p>Клієнт може повторити async-завантаження при таймауті. Без захисту це створило б дублікати. <code>OrchestrationSubmissionService</code> це блокує.</p>
+
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor U as Клієнт
+    participant OSS as OrchestrationSubmissionService
+    participant PG as PostgreSQL
+    participant WSV as WorkspaceService
+
+    U->>OSS: submitUploads(ownerId, wsId, key, files)
+    OSS->>OSS: id = SHA-256("key" + ownerId + NUL + key)
+    OSS->>PG: findById(id)
+
+    alt запис існує
+        OSS->>PG: перевірити workspaceId
+        OSS->>PG: порівняти fingerprint(payload)
+        alt все збігається
+            OSS-->>U: збережений OrchestrationSubmission<br/><b>повторно не виконується</b>
+        end
+        alt fingerprint не збігається
+            OSS-->>U: 409 Conflict<br/><b>той самий ключ, інший payload</b>
+        end
+    end
+
+    OSS->>PG: INSERT (response_json = null)
+    OSS->>WSV: getWorkspace(ownerId, wsId)
+    OSS->>OSS: process(...)
+    OSS->>PG: UPDATE response_json = результат
+    OSS-->>U: 202 з новим jobId
+
+    Note over OSS,PG: @Scheduled cron 0 10 3 * * *<br/>pruneExpiredIdempotencyKeys() — 30 днів
+</div>
+
+<div class="callout co-info">
+  <div class="ct">◆ Розрізнення двох ситуацій</div>
+  <p>Повтор з <strong>тим самим</strong> payload → тихий replay. Повтор з тим самим ключем але <strong>іншим</strong> payload → 409. Це навмисно різні відповіді: перший випадок — нормальний ретрай клієнта, другий — баг у клієнті, який треба показати.</p>
+</div>
+</div>
+
+<!-- ---- TAB 7 ---- -->
+<div class="tabpanel" id="t7">
+<h3>7. Видалення джерела та workspace</h3>
+<div class="mermaid">
+flowchart TB
+    DEL["DELETE /workspaces/{ws}/sources/{id}"]
+    WSV["WorkspaceService<br/>getWorkspace(ownerId, wsId)"]
+    WFS["WorkspaceFileService<br/>loadSource"]
+    KSV["KnowledgeService<br/>deleteSourceKnowledge"]
+    OSCH[("OpenSearch<br/>delete_by_query refresh=true")]
+    PG[("PostgreSQL<br/>workspace_files.deleted_at")]
+    CASCADE["FK ON DELETE CASCADE"]
+
+    WSDL["DELETE /workspaces/{ws}"]
+    KSVW["KnowledgeService<br/>deleteWorkspaceKnowledge"]
+    PGW[("PostgreSQL<br/>cascade: files → jobs → steps,<br/>recovery, manifests, history, quota")]
+
+    DEL --> WSV --> WFS
+    WFS --> KSV
+    KSV --> OSCH
+    KSV --> PG
+    PG -.-> CASCADE
+
+    WSDL --> KSVW
+    KSVW --> OSCH
+    WSDL --> PGW
+
+    classDef biz fill:#1c232d,stroke:#8b949e,color:#e6edf3
+    classDef http fill:#1f3d5c,stroke:#58a6ff,color:#e6edf3
+    classDef store fill:#1a2e26,stroke:#3fb950,color:#e6edf3
+    class DEL,WSDL http
+    class WSV,WFS,KSV,KSVW biz
+    class OSCH,PG,PGW,CASCADE store
+</div>
+
+<div class="callout co-bad">
+  <div class="ct">✗ Порядок операцій має значення</div>
+  <p>Видалення йде <strong>спершу з індексу, потім з БД</strong>. Зворотний порядок створив би «осиротілі» knowledge item, які неможливо атрибутувати жодному workspace. У коді є й захист від видалення під час обробки — <code>WorkspaceSourceConflictException</code>.</p>
+</div>
+</div>
+
+<!-- ============ CROSS-CUTTING ============ -->
+<h2 id="cross">Наскрізні аспекти</h2>
+
+<h3>Ланцюг фільтрів безпеки</h3>
+<div class="mermaid">
+flowchart LR
+    REQ["HTTP запит"] --> CID["CorrelationIdFilter<br/><b>валідує або генерує X-Request-ID</b><br/>MDC + response header"]
+    CID --> RL["ApiRateLimitFilter<br/><b>fixed window по peer IP</b><br/>429 + Retry-After"]
+    RL --> BA["BasicAuthenticationFilter<br/><b>HTTP Basic, stateless</b>"]
+    BA --> QUOTA["UserQuotaFilter<br/><b>PostgreSQL daily window</b><br/>per user, serialized"]
+    QUOTA --> AUD["SecurityAuditFilter<br/><b>SECURITY_AUDIT, hashed actor</b>"]
+    AUD --> CTRL["Контролер"]
+
+    classDef http fill:#1f3d5c,stroke:#58a6ff,color:#e6edf3
+    classDef gate fill:#2e2814,stroke:#d29922,color:#e6edf3
+    classDef store fill:#1a2e26,stroke:#3fb950,color:#e6edf3
+    class REQ,CTRL http
+    class CID,RL,BA,AUD gate
+    class QUOTA store
+</div>
+<p>Реалізовано через <code>addFilterBefore</code> / <code>addFilterAfter</code> відносно <code>BasicAuthenticationFilter</code>. Усі чотири <code>FilterRegistrationBean</code> мають <code>setEnabled(false)</code> — інакше фільтри зареєструвалися б двічі: у контейнерному ланцюгу і в Security.</p>
+
+<h3>Де знаходиться кожна транзакція</h3>
+<table>
+<tr><th>Метод</th><th>Анотація</th><th>Навіщо</th></tr>
+<tr><td><code>SourceLifecycleCoordinator.queueSubmission</code></td><td><code>@Transactional</code></td><td>Job + кроки + recovery-рядки атомарно</td></tr>
+<tr><td><code>SourceCompletionService.complete</code></td><td><code>@Transactional</code></td><td>Публікація generation + завершення кроку разом</td></tr>
+<tr><td><code>SourceCompletionService.fail</code></td><td><code>@Transactional</code></td><td>Відкат стану джерела та recovery</td></tr>
+<tr><td><code>OrchestratorService.afterCommit</code></td><td>—</td><td>Диспетчеризація <em>після</em> коміту</td></tr>
+<tr><td><code>SourceCompletionService.afterCommit</code></td><td>—</td><td>Лог prune-попередження, без винятку</td></tr>
+</table>
+<p>Чому транзакції настільки вузькі: довга транзакція навколо витягування PDF тримала б з'єднання з БД на час роботи зовнішнього провайдера — класична вузька транзакція довгої дії.</p>
+
+<h3>Де знаходяться порти провайдерів</h3>
+<table>
+<tr><th>Порт</th><th>Модуль</th><th>Реалізація</th></tr>
+<tr><td><code>TextEmbeddingProvider</code></td><td>knowledge</td><td><code>SpringAiTextEmbeddingClient</code> — ONNX E5</td></tr>
+<tr><td><code>EmbeddingTextSplitter</code></td><td>knowledge</td><td><code>TokenWindowSplitter</code></td></tr>
+<tr><td><code>TextReranker</code></td><td>knowledge</td><td><code>OnnxTextReranker</code> <span class="chip c-ext">вимкнено</span></td></tr>
+<tr><td><code>SearchQueryProvider</code></td><td>knowledge</td><td><code>GeminiKnowledgeAnswerClient</code></td></tr>
+<tr><td><code>KnowledgeAnswerProvider</code></td><td>knowledge</td><td><code>GeminiKnowledgeAnswerClient</code></td></tr>
+<tr><td><code>ImageOcrProvider</code></td><td>images</td><td><code>GeminiOcrClient</code></td></tr>
+<tr><td><code>ImageUnderstandingProvider</code></td><td>images</td><td><code>GeminiImageClient</code></td></tr>
+<tr><td><code>ImageGenerationProvider</code></td><td>images</td><td><code>FluxImageClient</code></td></tr>
+<tr><td><code>SpeechToTextProvider</code></td><td>audio</td><td><code>WhisperClient</code></td></tr>
+<tr><td><code>TextToSpeechProvider</code></td><td>audio</td><td><code>PiperClient</code></td></tr>
+<tr><td><code>VideoUnderstandingProvider</code></td><td>videos</td><td><code>GeminiVideoClient</code></td></tr>
+<tr><td><code>YouTubeVideoUnderstandingProvider</code></td><td>videos</td><td><code>GeminiVideoClient</code></td></tr>
+<tr><td><code>VideoGenerationProvider</code></td><td>videos</td><td><code>VeoVideoClient</code></td></tr>
+<tr><td><code>FileStorage</code></td><td>workspaces</td><td><code>LocalFileStorage</code></td></tr>
+<tr><td><code>KnowledgeRepository</code></td><td>knowledge</td><td><code>OpenSearchKnowledgeClient</code></td></tr>
+</table>
+<div class="callout co-info">
+  <div class="ct">◆ Один класс — два порти</div>
+  <p><code>GeminiKnowledgeAnswerClient</code> реалізує і <code>KnowledgeAnswerProvider</code>, і <code>SearchQueryProvider</code>: це два виклики до того самого API — розширення запитів і генерація відповіді. Розділення на два порти дозволяє підмінити їх незалежно, наприклад, розширення з локальної моделі, а відповідь із Gemini.</p>
+</div>
+
+<h3>Спільні інфраструктурні бени</h3>
+<p><code>RestClientConfig</code> і <code>ObjectMapperConfig</code> живуть у <code>apps/api</code>, але клієнти отримують їх ін'єкцією. Жоден клієнт не створює власний HTTP-клієнт або <code>new ObjectMapper()</code> — це правило з <code>DEVELOPER_CODE_PREFERENCES.md</code>, дотримане послідовно.</p>
+
+<!-- ============ NAV ============ -->
+<h2 id="map">Де що шукати</h2>
+<table>
+<tr><th>Питання</th><th>Клас</th><th>Файл</th></tr>
+<tr><td>Хто викликає медіа-модулі</td><td><code>WorkspaceSourceProcessingService</code></td><td><code>orchestrator/services/</code></td></tr>
+<tr><td>Де переходи стану джерела</td><td><code>SourceLifecycleCoordinator</code></td><td><code>orchestrator/services/</code></td></tr>
+<tr><td>Де публікується generation</td><td><code>SourceCompletionService</code></td><td><code>orchestrator/services/</code></td></tr>
+<tr><td>Де retry і backoff</td><td><code>SourceRetryPolicy</code></td><td><code>orchestrator/services/</code></td></tr>
+<tr><td>Де idempotency</td><td><code>OrchestrationSubmissionService</code></td><td><code>orchestrator/services/</code></td></tr>
+<tr><td>Де весь retrieval-конвеєр</td><td><code>KnowledgeRetrievalService</code></td><td><code>knowledge/services/</code></td></tr>
+<tr><td>Де три режими запису індексу</td><td><code>KnowledgeIndexingService</code></td><td><code>knowledge/services/</code></td></tr>
+<tr><td>Де фільтр workspaceId + generation</td><td><code>OpenSearchKnowledgeSearchReader</code></td><td><code>knowledge/client/</code></td></tr>
+<tr><td>Де маппінг індексу</td><td><code>OpenSearchKnowledgeStore</code></td><td><code>knowledge/client/</code></td></tr>
+<tr><td>Де ownership-guard</td><td><code>WorkspaceService.getWorkspace</code></td><td><code>workspaces/services/</code></td></tr>
+<tr><td>Де порядок фільтрів</td><td><code>SecurityConfig</code></td><td><code>api/config/</code></td></tr>
+<tr><td>Де квоти</td><td><code>UserQuotaService</code></td><td><code>api/security/</code></td></tr>
+</table>
+
+<p style="margin-top:44px;color:var(--text-faint);font-size:12.5px;border-top:1px solid var(--border);padding-top:16px">
+Згенеровано з <code>develop</code> @ <code>2ff47eb</code>. Компаньйон: <code>docs/architecture/project-architecture.md</code> · <code>architecture-doc.html</code>.
+</p>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  if (window.mermaid) {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      securityLevel: 'loose',
+      fontFamily: 'ui-monospace, Consolas, monospace',
+      flowchart: { htmlLabels: true, curve: 'basis', padding: 14, nodeSpacing: 38, rankSpacing: 46 },
+      sequence: { useMaxWidth: true, wrap: true, actorMargin: 46 },
+      themeVariables: {
+        darkMode: true,
+        background: '#151b23',
+        primaryColor: '#1c232d',
+        primaryTextColor: '#e6edf3',
+        primaryBorderColor: '#30363d',
+        lineColor: '#8b949e',
+        fontSize: '13px',
+        actorBkg: '#1c232d',
+        actorBorder: '#58a6ff',
+        actorTextColor: '#e6edf3',
+        signalColor: '#8b949e',
+        signalTextColor: '#e6edf3',
+        labelBoxBkgColor: '#1c232d',
+        labelBoxBorderColor: '#30363d',
+        labelTextColor: '#e6edf3',
+        noteBkgColor: '#1f3d5c',
+        noteBorderColor: '#58a6ff',
+        noteTextColor: '#e6edf3',
+        activationBkgColor: '#3d2a5c',
+        activationBorderColor: '#bc8cff',
+        edgeLabelBackground: '#151b23'
+      }
+    });
+    // Важливо: малюємо лише видимі діаграми. Mermaid вимірює контейнер
+    // під час рендеру, і під display:none видає об'єкт 16x16 замість
+    // нормального layout. Тому діаграми у прихованих вкладках
+    // рендеряться в момент перемикання на відповідну вкладку.
+    renderDiagrams(document.querySelectorAll('.mermaid:not(.tabpanel .mermaid)'));
+    renderDiagrams(document.querySelectorAll('.tabpanel.active .mermaid'));
+  } else {
+    document.querySelectorAll('.mermaid').forEach(function (el) {
+      el.innerHTML = '<div style="color:var(--amber);font-size:13px">Mermaid не завантажився з CDN.</div>';
+    });
+  }
+
+  function renderDiagrams(nodes) {
+    if (!window.mermaid) return;
+    var list = Array.prototype.slice.call(nodes);
+    if (!list.length) return Promise.resolve();
+    return mermaid.run({ nodes: list })
+      .catch(function (e) { console.error('mermaid render failed', e); });
+  }
+
+  // Tabs
+  var tabs = document.querySelectorAll('.tab');
+  tabs.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      tabs.forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('.tabpanel').forEach(function (p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      var panel = document.getElementById(btn.dataset.tab);
+      panel.classList.add('active');
+      renderDiagrams(panel.querySelectorAll('.mermaid'));
+    });
+  });
+
+  // Zoom
+  var zoom = null;
+  document.addEventListener('click', function (e) {
+    var m = e.target.closest ? e.target.closest('.mermaid') : null;
+    if (!m || zoom) return;
+    zoom = document.createElement('div');
+    zoom.className = 'zoomed';
+    var clone = m.cloneNode(true);
+    clone.removeAttribute('data-processed');
+    if (m.querySelector('svg')) {
+      clone.innerHTML = m.innerHTML;
+    }
+    zoom.appendChild(clone);
+    zoom.addEventListener('click', function () { zoom.remove(); zoom = null; });
+    document.body.appendChild(zoom);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && zoom) { zoom.remove(); zoom = null; }
+  });
+})();
+</script>
+</body>
+</html>

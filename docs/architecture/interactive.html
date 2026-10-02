@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Workspace — Інтерактивна архітектура</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-soft: #161b22;
+    --bg-elev: #1c2330;
+    --border: #2d3646;
+    --fg: #e6edf3;
+    --fg-dim: #9aa7b4;
+    --accent: #4c8dff;
+    --accent-2: #38d39f;
+    --accent-3: #f0a23c;
+    --danger: #ff6b6b;
+    --code-bg: #10151d;
+    --shadow: 0 10px 30px rgba(0,0,0,.45);
+    --radius: 14px;
+    color-scheme: dark;
+  }
+  html[data-theme="light"] {
+    --bg: #f6f8fb;
+    --bg-soft: #ffffff;
+    --bg-elev: #ffffff;
+    --border: #d8e0ea;
+    --fg: #16202c;
+    --fg-dim: #5b6b7c;
+    --accent: #1f6feb;
+    --accent-2: #1a9e77;
+    --accent-3: #b26a00;
+    --danger: #c0392b;
+    --code-bg: #f0f3f8;
+    --shadow: 0 8px 26px rgba(30,50,90,.12);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.6;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  code, pre, .mono { font-family: "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace; }
+
+  /* Topbar */
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 12px 22px;
+    background: color-mix(in srgb, var(--bg-soft) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; }
+  .topbar .logo {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; color: #fff; font-size: 15px; font-weight: 800;
+  }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; align-items: center; }
+  .chip {
+    font-size: .72rem; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-elev); color: var(--fg-dim);
+    white-space: nowrap;
+  }
+  .chip b { color: var(--fg); font-weight: 600; }
+  .iconbtn {
+    border: 1px solid var(--border); background: var(--bg-elev); color: var(--fg);
+    width: 34px; height: 34px; border-radius: 9px; cursor: pointer; font-size: 16px;
+    display: grid; place-items: center;
+  }
+  .iconbtn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Layout */
+  .layout { display: grid; grid-template-columns: 264px minmax(0,1fr); gap: 0; }
+  .sidebar {
+    position: sticky; top: 59px; align-self: start; height: calc(100vh - 59px);
+    overflow-y: auto; padding: 20px 14px 60px 20px;
+    border-right: 1px solid var(--border);
+  }
+  .sidebar input {
+    width: 100%; padding: 8px 10px; margin-bottom: 14px;
+    background: var(--bg-elev); border: 1px solid var(--border); border-radius: 9px; color: var(--fg);
+  }
+  .navlink {
+    display: block; padding: 7px 11px; border-radius: 8px; color: var(--fg-dim);
+    font-size: .9rem; margin-bottom: 2px; border-left: 2px solid transparent;
+  }
+  .navlink:hover { background: var(--bg-soft); color: var(--fg); }
+  .navlink.active { color: var(--accent); background: var(--bg-soft); border-left-color: var(--accent); font-weight: 600; }
+  .nav-group { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-dim); margin: 16px 0 6px 11px; }
+
+  main { padding: 26px 30px 90px; min-width: 0; max-width: 1180px; }
+  section { margin-bottom: 46px; scroll-margin-top: 74px; }
+  h1 { font-size: 1.9rem; margin: 0 0 6px; }
+  h2 { font-size: 1.35rem; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.05rem; margin: 22px 0 8px; }
+  p { color: var(--fg-dim); }
+  .lead { color: var(--fg); font-size: 1.02rem; }
+  .muted { color: var(--fg-dim); font-size: .9rem; }
+
+  .grid { display: grid; gap: 14px; }
+  .cols-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .cols-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .cols-4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+  .card {
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .stat { text-align: center; }
+  .stat .num { font-size: 1.6rem; font-weight: 800; color: var(--accent); display: block; }
+  .stat .lbl { font-size: .78rem; color: var(--fg-dim); }
+
+  .table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  .table th, .table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .table th { color: var(--fg-dim); font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  .table tr:hover td { background: var(--bg-elev); }
+
+  pre.code {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; overflow: auto; font-size: .82rem; position: relative;
+  }
+  pre.code button.copy {
+    position: absolute; top: 8px; right: 8px; font-size: .7rem; cursor: pointer;
+    background: var(--bg-elev); color: var(--fg-dim); border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 8px;
+  }
+  .pill { display: inline-block; font-size: .72rem; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--fg-dim); margin: 2px 3px 2px 0; }
+  .pill.accent { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+  .tag { font-size: .7rem; padding: 2px 8px; border-radius: 6px; background: var(--bg-elev); border: 1px solid var(--border); color: var(--fg-dim); }
+  .method { font-weight: 700; font-size: .72rem; padding: 2px 7px; border-radius: 6px; color: #fff; }
+  .m-get { background: #1f6feb; } .m-post { background: #1a9e77; } .m-delete { background: #c0392b; }
+
+  /* Modules */
+  .module-card {
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 15px 16px; cursor: pointer; transition: transform .12s ease, border-color .12s ease;
+    position: relative;
+  }
+  .module-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .module-card h4 { margin: 0 0 4px; font-size: .98rem; }
+  .module-card .path { font-size: .74rem; color: var(--accent-2); }
+  .module-card p { margin: 8px 0 0; font-size: .82rem; }
+  .module-card .arrow { position: absolute; top: 14px; right: 14px; color: var(--fg-dim); }
+
+  /* Diagrams */
+  .diagram { margin: 0 0 22px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-soft); overflow: hidden; }
+  .diagram-toolbar {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    border-bottom: 1px solid var(--border); background: var(--bg-elev);
+  }
+  .diagram-toolbar .dt-title { font-size: .82rem; font-weight: 600; }
+  .diagram-toolbar .dt-hint { font-size: .72rem; color: var(--fg-dim); }
+  .diagram-actions { margin-left: auto; display: flex; gap: 6px; }
+  .diagram-actions button {
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--fg-dim);
+    border-radius: 7px; min-width: 30px; height: 28px; cursor: pointer; font-size: .8rem; padding: 0 8px;
+  }
+  .diagram-actions button:hover { color: var(--accent); border-color: var(--accent); }
+  .diagram-viewport { overflow: auto; max-height: 640px; padding: 14px; cursor: grab; background:
+     radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--border) 70%, transparent) 1px, transparent 0) 0 0/22px 22px; }
+  .diagram-viewport:active { cursor: grabbing; }
+  .diagram-canvas { transform-origin: top left; display: inline-block; min-width: 100%; }
+  .diagram-canvas svg { max-width: none !important; height: auto; }
+  .diagram:fullscreen { background: var(--bg); padding: 0; }
+  .diagram:fullscreen .diagram-viewport { max-height: none; height: calc(100vh - 44px); }
+  .fallback { white-space: pre; font-size: .78rem; color: var(--fg-dim); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 14px; }
+  .tab {
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--fg-dim);
+    padding: 7px 13px; border-radius: 9px; cursor: pointer; font-size: .85rem;
+  }
+  .tab.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+  .tabpane { display: none; }
+  .tabpane.active { display: block; }
+
+  /* Drawer */
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: min(460px, 92vw);
+    background: var(--bg-soft); border-left: 1px solid var(--border); box-shadow: var(--shadow);
+    transform: translateX(102%); transition: transform .22s ease; z-index: 60;
+    display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: start; gap: 12px; }
+  .drawer header h3 { margin: 0; font-size: 1.05rem; }
+  .drawer .body { padding: 16px 20px 60px; overflow-y: auto; }
+  .drawer .close { margin-left: auto; }
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 55; }
+  .backdrop.open { opacity: 1; pointer-events: auto; }
+  .kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; font-size: .86rem; margin: 10px 0; }
+  .kv dt { color: var(--fg-dim); } .kv dd { margin: 0; }
+
+  .callout { border-left: 3px solid var(--accent); background: var(--bg-soft); padding: 10px 14px; border-radius: 0 10px 10px 0; margin: 12px 0; font-size: .88rem; }
+  .callout.warn { border-color: var(--accent-3); }
+  .callout.ok { border-color: var(--accent-2); }
+
+  footer { padding: 30px; color: var(--fg-dim); font-size: .8rem; border-top: 1px solid var(--border); }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    main { padding: 18px 16px 70px; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">AI</span> AI Workspace · Архітектура</div>
+  <div class="chips">
+    <span class="chip">гілка <b>develop</b></span>
+    <span class="chip">коміт <b>2ff47eb</b></span>
+    <span class="chip">Java <b>25</b> · Spring Boot <b>4.1.1</b></span>
+    <span class="chip">модулів <b>10</b></span>
+    <span class="chip">~<b>17k</b> рядків Java</span>
+    <button class="iconbtn" id="themeToggle" title="Світла/темна тема">◐</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input id="navFilter" type="search" placeholder="Фільтр розділів…" />
+    <div class="nav-group">Огляд</div>
+    <a class="navlink" href="#overview">Що це за продукт</a>
+    <a class="navlink" href="#numbers">Ключові факти</a>
+    <div class="nav-group">Структура</div>
+    <a class="navlink" href="#modules">Модулі</a>
+    <a class="navlink" href="#boundaries">Межі модулів</a>
+    <div class="nav-group">Діаграми</div>
+    <a class="navlink" href="#context">System Context</a>
+    <a class="navlink" href="#components">Діаграма компонентів</a>
+    <a class="navlink" href="#dataflows">Потоки даних</a>
+    <div class="nav-group">Дані та контракти</div>
+    <a class="navlink" href="#schema">Схема даних</a>
+    <a class="navlink" href="#api">HTTP API</a>
+    <div class="nav-group">Наскрізні теми</div>
+    <a class="navlink" href="#security">Безпека</a>
+    <a class="navlink" href="#observability">Спостережуваність</a>
+    <a class="navlink" href="#status">Стан і наступні кроки</a>
+  </aside>
+
+  <main>
+    <!-- OVERVIEW -->
+    <section id="overview">
+      <h1>AI Workspace — мультимодальна RAG-платформа</h1>
+      <p class="lead">
+        Інтерактивний опис поточної архітектури репозиторію. Користувач створює workspace,
+        завантажує документи, аудіо, зображення, відео або додає URL веб-сторінки чи YouTube.
+        Система витягує знання, індексує його у векторному пошуку та відповідає на запитання
+        з веріфікованою доказовою базою (цитати на рівні чанків із таймкодами).
+      </p>
+      <div class="callout">
+        <b>Стиль:</b> модульний моноліт (ADR 0001). Один виконуваний Spring Boot застосунок,
+        одна БД, один Git-репозиторій — але з жорстко розділеними бізнес-модулями, які механічно
+        мапуються на майбутні мікросервіси.
+      </div>
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card">
+          <h3 style="margin-top:0">Три кити продукту</h3>
+          <p><b>1. Інгестія знань</b> — документи, веб, YouTube, медіа → нормалізований текст → чанки → ембеддінги → OpenSearch.</p>
+          <p><b>2. Пошук і відповіді</b> — hybrid kNN+BM25, RRF, query expansion, розширення сусідів, відповідь Gemini із цитатами.</p>
+          <p><b>3. Надійність</b> — durable recovery ledger, leases, fencing-токени, версіоновані generation-и індексу, reconciliation.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">Провайдери та моделі</h3>
+          <p class="muted">Уся провайдерська логіка — за capability-портами в кожному модулі, тож зміна провайдера — це конфігурація, а не код.</p>
+          <div>
+            <span class="pill accent">Gemini · текст/зображення/відео/OCR/answers</span>
+            <span class="pill">FLUX · генерація зображень</span>
+            <span class="pill">Veo · генерація відео</span>
+            <span class="pill">Whisper · STT</span>
+            <span class="pill">Piper · TTS</span>
+            <span class="pill">ONNX E5-base · локальні ембеддінги 768D</span>
+          </div>
+          <h3>Сховища</h3>
+          <div>
+            <span class="pill">PostgreSQL</span>
+            <span class="pill">OpenSearch 3.8 · <code>knowledge-items-v3</code></span>
+            <span class="pill">Локальне файлове сховище</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- NUMBERS -->
+    <section id="numbers">
+      <h2>Ключові факти</h2>
+      <div class="grid cols-4">
+        <div class="card stat"><span class="num">10</span><span class="lbl">Gradle-модулів</span></div>
+        <div class="card stat"><span class="num">8</span><span class="lbl">HTTP-контролерів</span></div>
+        <div class="card stat"><span class="num">13</span><span class="lbl">Flyway-міграцій</span></div>
+        <div class="card stat"><span class="num">10</span><span class="lbl">PostgreSQL-таблиць</span></div>
+        <div class="card stat"><span class="num">768</span><span class="lbl">вимірів ембеддінгу</span></div>
+        <div class="card stat"><span class="num">24</span><span class="lbl">макс. чанків-доказів</span></div>
+        <div class="card stat"><span class="num">10</span><span class="lbl">ADR (0001–0010)</span></div>
+        <div class="card stat"><span class="num">0</span><span class="lbl">TODO/FIXME у коді</span></div>
+      </div>
+      <div class="callout ok">
+        <b>Інженерна дисципліна:</b> межі модулів перевіряються задачею <code>verifyModuleBoundaries</code>,
+        яка валить build на забороненій залежності або контролері поза <code>api</code>.
+      </div>
+    </section>
+
+    <!-- MODULES -->
+    <section id="modules">
+      <h2>Модулі</h2>
+      <p>Натисніть картку, щоб побачити деталі, залежності та ключові класи. Діаграма компонентів нижче
+      використовує ті самі модулі — клік по вузлу теж відкриває панель.</p>
+      <div class="grid cols-2" id="moduleGrid"></div>
+    </section>
+
+    <!-- BOUNDARIES -->
+    <section id="boundaries">
+      <h2>Межі модулів</h2>
+      <p>Дозволені напрямки залежностей (з <code>apps/build.gradle</code>). Усе інше — помилка збірки.</p>
+      <pre class="code">api          → shared, documents, images, videos, audio,
+               knowledge, orchestrator, users, workspaces
+orchestrator → shared, audio, documents, images, videos, knowledge, workspaces
+knowledge    → shared, workspaces
+documents    → shared, images, knowledge
+audio        → shared, knowledge
+images       → shared
+videos       → shared
+users        → (немає)
+workspaces   → (немає)
+shared       → (немає)</pre>
+      <div class="callout warn">
+        <b>Правила:</b> <code>apps/api</code> — лише HTTP-адаптер; бізнес-логіка живе у своєму модулі;
+        модулі спілкуються через інтерфейси; контролери заборонені поза <code>api</code>;
+        <code>shared</code> — не звалище, лише справді спільні моделі.
+      </div>
+    </section>
+
+    <!-- CONTEXT -->
+    <section id="context">
+      <h2>System Context</h2>
+      <figure class="diagram" data-diagram>
+        <div class="diagram-toolbar">
+          <span class="dt-title">Контекст системи та зовнішні залежності</span>
+          <span class="dt-hint">Ctrl+колесо — масштаб · перетяг — панорама</span>
+          <div class="diagram-actions">
+            <button data-zoom="in" title="Збільшити">＋</button>
+            <button data-zoom="out" title="Зменшити">－</button>
+            <button data-zoom="reset" title="Скинути">⤾</button>
+            <button data-zoom="svg" title="Завантажити SVG">SVG</button>
+            <button data-zoom="full" title="На весь екран">⛶</button>
+          </div>
+        </div>
+        <div class="diagram-viewport">
+          <div class="diagram-canvas">
+<pre class="mermaid">
+flowchart LR
+  user(["Користувач / Браузер"])
+  web["React 19 + Mantine<br/>статика всередині JAR"]
+  api["AI Workspace API<br/>Spring Boot модульний моноліт"]
+  pg[("PostgreSQL<br/>workspaces · jobs · recovery")]
+  os[("OpenSearch 3.8<br/>knowledge-items-v3")]
+  fs[("Файлове сховище<br/>сирі байти")]
+  gem["Gemini API"]
+  gen["FLUX / Veo / HF"]
+  loc["Whisper · Piper · ONNX E5"]
+
+  user --> web --> api
+  api -->|"JDBC / JPA"| pg
+  api -->|"HTTP"| os
+  api -->|"FileStorage"| fs
+  api -->|"rest"| gem
+  api -->|"rest"| gen
+  api -->|"rest / файли"| loc
+  gem --> api
+  gen --> api
+  loc --> api
+
+  classDef ext fill:#2a3550,stroke:#4c8dff,color:#e6edf3;
+  classDef store fill:#243b32,stroke:#38d39f,color:#e6edf3;
+  class gem,gen,loc,user,web ext
+  class pg,os,fs store
+</pre>
+          </div>
+        </div>
+      </figure>
+    </section>
+
+    <!-- COMPONENTS -->
+    <section id="components">
+      <h2>Діаграма компонентів</h2>
+      <p>Модулі моноліту, їхні дозволені залежності та зовнішні системи. Клік по модулю — деталі.</p>
+      <figure class="diagram" data-diagram>
+        <div class="diagram-toolbar">
+          <span class="dt-title">Компоненти та залежності</span>
+          <span class="dt-hint">клік по вузлу — інформація про модуль</span>
+          <div class="diagram-actions">
+            <button data-zoom="in">＋</button><button data-zoom="out">－</button>
+            <button data-zoom="reset">⤾</button><button data-zoom="svg">SVG</button>
+            <button data-zoom="full">⛶</button>
+          </div>
+        </div>
+        <div class="diagram-viewport">
+          <div class="diagram-canvas">
+<pre class="mermaid">
+flowchart TB
+  subgraph APP["MODULAR MONOLITH — один deployable"]
+    direction TB
+    api["apps/api<br/>HTTP-шар · security"]
+    subgraph BIZ["Business modules"]
+      orch["apps/orchestrator<br/>async координація + recovery"]
+      kn["apps/knowledge<br/>пошук · ембеддінги · відповіді"]
+      doc["apps/documents<br/>парсинг · OCR · web"]
+      aud["apps/audio<br/>STT · TTS"]
+      img["apps/images<br/>розуміння · генерація · OCR"]
+      vid["apps/videos<br/>розуміння · генерація · YouTube"]
+      ws["apps/workspaces<br/>workspace · файли"]
+      usr["apps/users<br/>акаунти"]
+      shd["apps/shared<br/>спільні моделі"]
+    end
+  end
+
+  PG[("PostgreSQL")]
+  OS[("OpenSearch<br/>knowledge-items-v3")]
+  FS[("Файлове сховище")]
+  GEM["Gemini"]
+  GV["FLUX / Veo"]
+  LOC["Whisper · Piper<br/>ONNX E5"]
+
+  api --> orch
+  api --> kn
+  api --> doc
+  api --> aud
+  api --> img
+  api --> vid
+  api --> ws
+  api --> usr
+  api --> shd
+
+  orch --> doc
+  orch --> aud
+  orch --> img
+  orch --> vid
+  orch --> kn
+  orch --> ws
+  doc --> img
+  doc --> kn
+  aud --> kn
+  kn --> ws
+
+  orch --> PG
+  ws --> PG
+  usr --> PG
+  kn --> OS
+  ws --> FS
+  kn --> GEM
+  img --> GEM
+  img --> GV
+  vid --> GEM
+  vid --> GV
+  aud --> LOC
+  kn --> LOC
+
+  click api call openModule("api")
+  click orch call openModule("orchestrator")
+  click kn call openModule("knowledge")
+  click doc call openModule("documents")
+  click aud call openModule("audio")
+  click img call openModule("images")
+  click vid call openModule("videos")
+  click ws call openModule("workspaces")
+  click usr call openModule("users")
+  click shd call openModule("shared")
+
+  classDef infr fill:#243b32,stroke:#38d39f,color:#e6edf3;
+  class PG,OS,FS infr
+</pre>
+          </div>
+        </div>
+      </figure>
+    </section>
+
+    <!-- DATA FLOWS -->
+    <section id="dataflows">
+      <h2>Потоки даних</h2>
+      <div class="tabs" data-tabs="flows">
+        <button class="tab active" data-tab="flow-ingest">Інгестія · async</button>
+        <button class="tab" data-tab="flow-rag">Питання → відповідь · RAG</button>
+        <button class="tab" data-tab="flow-recovery">Відновлення · recovery</button>
+        <button class="tab" data-tab="flow-pipeline">Дані: сировина → знання</button>
+      </div>
+
+      <div class="tabpane active" id="flow-ingest">
+        <figure class="diagram" data-diagram>
+          <div class="diagram-toolbar">
+            <span class="dt-title">Асинхронна, durable інгестія</span>
+            <span class="dt-hint">job + recovery у одній транзакції до dispatch</span>
+            <div class="diagram-actions"><button data-zoom="in">＋</button><button data-zoom="out">－</button><button data-zoom="reset">⤾</button><button data-zoom="svg">SVG</button><button data-zoom="full">⛶</button></div>
+          </div>
+          <div class="diagram-viewport"><div class="diagram-canvas">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Користувач
+  participant C as OrchestratorController
+  participant OS as OrchestratorService
+  participant SL as SourceLifecycleCoordinator
+  participant PG as PostgreSQL
+  participant EX as orchestration executor
+  participant MOD as Медіа-модуль
+  participant KS as KnowledgeService
+  participant OSCH as OpenSearch
+
+  U->>C: POST /api/v1/orchestrator/ingestions (+ Idempotency-Key)
+  C->>OS: ingest*(owner, workspaceId, files)
+  OS->>PG: BEGIN
+  OS->>PG: workspace_files (+source_url)
+  OS->>PG: ingestion_jobs + steps
+  OS->>PG: source_recovery_tasks (SCHEDULED)
+  OS->>PG: orchestration_submission_requests
+  OS->>PG: COMMIT
+  OS-->>C: 202 OrchestrationSubmission
+  C-->>U: jobId + submitted/skipped
+
+  OS-->>EX: submit(sourceId) — лише ID
+  EX->>SL: process(job, type, source)
+  SL->>PG: claim lease + fencing token
+  EX->>MOD: extract / transcribe / describe
+  MOD-->>EX: типізований результат
+  EX->>KS: recordChunks(... generation=G)
+  KS->>OSCH: bulk index усі чанки generation=G
+  KS-->>EX: StagedKnowledgeIndex
+  EX->>PG: source_index_manifests.publish(G)
+  Note over OSCH: staged-генерації невидимі пошуку
+  SL->>PG: status=COMPLETED
+</pre>
+          </div></div>
+        </figure>
+        <div class="callout">
+          <b>Гарантії:</b> рядки job/кроків/recovery створюються в одній транзакції до dispatch →
+          рестарт підхоплює роботу. Черга передає <b>ID джерел</b>, не байти. Кожен документ несе
+          <code>generation</code>; маніфест транзакційно перемикає активну версію. Fencing-токен не дає
+          застарілому воркеру закомітити результат.
+        </div>
+      </div>
+
+      <div class="tabpane" id="flow-rag">
+        <figure class="diagram" data-diagram>
+          <div class="diagram-toolbar">
+            <span class="dt-title">RAG: питання → пошук → відповідь із цитатами</span>
+            <span class="dt-hint">hybrid + RRF + query expansion + сусіди</span>
+            <div class="diagram-actions"><button data-zoom="in">＋</button><button data-zoom="out">－</button><button data-zoom="reset">⤾</button><button data-zoom="svg">SVG</button><button data-zoom="full">⛶</button></div>
+          </div>
+          <div class="diagram-viewport"><div class="diagram-canvas">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Користувач
+  participant C as KnowledgeController
+  participant KS as KnowledgeService
+  participant RS as KnowledgeRetrievalService
+  participant QE as QueryExpansion (Gemini)
+  participant EMB as SpringAiTextEmbeddingClient
+  participant OSCH as OpenSearch
+  participant AN as KnowledgeAnswerService
+  participant GA as Gemini answers
+
+  U->>C: POST /api/v1/knowledge/workspaces/{id}/answers
+  C->>KS: answerWorkspaceQuestion(owner, wsId, question)
+  KS->>RS: retrieveWithNeighbors(wsId, question)
+  opt query expansion
+    RS->>QE: proposeSearchQueries(question)
+    QE-->>RS: до 2 додаткових формулювань
+  end
+  RS->>EMB: embed(питання + розширення)
+  EMB-->>RS: 768-вимірні вектори
+  RS->>OSCH: hybridSearch — kNN(cosinesimil) + BM25
+  Note over OSCH: filter workspaceId + лише активна generation
+  OSCH-->>RS: кандидати
+  RS->>RS: RRF (k=30)
+  opt reranking
+    RS->>RS: OnnxTextReranker (вимкнено за замовчуванням)
+  end
+  RS->>RS: 12 seed + наступний чанк = до 24
+  RS-->>KS: List of evidence chunks
+  KS->>AN: answer(wsId, question, evidence)
+  AN->>GA: prompt + повний контекст
+  GA-->>AN: відповідь
+  AN->>AN: KnowledgeCitationService → цитати + таймкоди
+  AN-->>KS: WorkspaceKnowledgeAnswer
+  KS->>KS: зберегти в workspace_answer_history
+  KS-->>C: відповідь + джерела
+  C-->>U: 200 OK
+</pre>
+          </div></div>
+        </figure>
+      </div>
+
+      <div class="tabpane" id="flow-recovery">
+        <figure class="diagram" data-diagram>
+          <div class="diagram-toolbar">
+            <span class="dt-title">Життєвий цикл recovery-завдання</span>
+            <span class="dt-hint">leases · backoff · dead-letter · reconciliation</span>
+            <div class="diagram-actions"><button data-zoom="in">＋</button><button data-zoom="out">－</button><button data-zoom="reset">⤾</button><button data-zoom="svg">SVG</button><button data-zoom="full">⛶</button></div>
+          </div>
+          <div class="diagram-viewport"><div class="diagram-canvas">
+<pre class="mermaid">
+stateDiagram-v2
+  [*] --> SCHEDULED: джерело зареєстровано
+  SCHEDULED --> RUNNING: claim + lease + fencing token
+  RUNNING --> COMPLETED: індекс опубліковано транзакційно
+  RUNNING --> SCHEDULED: transient помилка<br/>next_attempt_at + backoff
+  RUNNING --> DEAD_LETTER: permanent помилка<br/>або attempts >= max (5)
+  RUNNING --> RUNNING: lease keeper продовжує lease
+  DEAD_LETTER --> SCHEDULED: ручний retry
+  COMPLETED --> SCHEDULED: reconciliation виявила розбіжність
+</pre>
+          </div></div>
+        </figure>
+        <div class="grid cols-2">
+          <div class="card"><h3 style="margin-top:0">Poll (30s)</h3><p>Підхоплює due- або lease-expired роботу з <code>source_recovery_tasks</code>.</p></div>
+          <div class="card"><h3 style="margin-top:0">Reconciliation (6h)</h3><p>Звіряє завершені джерела з файловим сховищем та OpenSearch: переіндексація, звіт про відсутні байти, прибирання «осиротілих» knowledge item.</p></div>
+        </div>
+      </div>
+
+      <div class="tabpane" id="flow-pipeline">
+        <figure class="diagram" data-diagram>
+          <div class="diagram-toolbar">
+            <span class="dt-title">Дані: сировина → нормалізовані знання → контекст</span>
+            <span class="dt-hint">де кожен формат перетворюється на текст і вектор</span>
+            <div class="diagram-actions"><button data-zoom="in">＋</button><button data-zoom="out">－</button><button data-zoom="reset">⤾</button><button data-zoom="svg">SVG</button><button data-zoom="full">⛶</button></div>
+          </div>
+          <div class="diagram-viewport"><div class="diagram-canvas">
+<pre class="mermaid">
+flowchart LR
+  subgraph IN["Сировина"]
+    d["Документи<br/>TXT/PDF/DOCX/XLSX/PPTX"]
+    a["Аудіо"]
+    i["Зображення"]
+    v["Відео"]
+    w["Веб-сторінка"]
+    y["YouTube URL"]
+  end
+
+  subgraph EX["Витяг / перетворення"]
+    tika["Tika · PDFBox · POI"]
+    ocr["PDF-textless → OCR (Gemini)"]
+    jsoup["Jsoup · web extract"]
+    whisper["Whisper STT"]
+    vgem["Gemini video understand"]
+  end
+
+  norm["Нормалізований текст<br/>+ локація (page/slide/sheet, таймкод, speaker)"]
+  chunk["DocumentChunker<br/>5 повних речень · sectionId · headingPath"]
+  emb["Spring AI ONNX E5-base<br/>768D · passage:/query: prefixes · L2"]
+  osch[("OpenSearch<br/>knowledge-items-v3")]
+
+  d --> tika --> norm
+  tika -.-> ocr -.-> norm
+  w --> jsoup --> norm
+  a --> whisper --> norm
+  v --> vgem --> norm
+  y --> vgem --> norm
+  i --> norm
+  norm --> chunk --> emb --> osch
+
+  classDef store fill:#243b32,stroke:#38d39f,color:#e6edf3;
+  class osch store
+</pre>
+          </div></div>
+        </figure>
+        <div class="callout">
+          <b>Атомність:</b> усі вектори створюються <i>до</i> індексації чанк-сету. Якщо ембеддінг
+          запиту недоступний — пошук деградує до BM25. Аудіо чанкується по таймкодованих сегментах;
+          відео/YouTube зараз дають один зведений item (відома асиметрія).
+        </div>
+      </div>
+    </section>
+
+    <!-- SCHEMA -->
+    <section id="schema">
+      <h2>Схема даних</h2>
+      <div class="tabs" data-tabs="schema">
+        <button class="tab active" data-tab="schema-pg">PostgreSQL · 10 таблиць</button>
+        <button class="tab" data-tab="schema-os">OpenSearch · маппінг індексу</button>
+      </div>
+
+      <div class="tabpane active" id="schema-pg">
+        <div class="card" style="margin-bottom:14px">
+          <p class="mono" style="font-size:.8rem;margin:0">
+user_accounts ─┬─< workspaces (owner_id)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─< workspace_files (source_type, status, storage_key|source_url)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├─< source_recovery_tasks (1:1)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;└─< source_index_manifests (1:1)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─< ingestion_jobs ─< ingestion_job_steps<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─< workspace_answer_history<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─< orchestration_submission_requests<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─< user_daily_quota_usage
+          </p>
+        </div>
+        <table class="table" id="pgTable">
+          <thead><tr><th>Таблиця</th><th>Міграція</th><th>Ключові моменти</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="tabpane" id="schema-os">
+        <p>Індекс <code>knowledge-items-v3</code>: <code>knn:true</code>, HNSW <code>m=16</code>,
+        <code>ef_construction=128</code>, <code>cosinesimil</code> через Lucene.</p>
+        <div class="grid cols-3" id="osFields"></div>
+        <div class="callout">
+          <b>Фільтр пошуку — не лише workspaceId.</b> <code>bool.filter</code> містить workspaceId плюс
+          <code>should</code>: джерела з активними generations <b>або</b> legacy-джерела без маніфестів.
+          Тому staged-генерації невидимі читачам, а старі джерела лишаються пошуковими.
+        </div>
+      </div>
+    </section>
+
+    <!-- API -->
+    <section id="api">
+      <h2>HTTP API</h2>
+      <p>Усі workspace-скошені ендпоїнти перевіряють володіння; крос-власник отримує <b>404</b>, а не 403
+      — щоб не розкривати існування ресурсу.</p>
+      <input id="apiFilter" type="search" placeholder="Фільтр ендпоїнтів (напр. answers, sources, video)…"
+             style="width:100%;padding:9px 11px;margin:4px 0 14px;background:var(--bg-elev);border:1px solid var(--border);border-radius:9px;color:var(--fg)" />
+      <div id="apiList"></div>
+    </section>
+
+    <!-- SECURITY -->
+    <section id="security">
+      <h2>Безпека</h2>
+      <div class="grid cols-2">
+        <table class="table">
+          <thead><tr><th>Механізм</th><th>Реалізація</th></tr></thead>
+          <tbody>
+            <tr><td>Автентифікація</td><td>HTTP Basic, stateless (без серверних сесій)</td></tr>
+            <tr><td>Хешування</td><td>BCrypt, strength 12</td></tr>
+            <tr><td>Пароль</td><td>≥12 символів, ≤72 UTF-8 байт (проти тихого truncate)</td></tr>
+            <tr><td>Ownership</td><td>Перевірка у WorkspaceService; 404 при крос-доступі</td></tr>
+            <tr><td>Rate limit</td><td>Process-local fixed window + окремий ліміт на реєстрацію</td></tr>
+            <tr><td>Квоти</td><td>PostgreSQL, денне вікно: ingestions / answers / generations</td></tr>
+            <tr><td>HTTPS</td><td><code>SECURITY_REQUIRE_HTTPS</code></td></tr>
+            <tr><td>Аудит</td><td><code>SECURITY_AUDIT</code> — хеш актора, без тіл і секретів</td></tr>
+          </tbody>
+        </table>
+        <div>
+          <div class="callout warn">
+            <b>Відомі прогалини для продакшену:</b>
+            <ol style="margin:8px 0 0">
+              <li>HTTP Basic замість керованої identity (OAuth2/OIDC).</li>
+              <li>Rate limit у процесі — для кількох інстанс потрібен shared edge або розподілений limiter.</li>
+              <li>Немає централізованого revocation сесій.</li>
+            </ol>
+          </div>
+          <pre class="code">SECURITY_RATE_LIMIT_REQUESTS_PER_MINUTE=300
+SECURITY_REGISTRATION_RATE_LIMIT_REQUESTS_PER_MINUTE=10
+USER_INGESTIONS_PER_DAY=100
+USER_ANSWERS_PER_DAY=500
+USER_GENERATIONS_PER_DAY=25</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- OBSERVABILITY -->
+    <section id="observability">
+      <h2>Спостережуваність</h2>
+      <div class="grid cols-3">
+        <div class="card"><h3 style="margin-top:0">Correlation</h3><p><code>X-Request-ID</code> валідується/генерується на вході, повертається у відповіді, потрапляє в MDC. Формат логу: <code>%5p [requestId:%X{requestId:-}]</code>.</p></div>
+        <div class="card"><h3 style="margin-top:0">Metrics</h3><p>Micrometer: спроби/тривалість інгестії, переходи recovery, gauge на активних воркерах і глибині черги. Без sourceId/email/промптів у тегах (кардинальність).</p></div>
+        <div class="card"><h3 style="margin-top:0">Actuator</h3><p><code>/actuator/health</code>, <code>/info</code>, <code>/metrics</code> (метрики — за автентифікацією).</p></div>
+      </div>
+      <div class="callout">Існує <code>SearchTelemetry</code> для пошуку, але повне спостереження пошуку та tracing — у списку незавершеного.</div>
+    </section>
+
+    <!-- STATUS -->
+    <section id="status">
+      <h2>Стан і наступні кроки</h2>
+      <div class="grid cols-2">
+        <div class="card">
+          <h3 style="margin-top:0">Незакрите</h3>
+          <ul>
+            <li><b>Live end-to-end регрес</b> не запускався — потрібні disposable-залежності, контрольовані HTML/YouTube фікстури та ліміт витрат на провайдерів.</li>
+            <li><b>Спостереження пошуку</b> та tracing — часткові.</li>
+            <li><b>Identity і distributed rate limiting</b> для multi-node продакшену.</li>
+            <li><b>TypeScript-міграція фронтенду</b> часткова (лише API + роутинг).</li>
+            <li><b>Якість на aggregation-питаннях</b> — top-k RAG провалює «усі випадки…».</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">Що далі (моя рекомендація)</h3>
+          <ol>
+            <li>Звузити ICP: винести «Studio» в окремий трек, сфокусуватись на RAG-ядрі.</li>
+            <li>Завершити live E2E за наявною 58-кейсовою специфікацією.</li>
+            <li>Вирішити aggregation окремим шаром (summarize-over-evidence + метадані).</li>
+            <li>Міграції індексу через alias як first-class механізм.</li>
+            <li>OIDC + розподілений rate limit + revocation сесій.</li>
+            <li>OpenTelemetry tracing.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Згенеровано з поточного стану репозиторію · <code>docs/architecture/interactive.html</code>.
+      Діаграми рендеряться Mermaid (потрібен доступ до CDN при першому відкритті).
+      Джерела: <code>docs/architecture/project-architecture.md</code>, <code>docs/architecture-diagrams.md</code>, ADR, код модулів.
+    </footer>
+  </main>
+</div>
+
+<!-- Drawer -->
+<div class="backdrop" id="backdrop"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <header>
+    <div>
+      <h3 id="drawerTitle">Модуль</h3>
+      <div id="drawerPath" class="muted mono" style="font-size:.78rem"></div>
+    </div>
+    <button class="iconbtn close" id="drawerClose" title="Закрити">×</button>
+  </header>
+  <div class="body" id="drawerBody"></div>
+</aside>
+
+<script>
+/* ---------- Data ---------- */
+const MODULES = {
+  api: {
+    title: "apps/api — HTTP-шар",
+    role: "Єдина точка входу. Тонкі контролери, безпека, конфігурація. Жодної бізнес-логіки.",
+    deps: ["shared","documents","images","videos","audio","knowledge","orchestrator","users","workspaces"],
+    classes: ["AiWorkspaceApplication", "AuthController / WorkspaceController / OrchestratorController",
+      "KnowledgeController / DocumentController / AudioController / ImageController / VideoController",
+      "SecurityConfig, SecurityProperties, GlobalExceptionHandler",
+      "CorrelationId / ApiRateLimit / UserQuota / SecurityAudit фільтри",
+      "RestClientConfig, ObjectMapperConfig, HttpClientProperties"],
+    note: "Володіє статичним Vite-бандлом усередині bootJar (processResources → frontendBuild). Один процес віддає повний застосунок."
+  },
+  shared: {
+    title: "apps/shared — спільні моделі",
+    role: "Мінімальний навмисно: лише те, що справді спільне між модулями.",
+    deps: [],
+    classes: ["TranscriptSegment — таймкодований сегмент (ms, speaker, text)", "UpstreamServiceException — оболонка помилок зовнішніх сервісів"],
+    note: "Правило: не перетворювати shared на звалище. Нове сюди — лише за реальної потреби кількох модулів."
+  },
+  workspaces: {
+    title: "apps/workspaces — workspace і файли",
+    role: "Метадані workspace, життєвий цикл джерел, статуси та володіння сирими байтами за портом FileStorage.",
+    deps: [],
+    classes: ["WorkspaceService", "WorkspaceFileService", "LocalFileStorage implements FileStorage",
+      "WorkspaceFile / WorkspaceFileStatus / WorkspaceFileSourceType", "Workspace*Validator", "MapStruct мапери"],
+    note: "workspace_files універсальний: завантаження мають storage_key + checksum, URL-джерела — source_url (міграція V6)."
+  },
+  users: {
+    title: "apps/users — акаунти та володіння",
+    role: "Реєстрація, автентифікація-підтримка та ідентичність власника. BCrypt strength 12.",
+    deps: [],
+    classes: ["UserAccountService", "UserAccountEntity", "UserAccountRepository", "UserAccountValidator", "UserAccountMapper"],
+    note: "Найменший модуль без залежностей — природний кандидат на окремий identity-сервіс у майбутньому."
+  },
+  documents: {
+    title: "apps/documents — парсинг і веб",
+    role: "Витяг структурованого тексту: TXT/PDF/DOCX/XLSX/PPTX, веб-сторінки, OCR-fallback для текстлес PDF.",
+    deps: ["shared","images","knowledge"],
+    classes: ["DocumentService", "DocumentChunker", "DocxStructureExtractor", "PdfOcrFallback",
+      "WebPageContentExtractor", "DocumentStructuredTextRenderer", "DocumentValidator"],
+    note: "Парсинг через Apache Tika 3.2, PDFBox 3.0.5, POI, Jsoup. Ліміти: 1 млн символів, 10 тис. блоків, OCR 50 стор./150 DPI. Делегує OCR провайдеру з apps/images через ImageOcrProvider."
+  },
+  audio: {
+    title: "apps/audio — мовлення",
+    role: "Speech-to-Text через Whisper і Text-to-Speech через Piper. Таймкодовані сегменти транскрипту.",
+    deps: ["shared","knowledge"],
+    classes: ["AudioService", "WhisperClient implements SpeechToTextProvider",
+      "PiperClient implements TextToSpeechProvider", "AudioValidator", "AudioTranscription / SynthesizedSpeech"],
+    note: "Кожен непорожній таймкодований сегмент — окремий knowledge chunk із start/end і speaker. Дефолтний faster-whisper не дає діаризації."
+  },
+  images: {
+    title: "apps/images — зображення",
+    role: "Розуміння зображень (Gemini), генерація (FLUX) та OCR (Gemini) як спільний провайдер для documents.",
+    deps: ["shared"],
+    classes: ["ImageService", "GeminiImageClient / FluxImageClient", "GeminiOcrClient implements ImageOcrProvider",
+      "ImageUnderstandingProvider / ImageGenerationProvider / ImageOcrProvider", "ImageValidator"],
+    note: "OCR-контракт допускає опційні confidence/координати; поточний Gemini-адаптер повертає null, а не вигадує значення."
+  },
+  videos: {
+    title: "apps/videos — відео",
+    role: "Розуміння відео (Gemini), генерація (Veo) та прямий імпорт публічного YouTube без завантаження байтів.",
+    deps: ["shared"],
+    classes: ["VideoService", "GeminiVideoClient / VeoVideoClient", "YouTubeVideoUnderstandingProvider",
+      "VideoUnderstandingProvider / VideoGenerationProvider", "VideoValidator"],
+    note: "Gemini direct-YouTube — preview-можливість, лише публічні відео. Відео/YouTube індексуються одним зведеним item (на відміну від чанкованого аудіо)."
+  },
+  knowledge: {
+    title: "apps/knowledge — пошук і відповіді",
+    role: "OpenSearch-індекс, локальні E5-ембеддінги, hybrid-пошук, query expansion, RRF та генерація відповідей із цитатами.",
+    deps: ["shared","workspaces"],
+    classes: ["KnowledgeService — стабільний фасад", "KnowledgeIndexingService", "KnowledgeRetrievalService",
+      "KnowledgeAnswerService", "KnowledgeCitationService", "SourceIndexManifestService",
+      "WorkspaceAnswerHistoryService", "SpringAiTextEmbeddingClient", "GeminiKnowledgeAnswerClient",
+      "OpenSearchKnowledgeClient → Store / SearchReader / IndexWriter",
+      "ReciprocalRankFusion", "TokenWindowSplitter"],
+    note: "Репозиторій розділено на співпрацівників: публічний клієнт делегує читання/запис; індекс, маппінг і десеріалізація — у спільному Store. Порты у interfaces/: TextEmbeddingProvider, EmbeddingTextSplitter, TextReranker, SearchQueryProvider, KnowledgeAnswerProvider."
+  },
+  orchestrator: {
+    title: "apps/orchestrator — серце системи",
+    role: "Асинхронна координація мультимодальної інгестії + durable recovery ledger, leases, fencing і reconciliation.",
+    deps: ["shared","audio","documents","images","videos","knowledge","workspaces"],
+    classes: ["OrchestratorService — публічний фасад", "SourceLifecycleCoordinator — спільні переходи",
+      "WorkspaceSourceProcessingService", "SourceRecoveryScheduler — poll + reconciliation",
+      "SourceRecoveryTaskService", "SourceRecoveryTracker", "SourceLeaseKeeper", "SourceRetryPolicy",
+      "SourceCompletionService", "IngestionJobService", "OrchestrationSubmissionService",
+      "WorkspaceLifecycleService", "IngestionTelemetry"],
+    note: "Кожен ingestible input — це workspace source. Усі шляхи проходять create → process → index → complete/fail → reprocess/delete. Стабільний sourceId = OpenSearch source ID, тож видалення й переобробка ідемпотентні."
+  }
+};
+
+const PG_TABLES = [
+  ["user_accounts","V3","email, BCrypt hash"],
+  ["workspaces","V2 (+owner V3)","унікальний індекс (owner_id, created_at)"],
+  ["workspace_files","V4 (+V6)","FK → workspaces cascade; source_type + WEB_PAGE/YOUTUBE; storage_key|source_url"],
+  ["ingestion_jobs","V1","статус + timestamps завершення"],
+  ["ingestion_job_steps","V1 (+error_code V5)","unique (job_id, content_type)"],
+  ["source_recovery_tasks","V7, V8, V9","PK = source_id; backfill у V7; lease_token, next_attempt_at"],
+  ["source_index_manifests","V10","active_generation, expected_items > 0 (CHECK)"],
+  ["orchestration_submission_requests","V11","response_json для replay; retention 30 днів"],
+  ["workspace_answer_history","V12","answer_json — серверна історія питань/відповідей"],
+  ["user_daily_quota_usage","V13","ключ (user_id, action, window_start)"]
+];
+
+const OS_FIELDS = [
+  ["id","keyword"],["workspaceId","keyword · головний filter"],["sourceId","keyword · стабільний ID"],
+  ["sourceGeneration","keyword · версія"],["sourceType","keyword"],["sourceName","keyword"],
+  ["sourceUrl","keyword"],["jobId","keyword"],["content","text"],["heading","text · вага ×2 у BM25"],
+  ["chunkId","keyword"],["chunkSequence","integer"],["sectionId","keyword · ізоляція сусідів"],
+  ["pageNumber","integer"],["slideNumber","integer"],["sheetName","keyword"],
+  ["startMilliseconds","long · таймкод"],["endMilliseconds","long"],["speaker","keyword"],
+  ["extractedAt","date"],["parserVersion","keyword"],["contentHash","keyword"],["createdAt","date"],
+  ["embeddingModel","keyword"],["embeddingDimensions","integer"],["embedding","knn_vector(768) · HNSW m=16"]
+];
+
+const API = [
+  ["auth","POST","/api/v1/auth/register","Реєстрація акаунта"],
+  ["auth","GET","/api/v1/auth/me","Поточний користувач"],
+  ["workspaces","POST","/api/v1/workspaces","Створити workspace"],
+  ["workspaces","GET","/api/v1/workspaces","Список workspace-ів власника"],
+  ["workspaces","GET","/api/v1/workspaces/{workspaceId}","Отримати workspace"],
+  ["workspaces","DELETE","/api/v1/workspaces/{workspaceId}","Видалити workspace + knowledge + файли"],
+  ["sources","GET","/api/v1/workspaces/{id}/files","Список джерел (alias /sources)"],
+  ["sources","GET","/api/v1/workspaces/{id}/files/{fileId}","Джерело"],
+  ["sources","DELETE","/api/v1/workspaces/{id}/files/{fileId}","Видалити джерело + knowledge"],
+  ["sources","POST","/api/v1/workspaces/{id}/files/{fileId}/reprocess","Асинхронна переобробка"],
+  ["sources","GET","/api/v1/workspaces/{id}/files/{fileId}/recovery","Стан recovery, спроби, last error"],
+  ["orchestrator","POST","/api/v1/orchestrator/ingestions","Multipart інгестія, 202 + jobId"],
+  ["orchestrator","GET","/api/v1/orchestrator/jobs/{jobId}","Статус job"],
+  ["orchestrator","GET","/api/v1/orchestrator/jobs?workspaceId=","Останні job-и workspace"],
+  ["knowledge","GET","/api/v1/knowledge/workspaces/{id}","Знання workspace"],
+  ["knowledge","POST","/api/v1/knowledge/workspaces/{id}/answers","Питання → відповідь + цитати"],
+  ["knowledge","GET","/api/v1/knowledge/workspaces/{id}/answers","Історія відповідей"],
+  ["documents","POST","/api/v1/documents/text","Прямий витяг тексту"],
+  ["documents","POST","/api/v1/documents/web-page","Витяг веб-сторінки"],
+  ["audio","POST","/api/v1/audio/transcriptions","STT (Whisper)"],
+  ["audio","POST","/api/v1/audio/speech","TTS (Piper), WAV на виході"],
+  ["images","POST","/api/v1/images/descriptions","Розуміння зображення"],
+  ["images","POST","/api/v1/images/generations","Генерація зображення (FLUX)"],
+  ["videos","POST","/api/v1/videos/descriptions","Розуміння відео"],
+  ["videos","POST","/api/v1/videos/generations","Генерація відео (Veo)"],
+  ["videos","POST","/api/v1/videos/youtube","Імпорт публічного YouTube"]
+];
+
+/* ---------- Theme ---------- */
+const root = document.documentElement;
+const savedTheme = localStorage.getItem("aw-arch-theme");
+if (savedTheme) root.setAttribute("data-theme", savedTheme);
+const themeToggle = document.getElementById("themeToggle");
+themeToggle.addEventListener("click", () => {
+  const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+  root.setAttribute("data-theme", next);
+  localStorage.setItem("aw-arch-theme", next);
+  applyMermaidTheme();
+});
+
+/* ---------- Sidebar nav: active + filter ---------- */
+const navLinks = [...document.querySelectorAll(".navlink")];
+const sections = navLinks.map(a => document.querySelector(a.getAttribute("href"))).filter(Boolean);
+const spy = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + e.target.id));
+    }
+  }
+}, { rootMargin: "-70px 0px -70% 0px", threshold: 0 });
+sections.forEach(s => spy.observe(s));
+
+document.getElementById("navFilter").addEventListener("input", (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll(".sidebar .navlink").forEach(a => {
+    a.style.display = a.textContent.toLowerCase().includes(q) ? "" : "none";
+  });
+});
+
+/* ---------- Tabs ---------- */
+document.querySelectorAll('[data-tabs]').forEach(group => {
+  const name = group.getAttribute("data-tabs");
+  const section = group.closest("section");
+  group.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      group.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      section.querySelectorAll(".tabpane").forEach(p => p.classList.remove("active"));
+      const target = document.getElementById(tab.getAttribute("data-tab"));
+      if (target) target.classList.add("active");
+    });
+  });
+});
+
+/* ---------- Render modules ---------- */
+const moduleGrid = document.getElementById("moduleGrid");
+Object.entries(MODULES).forEach(([id, m]) => {
+  const el = document.createElement("article");
+  el.className = "module-card";
+  el.dataset.id = id;
+  el.innerHTML = `
+    <span class="arrow">↗</span>
+    <h4>${m.title}</h4>
+    <span class="path">module: ${id}</span>
+    <p>${m.role}</p>`;
+  el.addEventListener("click", () => openModule(id));
+  moduleGrid.appendChild(el);
+});
+
+/* ---------- Drawer ---------- */
+const drawer = document.getElementById("drawer");
+const backdrop = document.getElementById("backdrop");
+function closeDrawer() { drawer.classList.remove("open"); backdrop.classList.remove("open"); drawer.setAttribute("aria-hidden","true"); }
+document.getElementById("drawerClose").addEventListener("click", closeDrawer);
+backdrop.addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+function openModule(id) {
+  const m = MODULES[id];
+  if (!m) return;
+  document.getElementById("drawerTitle").textContent = m.title;
+  document.getElementById("drawerPath").textContent = "module: " + id;
+  const dep = m.deps.length
+    ? m.deps.map(d => `<span class="pill accent" role="button" onclick="openModule('${d}')" style="cursor:pointer">${d}</span>`).join("")
+    : `<span class="pill">немає залежностей</span>`;
+  document.getElementById("drawerBody").innerHTML = `
+    <p style="color:var(--fg)">${m.role}</p>
+    <dt class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-top:16px">Залежить від</dt>
+    <div style="margin:6px 0 4px">${dep}</div>
+    <dt class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-top:16px">Ключові класи</dt>
+    <ul style="padding-left:18px;font-size:.88rem">${m.classes.map(c => `<li class="mono" style="margin-bottom:3px">${c}</li>`).join("")}</ul>
+    <div class="callout" style="margin-top:18px">${m.note}</div>`;
+  drawer.classList.add("open");
+  backdrop.classList.add("open");
+  drawer.setAttribute("aria-hidden","false");
+}
+window.openModule = openModule;
+
+/* ---------- Render PG table ---------- */
+const pgBody = document.querySelector("#pgTable tbody");
+PG_TABLES.forEach(([name, mig, note]) => {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td class="mono">${name}</td><td><span class="tag">${mig}</span></td><td>${note}</td>`;
+  pgBody.appendChild(tr);
+});
+
+/* ---------- Render OS fields ---------- */
+const osWrap = document.getElementById("osFields");
+OS_FIELDS.forEach(([f, d]) => {
+  const c = document.createElement("div");
+  c.className = "card";
+  c.style.padding = "9px 12px";
+  c.innerHTML = `<div class="mono" style="font-size:.8rem;color:var(--accent)">${f}</div><div class="muted" style="font-size:.72rem">${d}</div>`;
+  osWrap.appendChild(c);
+});
+
+/* ---------- Render API ---------- */
+const apiList = document.getElementById("apiList");
+function renderApi(filter = "") {
+  const q = filter.trim().toLowerCase();
+  const groups = {};
+  API.filter(([, , path, desc]) => !q || path.toLowerCase().includes(q) || desc.toLowerCase().includes(q))
+     .forEach(r => { (groups[r[0]] ||= []).push(r); });
+  apiList.innerHTML = Object.entries(groups).map(([group, rows]) => `
+    <h3 style="text-transform:capitalize">${group}</h3>
+    <table class="table">
+      <thead><tr><th>Метод</th><th>Шлях</th><th>Опис</th></tr></thead>
+      <tbody>${rows.map(([, method, path, desc]) =>
+        `<tr><td><span class="method m-${method.toLowerCase()}">${method}</span></td>
+         <td class="mono" style="font-size:.82rem">${path}</td><td>${desc}</td></tr>`).join("")}</tbody>
+    </table>`).join("") || `<p class="muted">Нічого не знайдено.</p>`;
+}
+renderApi();
+document.getElementById("apiFilter").addEventListener("input", e => renderApi(e.target.value));
+
+/* ---------- Copy buttons on code blocks ---------- */
+document.querySelectorAll("pre.code").forEach(pre => {
+  const btn = document.createElement("button");
+  btn.className = "copy"; btn.textContent = "copy";
+  btn.addEventListener("click", () => {
+    navigator.clipboard.writeText(pre.textContent.replace(/copy$/, "").trim());
+    btn.textContent = "✓"; setTimeout(() => btn.textContent = "copy", 1200);
+  });
+  pre.appendChild(btn);
+});
+
+/* ---------- Mermaid ---------- */
+function mermaidTheme() { return root.getAttribute("data-theme") === "light" ? "default" : "dark"; }
+let diagramSeq = 0;
+const mermaidSources = new Map();
+document.querySelectorAll("pre.mermaid").forEach(el => mermaidSources.set(el, el.textContent.trim()));
+
+function initMermaid() {
+  if (!window.mermaid) return;
+  window.mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: "loose",
+    theme: mermaidTheme(),
+    fontFamily: "'Segoe UI', system-ui, sans-serif",
+    flowchart: { curve: "basis", nodeSpacing: 42, rankSpacing: 54, htmlLabels: true },
+    sequence: { useMaxWidth: false, wrap: true },
+    themeVariables: { fontSize: "14px" }
+  });
+}
+
+async function renderAllDiagrams() {
+  for (const [el, src] of mermaidSources) {
+    const id = "mermaid-svg-" + (diagramSeq++);
+    try {
+      const res = await window.mermaid.render(id, src);
+      el.innerHTML = res.svg;
+      el.classList.remove("fallback");
+      if (res.bindFunctions) res.bindFunctions(el);
+    } catch (err) {
+      el.classList.add("fallback");
+      el.textContent = "⚠ Не вдалося відрендерити діаграму (потрібен доступ до CDN).\n\n" + src;
+    }
+  }
+}
+
+async function applyMermaidTheme() {
+  if (!window.mermaid) return;
+  // Clear bindings and re-render with the new theme.
+  for (const el of mermaidSources.keys()) el.innerHTML = "";
+  initMermaid();
+  await renderAllDiagrams();
+}
+
+/* ---------- Diagram zoom / pan / fullscreen / svg ---------- */
+document.querySelectorAll(".diagram[data-diagram]").forEach(fig => {
+  const viewport = fig.querySelector(".diagram-viewport");
+  const canvas = fig.querySelector(".diagram-canvas");
+  let scale = 1, x = 0, y = 0;
+  const apply = () => { canvas.style.transform = `translate(${x}px, ${y}px) scale(${scale})`; };
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+  fig.querySelector('[data-zoom="in"]').addEventListener("click", () => { scale = clamp(scale * 1.2, .3, 4); apply(); });
+  fig.querySelector('[data-zoom="out"]').addEventListener("click", () => { scale = clamp(scale / 1.2, .3, 4); apply(); });
+  fig.querySelector('[data-zoom="reset"]').addEventListener("click", () => { scale = 1; x = 0; y = 0; apply(); });
+  fig.querySelector('[data-zoom="full"]').addEventListener("click", () => {
+    if (fig.requestFullscreen) fig.requestFullscreen().catch(() => {});
+  });
+  fig.querySelector('[data-zoom="svg"]').addEventListener("click", () => {
+    const svg = canvas.querySelector("svg");
+    if (!svg) return;
+    const blob = new Blob([svg.outerHTML], { type: "image/svg+xml" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "ai-workspace-diagram.svg";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  viewport.addEventListener("wheel", (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    scale = clamp(scale * (e.deltaY < 0 ? 1.1 : 0.9), .3, 4);
+    apply();
+  }, { passive: false });
+
+  let dragging = false, sx = 0, sy = 0;
+  viewport.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".diagram-actions")) return;
+    dragging = true; sx = e.clientX - x; sy = e.clientY - y;
+    viewport.setPointerCapture(e.pointerId);
+  });
+  viewport.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    x = e.clientX - sx; y = e.clientY - sy; apply();
+  });
+  viewport.addEventListener("pointerup", (e) => { dragging = false; });
+});
+
+/* ---------- Boot ---------- */
+(async function boot() {
+  if (!window.mermaid) {
+    document.querySelectorAll("pre.mermaid").forEach(el => {
+      el.classList.add("fallback");
+      el.textContent = "⚠ Mermaid не завантажився (потрібен доступ до CDN). Джерело діаграми:\n\n" + el.textContent;
+    });
+    return;
+  }
+  initMermaid();
+  await renderAllDiagrams();
+})();
+</script>
+</body>
+</html>
