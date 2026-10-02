@@ -1,6 +1,20 @@
 # ai-workspace
 
-Workspace for Java/Spring Boot services and supporting AI infrastructure.
+AI Workspace brings documents, web pages, audio, and video into one searchable
+workspace. It lets users ask questions with supporting evidence and create
+images, video, and speech. The application combines a React/Mantine interface
+with a modular Spring Boot API.
+
+## Interface preview
+
+![Library, Ask, Studio, and Activity views](docs/design/mantine-workspace/screenshots/00-overview.png)
+
+*Design preview with sample data. The React application follows this design.*
+
+[Library](docs/design/mantine-workspace/screenshots/01-library-desktop.png) ·
+[Ask with evidence](docs/design/mantine-workspace/screenshots/06-ask-desktop.png) ·
+[Creative studio](docs/design/mantine-workspace/screenshots/10-studio-image.png) ·
+[Activity](docs/design/mantine-workspace/screenshots/15-activity-desktop.png)
 
 ## Structure
 
