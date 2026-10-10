@@ -8,6 +8,7 @@ import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
+import com.aiworkspace.models.ApiTestUser;
 import com.aiworkspace.shared.media.TranscriptSegment;
 import com.aiworkspace.videos.interfaces.YouTubeVideoUnderstandingProvider;
 import com.aiworkspace.videos.models.VideoAnalysis;
@@ -94,7 +95,7 @@ class ApiIntegrationTest {
 
     @Test
     void mapsValidationErrorsToStandardErrorResponse() throws IOException, InterruptedException {
-        TestUser user = registerUser();
+        ApiTestUser user = registerUser();
         HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/workspaces"))
                 .header("Authorization", user.basicAuthHeader())
                 .header("Content-Type", "application/json")
@@ -112,7 +113,7 @@ class ApiIntegrationTest {
 
     @Test
     void mapsMissingResourcesToStandardErrorResponse() throws IOException, InterruptedException {
-        TestUser user = registerUser();
+        ApiTestUser user = registerUser();
         HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/workspaces/missing"))
                 .header("Authorization", user.basicAuthHeader())
                 .GET()
@@ -156,7 +157,7 @@ class ApiIntegrationTest {
 
     @Test
     void authenticatesWithoutCreatingServerSession() throws IOException, InterruptedException {
-        TestUser user = registerUser();
+        ApiTestUser user = registerUser();
 
         HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/auth/me"))
                 .header("Authorization", user.basicAuthHeader())
@@ -170,8 +171,8 @@ class ApiIntegrationTest {
 
     @Test
     void scopesWorkspacesToAuthenticatedOwner() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
-        TestUser otherUser = registerUser();
+        ApiTestUser owner = registerUser();
+        ApiTestUser otherUser = registerUser();
         HttpResponse<String> created = createWorkspace(owner, "Investor demo");
         JsonNode workspace = OBJECT_MAPPER.readTree(created.body());
         String workspaceId = workspace.path("id").asText();
@@ -193,8 +194,8 @@ class ApiIntegrationTest {
 
     @Test
     void storesUploadedDocumentsAsWorkspaceFiles() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
-        TestUser otherUser = registerUser();
+        ApiTestUser owner = registerUser();
+        ApiTestUser otherUser = registerUser();
         HttpResponse<String> created = createWorkspace(owner, "Files demo");
         String workspaceId = OBJECT_MAPPER.readTree(created.body()).path("id").asText();
 
@@ -263,7 +264,7 @@ class ApiIntegrationTest {
 
     @Test
     void storesLargeDocumentsAsOrderedSearchChunks() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Chunked search").body())
                 .path("id").asText();
         String content = "Revenue increased during the quarter. ".repeat(6);
@@ -292,7 +293,7 @@ class ApiIntegrationTest {
 
     @Test
     void deletingDocumentFileRemovesItsKnowledgeChunks() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Deletion lifecycle").body())
                 .path("id").asText();
         HttpResponse<String> uploaded = uploadDocument(
@@ -324,8 +325,8 @@ class ApiIntegrationTest {
 
     @Test
     void anotherOwnerCannotDeleteDocumentKnowledge() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
-        TestUser otherUser = registerUser();
+        ApiTestUser owner = registerUser();
+        ApiTestUser otherUser = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Protected deletion").body())
                 .path("id").asText();
         HttpResponse<String> uploaded = uploadDocument(
@@ -350,7 +351,7 @@ class ApiIntegrationTest {
 
     @Test
     void deletingWorkspaceRemovesItsFilesAndKnowledge() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Disposable workspace").body())
                 .path("id").asText();
         HttpResponse<String> uploaded = uploadDocument(
@@ -380,7 +381,7 @@ class ApiIntegrationTest {
 
     @Test
     void marksDirectUploadFailedWhenKnowledgeIndexingFails() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Direct indexing failure").body())
                 .path("id").asText();
         inMemoryKnowledgeRepository.failNextAddFor(workspaceId);
@@ -410,7 +411,7 @@ class ApiIntegrationTest {
             int expectedStatus,
             String expectedCode
     ) throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Invalid document").body())
                 .path("id").asText();
 
@@ -447,7 +448,7 @@ class ApiIntegrationTest {
 
     @Test
     void detectsDocumentContentDespiteMisleadingUploadMetadata() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Content detection").body())
                 .path("id").asText();
 
@@ -460,8 +461,8 @@ class ApiIntegrationTest {
 
     @Test
     void rejectsDocumentUploadsToAnotherOwnersWorkspaceBeforeProcessing() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
-        TestUser otherUser = registerUser();
+        ApiTestUser owner = registerUser();
+        ApiTestUser otherUser = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Private documents").body())
                 .path("id").asText();
 
@@ -477,7 +478,7 @@ class ApiIntegrationTest {
 
     @Test
     void completesDocumentOnlyOrchestrationIngestion() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         HttpResponse<String> created = createWorkspace(owner, "Orchestrator demo");
         String workspaceId = OBJECT_MAPPER.readTree(created.body()).path("id").asText();
 
@@ -518,7 +519,7 @@ class ApiIntegrationTest {
 
     @Test
     void marksAsyncDocumentAndJobFailedWhenKnowledgeIndexingFails() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Async indexing failure").body())
                 .path("id").asText();
         inMemoryKnowledgeRepository.failNextAddFor(workspaceId);
@@ -552,7 +553,7 @@ class ApiIntegrationTest {
 
     @Test
     void retainsNamedEmptyDocumentsAsFailedSources() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Empty ingestion document").body())
                 .path("id").asText();
 
@@ -579,7 +580,7 @@ class ApiIntegrationTest {
 
     @Test
     void skipsUnselectedBrowserDocumentInput() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Unselected document input").body())
                 .path("id").asText();
 
@@ -604,8 +605,8 @@ class ApiIntegrationTest {
 
     @Test
     void exposesDocumentFailureCodeOnFailedIngestionStep() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
-        TestUser otherUser = registerUser();
+        ApiTestUser owner = registerUser();
+        ApiTestUser otherUser = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Failed ingestion").body())
                 .path("id").asText();
 
@@ -646,7 +647,7 @@ class ApiIntegrationTest {
 
     @Test
     void idempotentUploadReturnsOriginalJobAndRejectsChangedPayload() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Idempotent uploads").body())
                 .path("id").asText();
         String key = UUID.randomUUID().toString();
@@ -666,8 +667,8 @@ class ApiIntegrationTest {
 
     @Test
     void savesQuestionHistoryForTheWorkspaceOwnerOnly() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
-        TestUser other = registerUser();
+        ApiTestUser owner = registerUser();
+        ApiTestUser other = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Answer history").body())
                 .path("id").asText();
         HttpResponse<String> uploaded = uploadDocument(owner, workspaceId, "facts.txt", "text/plain",
@@ -695,7 +696,7 @@ class ApiIntegrationTest {
         assertEquals(HttpStatus.NOT_FOUND.value(), denied.statusCode());
     }
 
-    private HttpResponse<String> submitIdempotentDocument(TestUser owner, String workspaceId, String key,
+    private HttpResponse<String> submitIdempotentDocument(ApiTestUser owner, String workspaceId, String key,
             String content) throws IOException, InterruptedException {
         return send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
                 .header("Authorization", owner.basicAuthHeader())
@@ -708,7 +709,7 @@ class ApiIntegrationTest {
 
     @Test
     void ingestsPublicYouTubeVideoIntoWorkspaceKnowledge() throws IOException, InterruptedException {
-        TestUser owner = registerUser();
+        ApiTestUser owner = registerUser();
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "YouTube workspace").body())
                 .path("id").asText();
 
@@ -768,7 +769,7 @@ class ApiIntegrationTest {
         return URI.create("http://localhost:" + port + path);
     }
 
-    private TestUser registerUser() throws IOException, InterruptedException {
+    private ApiTestUser registerUser() throws IOException, InterruptedException {
         String email = UUID.randomUUID() + "@example.com";
         String password = "password1234";
         HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/auth/register"))
@@ -784,10 +785,10 @@ class ApiIntegrationTest {
 
         assertEquals(HttpStatus.CREATED.value(), response.statusCode());
         JsonNode user = OBJECT_MAPPER.readTree(response.body());
-        return new TestUser(user.path("id").asText(), email, password);
+        return new ApiTestUser(user.path("id").asText(), email, password);
     }
 
-    private HttpResponse<String> createWorkspace(TestUser user, String name) throws IOException, InterruptedException {
+    private HttpResponse<String> createWorkspace(ApiTestUser user, String name) throws IOException, InterruptedException {
         return send(HttpRequest.newBuilder(uri("/api/v1/workspaces"))
                 .header("Authorization", user.basicAuthHeader())
                 .header("Content-Type", "application/json")
@@ -796,7 +797,7 @@ class ApiIntegrationTest {
     }
 
     private HttpResponse<String> uploadDocument(
-            TestUser user,
+            ApiTestUser user,
             String workspaceId,
             String filename,
             String contentType,
@@ -810,7 +811,7 @@ class ApiIntegrationTest {
                 .build());
     }
 
-    private JsonNode workspaceFiles(TestUser user, String workspaceId) throws IOException, InterruptedException {
+    private JsonNode workspaceFiles(ApiTestUser user, String workspaceId) throws IOException, InterruptedException {
         HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/workspaces/" + workspaceId + "/files"))
                 .header("Authorization", user.basicAuthHeader())
                 .GET()
@@ -823,7 +824,7 @@ class ApiIntegrationTest {
         return new byte[] {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0};
     }
 
-    private JsonNode waitForJobStatus(TestUser user, String jobId, String expectedStatus)
+    private JsonNode waitForJobStatus(ApiTestUser user, String jobId, String expectedStatus)
             throws IOException, InterruptedException {
         JsonNode lastJob = null;
         for (int attempt = 0; attempt < 20; attempt++) {
@@ -901,14 +902,6 @@ class ApiIntegrationTest {
         return HttpRequest.BodyPublishers.ofByteArrays(parts);
     }
 
-    private record TestUser(String id, String email, String password) {
-
-        String basicAuthHeader() {
-            String credentials = email + ":" + password;
-            return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-        }
-    }
-
     @TestConfiguration
     static class ApiIntegrationTestConfig {
 
@@ -980,7 +973,7 @@ class ApiIntegrationTest {
         }
     }
 
-    private JsonNode workspaceSources(TestUser user, String workspaceId) throws IOException, InterruptedException {
+    private JsonNode workspaceSources(ApiTestUser user, String workspaceId) throws IOException, InterruptedException {
         HttpResponse<String> response = send(HttpRequest.newBuilder(
                         uri("/api/v1/workspaces/" + workspaceId + "/sources"))
                 .header("Authorization", user.basicAuthHeader())

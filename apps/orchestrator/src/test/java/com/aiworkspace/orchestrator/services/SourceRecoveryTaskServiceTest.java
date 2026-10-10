@@ -2,9 +2,10 @@ package com.aiworkspace.orchestrator.services;
 
 import com.aiworkspace.orchestrator.config.SourceRecoveryProperties;
 import com.aiworkspace.orchestrator.entities.SourceRecoveryTaskEntity;
-import com.aiworkspace.orchestrator.models.SourceOperationType;
 import com.aiworkspace.orchestrator.models.RecoveryClaim;
+import com.aiworkspace.orchestrator.models.SourceOperationType;
 import com.aiworkspace.orchestrator.models.SourceRecoveryStatus;
+import com.aiworkspace.orchestrator.models.SourceRecoveryTaskTestContext;
 import com.aiworkspace.orchestrator.repositories.SourceRecoveryTaskRepository;
 import com.aiworkspace.workspaces.exceptions.WorkspaceSourceConflictException;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
@@ -32,7 +33,7 @@ class SourceRecoveryTaskServiceTest {
 
     @Test
     void persistsPendingSubmissionWithItsJobBeforeAWorkerClaimsIt() {
-        TestContext context = context(true);
+        SourceRecoveryTaskTestContext context = context(true);
 
         context.service().queueSubmission(source(), "job-1");
 
@@ -53,7 +54,7 @@ class SourceRecoveryTaskServiceTest {
 
     @Test
     void recordsRunningAttemptAndSchedulesTransientFailure() {
-        TestContext context = context(true);
+        SourceRecoveryTaskTestContext context = context(true);
 
         RecoveryClaim claim = context.service().startAttempt(source(), SourceOperationType.PROCESS);
         assertEquals(1, claim.attempt());
@@ -70,7 +71,7 @@ class SourceRecoveryTaskServiceTest {
 
     @Test
     void completionSchedulesFutureIntegrityReconciliation() {
-        TestContext context = context(true);
+        SourceRecoveryTaskTestContext context = context(true);
 
         RecoveryClaim claim = context.service().startAttempt(source(), SourceOperationType.PROCESS);
         context.service().complete(source(), SourceOperationType.PROCESS, claim);
@@ -83,7 +84,7 @@ class SourceRecoveryTaskServiceTest {
 
     @Test
     void disabledRecoveryMovesFailureToDeadLetter() {
-        TestContext context = context(false);
+        SourceRecoveryTaskTestContext context = context(false);
 
         RecoveryClaim claim = context.service().startAttempt(source(), SourceOperationType.PROCESS);
         context.service().fail(source(), SourceOperationType.PROCESS, claim,
@@ -147,7 +148,7 @@ class SourceRecoveryTaskServiceTest {
         assertEquals(SourceRecoveryStatus.COMPLETED, saved.get().getStatus());
     }
 
-    private TestContext context(boolean enabled) {
+    private SourceRecoveryTaskTestContext context(boolean enabled) {
         SourceRecoveryTaskRepository repository = mock(SourceRecoveryTaskRepository.class);
         AtomicReference<SourceRecoveryTaskEntity> saved = new AtomicReference<>();
         when(repository.findForUpdate("source-1")).thenAnswer(invocation -> Optional.ofNullable(saved.get()));
@@ -161,7 +162,7 @@ class SourceRecoveryTaskServiceTest {
                 Duration.ofMinutes(30), Duration.ofHours(6), Duration.ofSeconds(30), 50);
         SourceRetryPolicy retryPolicy = new SourceRetryPolicy(properties);
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-        return new TestContext(new SourceRecoveryTaskService(repository, retryPolicy, properties, clock), saved);
+        return new SourceRecoveryTaskTestContext(new SourceRecoveryTaskService(repository, retryPolicy, properties, clock), saved);
     }
 
     private WorkspaceFile source() {
@@ -174,8 +175,5 @@ class SourceRecoveryTaskServiceTest {
                 .createdAt(NOW)
                 .updatedAt(NOW)
                 .build();
-    }
-
-    private record TestContext(SourceRecoveryTaskService service, AtomicReference<SourceRecoveryTaskEntity> saved) {
     }
 }

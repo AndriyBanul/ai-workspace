@@ -3,6 +3,7 @@ package com.aiworkspace.documents.services;
 import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.documents.models.DocumentBlockType;
 import com.aiworkspace.documents.models.DocumentFailureCode;
+import com.aiworkspace.documents.models.DocumentLocation;
 import com.aiworkspace.documents.models.DocumentTextBlock;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -18,7 +19,7 @@ final class DocumentStructureContentHandler extends DefaultHandler {
     private final int maxBlocks;
     private final StringBuilder rawText = new StringBuilder();
     private final List<DocumentTextBlock> blocks = new ArrayList<>();
-    private final Deque<Location> locations = new ArrayDeque<>();
+    private final Deque<DocumentLocation> locations = new ArrayDeque<>();
     private ActiveBlock activeBlock;
     private Integer pageNumber;
     private Integer slideNumber;
@@ -39,7 +40,7 @@ final class DocumentStructureContentHandler extends DefaultHandler {
 
     @Override
     public void startElement(String uri, String localName, String qualifiedName, Attributes attributes) {
-        locations.push(new Location(pageNumber, slideNumber, sheetName));
+        locations.push(new DocumentLocation(pageNumber, slideNumber, sheetName));
         String element = elementName(localName, qualifiedName);
         String className = normalizedAttribute(attributes, "class");
 
@@ -88,7 +89,7 @@ final class DocumentStructureContentHandler extends DefaultHandler {
             activeBlock = null;
         }
 
-        Location previous = locations.pop();
+        DocumentLocation previous = locations.pop();
         pageNumber = previous.pageNumber();
         slideNumber = previous.slideNumber();
         sheetName = previous.sheetName();
@@ -200,9 +201,6 @@ final class DocumentStructureContentHandler extends DefaultHandler {
             return second.trim();
         }
         return null;
-    }
-
-    private record Location(Integer pageNumber, Integer slideNumber, String sheetName) {
     }
 
     private static final class ActiveBlock {

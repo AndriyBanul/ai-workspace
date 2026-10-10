@@ -2,6 +2,7 @@ package com.aiworkspace.orchestrator.services;
 
 import com.aiworkspace.orchestrator.entities.OrchestrationSubmissionRequestEntity;
 import com.aiworkspace.orchestrator.models.OrchestrationContent;
+import com.aiworkspace.orchestrator.models.OrchestrationReservation;
 import com.aiworkspace.orchestrator.models.OrchestrationSubmission;
 import com.aiworkspace.orchestrator.repositories.OrchestrationSubmissionRequestRepository;
 import com.aiworkspace.workspaces.exceptions.WorkspaceSourceConflictException;
@@ -15,13 +16,13 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HexFormat;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.scheduling.annotation.Scheduled;
 
 /** Atomically reserves request keys, persists responses, and dispatches workers after commit. */
 @Service
@@ -46,7 +47,7 @@ public class OrchestrationSubmissionService {
             OrchestrationContent video) throws IOException {
         String ownedWorkspaceId = workspaces.getWorkspace(ownerId, workspaceId).id();
         String fingerprint = fingerprint("upload", Arrays.asList(document, audio, image, video));
-        Reservation reservation = reserve(ownerId, ownedWorkspaceId, idempotencyKey, fingerprint);
+        OrchestrationReservation reservation = reserve(ownerId, ownedWorkspaceId, idempotencyKey, fingerprint);
         if (reservation.replayed() != null) return reservation.replayed();
         OrchestrationSubmission submission = orchestrator.process(ownerId, ownedWorkspaceId,
                 document, audio, image, video);
@@ -59,7 +60,7 @@ public class OrchestrationSubmissionService {
             String idempotencyKey) throws IOException {
         var source = workspaces.getFile(ownerId, workspaceId, sourceId);
         String fingerprint = fingerprint("reprocess", source.id());
-        Reservation reservation = reserve(ownerId, source.workspaceId(), idempotencyKey, fingerprint);
+        OrchestrationReservation reservation = reserve(ownerId, source.workspaceId(), idempotencyKey, fingerprint);
         if (reservation.replayed() != null) return reservation.replayed();
         OrchestrationSubmission submission = orchestrator.reprocessSource(ownerId, source.workspaceId(), source.id());
         complete(reservation.entity(), submission);
@@ -72,9 +73,9 @@ public class OrchestrationSubmissionService {
         requests.deleteExpired(Instant.now().minus(30, ChronoUnit.DAYS));
     }
 
-    private Reservation reserve(String ownerId, String workspaceId, String key, String fingerprint)
+    private OrchestrationReservation reserve(String ownerId, String workspaceId, String key, String fingerprint)
             throws IOException {
-        if (key == null || key.isBlank()) return new Reservation(null, null);
+        if (key == null || key.isBlank()) return new OrchestrationReservation(null, null);
         String normalized = key.trim();
         if (normalized.length() > 128 || normalized.chars().anyMatch(character -> character < 33 || character > 126)) {
             throw new IllegalArgumentException("Idempotency-Key must contain 1-128 visible ASCII characters");
@@ -89,10 +90,10 @@ public class OrchestrationSubmissionService {
             if (request.getResponseJson() == null) {
                 throw new WorkspaceSourceConflictException("Idempotent submission is still pending; retry shortly");
             }
-            return new Reservation(null, json.readValue(request.getResponseJson(), OrchestrationSubmission.class));
+            return new OrchestrationReservation(null, json.readValue(request.getResponseJson(), OrchestrationSubmission.class));
         }
         try {
-            return new Reservation(requests.saveAndFlush(new OrchestrationSubmissionRequestEntity(
+            return new OrchestrationReservation(requests.saveAndFlush(new OrchestrationSubmissionRequestEntity(
                     id, ownerId, workspaceId, fingerprint, Instant.now())), null);
         } catch (DataIntegrityViolationException exception) {
             throw new WorkspaceSourceConflictException("Idempotent submission is being committed; retry shortly");
@@ -147,8 +148,5 @@ public class OrchestrationSubmissionService {
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
         digest.update(ByteBuffer.allocate(Integer.BYTES).putInt(bytes.length).array());
         digest.update(bytes);
-    }
-
-    private record Reservation(OrchestrationSubmissionRequestEntity entity, OrchestrationSubmission replayed) {
     }
 }

@@ -3,8 +3,9 @@ package com.aiworkspace.orchestrator.services;
 import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.orchestrator.config.SourceRecoveryProperties;
 import com.aiworkspace.orchestrator.entities.SourceRecoveryTaskEntity;
-import com.aiworkspace.orchestrator.models.SourceOperationType;
 import com.aiworkspace.orchestrator.models.RecoveryClaim;
+import com.aiworkspace.orchestrator.models.RetryDecision;
+import com.aiworkspace.orchestrator.models.SourceOperationType;
 import com.aiworkspace.orchestrator.models.SourceRecoveryStatus;
 import com.aiworkspace.orchestrator.models.SourceRecoveryTask;
 import com.aiworkspace.orchestrator.repositories.SourceRecoveryTaskRepository;
@@ -15,8 +16,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -138,7 +139,7 @@ public class SourceRecoveryTaskService implements SourceRecoveryTracker {
         SourceRecoveryTaskEntity task = repository.findForUpdate(source.id())
                 .orElseThrow(() -> new WorkspaceSourceConflictException("Source claim no longer exists"));
         requireCurrent(task, operationType, claim, now);
-        SourceRetryPolicy.RetryDecision decision = retryPolicy.decide(exception, task.getAttemptCount(), now);
+        RetryDecision decision = retryPolicy.decide(exception, task.getAttemptCount(), now);
         String code = errorCode(exception);
         String message = errorMessage(exception);
         if (properties.enabled() && decision.retryable()) {

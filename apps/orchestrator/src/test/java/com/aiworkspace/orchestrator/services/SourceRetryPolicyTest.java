@@ -3,6 +3,7 @@ package com.aiworkspace.orchestrator.services;
 import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.documents.models.DocumentFailureCode;
 import com.aiworkspace.orchestrator.config.SourceRecoveryProperties;
+import com.aiworkspace.orchestrator.models.RetryDecision;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -20,8 +21,8 @@ class SourceRetryPolicyTest {
 
     @Test
     void retriesTransientFailuresWithExponentialBackoff() {
-        SourceRetryPolicy.RetryDecision first = policy.decide(new IOException("temporarily unavailable"), 1, NOW);
-        SourceRetryPolicy.RetryDecision third = policy.decide(new IOException("temporarily unavailable"), 3, NOW);
+        RetryDecision first = policy.decide(new IOException("temporarily unavailable"), 1, NOW);
+        RetryDecision third = policy.decide(new IOException("temporarily unavailable"), 3, NOW);
 
         assertTrue(first.retryable());
         assertEquals(NOW.plusSeconds(30), first.nextAttemptAt());
@@ -31,7 +32,7 @@ class SourceRetryPolicyTest {
 
     @Test
     void stopsAfterConfiguredMaximumAttempt() {
-        SourceRetryPolicy.RetryDecision decision = policy.decide(new IOException("still unavailable"), 5, NOW);
+        RetryDecision decision = policy.decide(new IOException("still unavailable"), 5, NOW);
 
         assertFalse(decision.retryable());
         assertEquals(null, decision.nextAttemptAt());
@@ -42,7 +43,7 @@ class SourceRetryPolicyTest {
         DocumentProcessingException exception = new DocumentProcessingException(
                 DocumentFailureCode.UNSUPPORTED_DOCUMENT_FORMAT);
 
-        SourceRetryPolicy.RetryDecision decision = policy.decide(exception, 1, NOW);
+        RetryDecision decision = policy.decide(exception, 1, NOW);
 
         assertFalse(decision.retryable());
     }

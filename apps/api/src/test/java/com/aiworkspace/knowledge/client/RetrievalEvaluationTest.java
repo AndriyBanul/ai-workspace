@@ -9,6 +9,10 @@ import com.aiworkspace.knowledge.models.KnowledgeEmbeddingMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
+import com.aiworkspace.models.RetrievalEvaluationConfig;
+import com.aiworkspace.models.RetrievalEvaluationCorpus;
+import com.aiworkspace.models.RetrievalEvaluationOutcome;
+import com.aiworkspace.models.RetrievalEvaluationRun;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.nio.file.Files;
@@ -28,28 +32,21 @@ import static org.junit.jupiter.api.Assertions.*;
 class RetrievalEvaluationTest {
     private static final String URL = "http://localhost:19200";
     private static final String INDEX = "/knowledge-items-v3";
-    private static final Config BASELINE = new Config(5, 2, 32, 60);
+    private static final RetrievalEvaluationConfig BASELINE = new RetrievalEvaluationConfig(5, 2, 32, 60);
     private final ObjectMapper json = new ObjectMapper();
     private final RestClient http = RestClient.create(URL);
     private final KnowledgeEmbeddingProperties properties =
             new KnowledgeEmbeddingProperties(true, null, 768, 8, 32, 60);
-
-    record Corpus(int version, List<Source> documents, List<Question> questions) {}
-    record Source(String id, String heading, List<String> paragraphs) {}
-    record Question(String id, String split, String question, String sourceId, String evidence) {}
-    record Config(int chunkSentences, int headingWeight, int candidates, int rrf) {}
-    record Outcome(String questionId, int firstRelevantRank, List<String> expectedChunks, List<String> retrievedChunks, List<String> contextChunks, boolean contextHit) {}
-    record Run(Config config, String mode, String split, double hit1, double hit3, double hit5, double contextHit, List<Outcome> outcomes) {}
 
     @Test
     void evaluateRetrieval() throws Exception {
         var cluster = json.readTree(http.get().uri("/").retrieve().body(String.class));
         assertEquals("ai-workspace-integration-test", cluster.path("cluster_name").asText(),
                 "Refusing to modify anything except the isolated test cluster");
-        Corpus corpus;
+        RetrievalEvaluationCorpus corpus;
         try (var input = getClass().getResourceAsStream("/retrieval/corpus.json")) {
             assertNotNull(input);
-            corpus = json.readValue(input, Corpus.class);
+            corpus = json.readValue(input, RetrievalEvaluationCorpus.class);
         }
         for (var question : corpus.questions()) {
             assertTrue(corpus.documents().stream().anyMatch(source -> source.id().equals(question.sourceId())
@@ -87,18 +84,18 @@ class RetrievalEvaluationTest {
                 vectors.put(question.id(), embeddings.embedQuery(question.question()));
             }
             var indexed = new HashMap<Integer, List<KnowledgeItem>>();
-            var runs = new ArrayList<Run>();
+            var runs = new ArrayList<RetrievalEvaluationRun>();
             for (int size : List.of(5, 3, 8)) {
                 var items = embedChunks(corpus, size, embeddings);
                 indexed.put(size, items);
                 index(items);
                 for (int weight : List.of(2, 1, 4)) {
                     var client = client(weight);
-                    runs.add(evaluate(new Config(size, weight, 32, 60), "BM25", "tune",
+                    runs.add(evaluate(new RetrievalEvaluationConfig(size, weight, 32, 60), "BM25", "tune",
                             corpus, items, vectors, client));
                     for (int candidates : List.of(32, 16, 8)) {
                         for (int rrf : List.of(60, 10)) {
-                            runs.add(evaluate(new Config(size, weight, candidates, rrf), "hybrid", "tune",
+                            runs.add(evaluate(new RetrievalEvaluationConfig(size, weight, candidates, rrf), "hybrid", "tune",
                                     corpus, items, vectors, client));
                         }
                     }
@@ -106,12 +103,12 @@ class RetrievalEvaluationTest {
                 System.out.println("Evaluated chunk size " + size + " with " + items.size() + " chunks");
             }
             // Stable ordering favors the current defaults when tuning scores tie.
-            Run selected = runs.stream().filter(run -> run.mode().equals("hybrid"))
-                    .sorted(Comparator.comparingDouble(Run::hit1).reversed()
-                            .thenComparing(Comparator.comparingDouble(Run::hit3).reversed())
-                            .thenComparing(Comparator.comparingDouble(Run::hit5).reversed()))
+            RetrievalEvaluationRun selected = runs.stream().filter(run -> run.mode().equals("hybrid"))
+                    .sorted(Comparator.comparingDouble(RetrievalEvaluationRun::hit1).reversed()
+                            .thenComparing(Comparator.comparingDouble(RetrievalEvaluationRun::hit3).reversed())
+                            .thenComparing(Comparator.comparingDouble(RetrievalEvaluationRun::hit5).reversed()))
                     .findFirst().orElseThrow();
-            var validation = new ArrayList<Run>();
+            var validation = new ArrayList<RetrievalEvaluationRun>();
             for (var config : new LinkedHashSet<>(List.of(BASELINE, selected.config()))) {
                 var items = indexed.get(config.chunkSentences());
                 index(items);
@@ -151,7 +148,7 @@ class RetrievalEvaluationTest {
         return value.substring(value.indexOf(':') + 1, value.length() - 1);
     }
 
-    private List<KnowledgeItem> embedChunks(Corpus corpus, int size, SpringAiTextEmbeddingClient embeddings) throws Exception {
+    private List<KnowledgeItem> embedChunks(RetrievalEvaluationCorpus corpus, int size, SpringAiTextEmbeddingClient embeddings) throws Exception {
         var result = new ArrayList<KnowledgeItem>();
         var chunker = new DocumentChunker();
         for (var source : corpus.documents()) {
@@ -190,9 +187,9 @@ class RetrievalEvaluationTest {
         return new OpenSearchKnowledgeClient(URI.create(URL), RestClient.create(), json, properties, weight);
     }
 
-    private Run evaluate(Config config, String mode, String split, Corpus corpus, List<KnowledgeItem> items,
+    private RetrievalEvaluationRun evaluate(RetrievalEvaluationConfig config, String mode, String split, RetrievalEvaluationCorpus corpus, List<KnowledgeItem> items,
                          Map<String, List<Float>> vectors, OpenSearchKnowledgeClient client) throws Exception {
-        var outcomes = new ArrayList<Outcome>();
+        var outcomes = new ArrayList<RetrievalEvaluationOutcome>();
         for (var question : corpus.questions()) {
             if (!question.split().equals(split)) continue;
             var relevant = items.stream().filter(item -> item.sourceId().equals(question.sourceId())
@@ -208,19 +205,19 @@ class RetrievalEvaluationTest {
                 if (relevant.contains(results.get(i).id())) { rank = i + 1; break; }
             }
             var context = client.expandNeighbors("evaluation", results);
-            outcomes.add(new Outcome(question.id(), rank, relevant, results.stream().map(KnowledgeItem::id).toList(),
+            outcomes.add(new RetrievalEvaluationOutcome(question.id(), rank, relevant, results.stream().map(KnowledgeItem::id).toList(),
                     context.stream().map(KnowledgeItem::id).toList(),
                     context.stream().anyMatch(item -> relevant.contains(item.id()))));
         }
-        return new Run(config, mode, split, hit(outcomes, 1), hit(outcomes, 3), hit(outcomes, 5), outcomes.stream().filter(Outcome::contextHit).count() / (double) outcomes.size(), outcomes);
+        return new RetrievalEvaluationRun(config, mode, split, hit(outcomes, 1), hit(outcomes, 3), hit(outcomes, 5), outcomes.stream().filter(RetrievalEvaluationOutcome::contextHit).count() / (double) outcomes.size(), outcomes);
     }
 
-    private double hit(List<Outcome> outcomes, int k) {
+    private double hit(List<RetrievalEvaluationOutcome> outcomes, int k) {
         return outcomes.stream().filter(o -> o.firstRelevantRank() > 0 && o.firstRelevantRank() <= k).count()
                 / (double) outcomes.size();
     }
 
-    private void appendRow(StringBuilder text, Run run) {
+    private void appendRow(StringBuilder text, RetrievalEvaluationRun run) {
         var c = run.config();
         text.append(String.format(Locale.ROOT, "| %s | %s | %d | %d | %d | %d | %.1f%% | %.1f%% | %.1f%% | %.1f%% |%n",
                 run.split(), run.mode(), c.chunkSentences(), c.headingWeight(), c.candidates(), c.rrf(),

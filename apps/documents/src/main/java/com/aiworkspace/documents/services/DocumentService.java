@@ -4,6 +4,7 @@ import com.aiworkspace.documents.client.GenericRestClient;
 import com.aiworkspace.documents.config.DocumentExtractionProperties;
 import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.documents.models.DocumentFailureCode;
+import com.aiworkspace.documents.models.ExtractedDocumentStructure;
 import com.aiworkspace.documents.models.ExtractedWebPage;
 import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.models.WebPageExtractRequest;

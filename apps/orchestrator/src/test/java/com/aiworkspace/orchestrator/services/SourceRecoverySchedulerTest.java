@@ -3,6 +3,7 @@ package com.aiworkspace.orchestrator.services;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.orchestrator.config.SourceRecoveryProperties;
 import com.aiworkspace.orchestrator.models.SourceOperationType;
+import com.aiworkspace.orchestrator.models.SourceRecoverySchedulerTestContext;
 import com.aiworkspace.orchestrator.models.SourceRecoveryStatus;
 import com.aiworkspace.orchestrator.models.SourceRecoveryTask;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
@@ -16,8 +17,8 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import org.junit.jupiter.api.Test;
 
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,7 +26,7 @@ class SourceRecoverySchedulerTest {
 
     @Test
     void schedulesRepairWhenProcessedSourceHasNoIndexedKnowledge() throws IOException {
-        TestContext context = context();
+        SourceRecoverySchedulerTestContext context = context();
         WorkspaceFile source = source();
         when(context.files().getFile("workspace-1", "source-1")).thenReturn(source);
         when(context.files().contentExists("workspace-1", "source-1")).thenReturn(true);
@@ -39,7 +40,7 @@ class SourceRecoverySchedulerTest {
 
     @Test
     void deadLettersSourceWhenStoredContentIsMissing() throws IOException {
-        TestContext context = context();
+        SourceRecoverySchedulerTestContext context = context();
         WorkspaceFile source = source();
         when(context.files().getFile("workspace-1", "source-1")).thenReturn(source);
         when(context.files().contentExists("workspace-1", "source-1")).thenReturn(false);
@@ -52,7 +53,7 @@ class SourceRecoverySchedulerTest {
 
     @Test
     void removesOrphanedKnowledgeWhenSourceMetadataIsGone() throws IOException {
-        TestContext context = context();
+        SourceRecoverySchedulerTestContext context = context();
         when(context.files().getFile("workspace-1", "source-1"))
                 .thenThrow(new NoSuchElementException("missing"));
 
@@ -64,7 +65,7 @@ class SourceRecoverySchedulerTest {
 
     @Test
     void completesScheduledProcessingTaskWhenSourceWasDeleted() throws IOException {
-        TestContext context = context(scheduledTask());
+        SourceRecoverySchedulerTestContext context = context(scheduledTask());
         doThrow(new NoSuchElementException("missing"))
                 .when(context.orchestrator()).recoverSource(scheduledTask());
 
@@ -74,11 +75,11 @@ class SourceRecoverySchedulerTest {
         verify(context.recovery()).completeDeletedTask(scheduledTask());
     }
 
-    private TestContext context() {
+    private SourceRecoverySchedulerTestContext context() {
         return context(task());
     }
 
-    private TestContext context(SourceRecoveryTask task) {
+    private SourceRecoverySchedulerTestContext context(SourceRecoveryTask task) {
         SourceRecoveryTaskService recovery = mock(SourceRecoveryTaskService.class);
         OrchestratorService orchestrator = mock(OrchestratorService.class);
         WorkspaceLifecycleService lifecycle = mock(WorkspaceLifecycleService.class);
@@ -90,7 +91,7 @@ class SourceRecoverySchedulerTest {
         when(recovery.findDueTasks()).thenReturn(List.of(task));
         SourceRecoveryScheduler scheduler = new SourceRecoveryScheduler(
                 recovery, orchestrator, lifecycle, files, knowledge, properties);
-        return new TestContext(scheduler, recovery, orchestrator, files, knowledge);
+        return new SourceRecoverySchedulerTestContext(scheduler, recovery, orchestrator, files, knowledge);
     }
 
     private SourceRecoveryTask task() {
@@ -119,14 +120,5 @@ class SourceRecoverySchedulerTest {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-    }
-
-    private record TestContext(
-            SourceRecoveryScheduler scheduler,
-            SourceRecoveryTaskService recovery,
-            OrchestratorService orchestrator,
-            WorkspaceFileService files,
-            KnowledgeService knowledge
-    ) {
     }
 }

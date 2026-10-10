@@ -2,6 +2,7 @@ package com.aiworkspace.orchestrator.services;
 
 import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.orchestrator.config.SourceRecoveryProperties;
+import com.aiworkspace.orchestrator.models.RetryDecision;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -45,8 +46,5 @@ public class SourceRetryPolicy {
             }
         }
         return false;
-    }
-
-    public record RetryDecision(boolean retryable, Instant nextAttemptAt) {
     }
 }

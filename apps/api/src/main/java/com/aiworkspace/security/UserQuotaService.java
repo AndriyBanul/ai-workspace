@@ -1,13 +1,14 @@
 package com.aiworkspace.security;
 
 import com.aiworkspace.config.SecurityProperties;
+import com.aiworkspace.models.QuotaDecision;
 import com.aiworkspace.users.services.UserAccountService;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.scheduling.annotation.Scheduled;
 
 /** Serializes each user's quota updates on the account row, across API instances. */
 @Service
@@ -54,8 +55,5 @@ public class UserQuotaService {
 
     public enum Action {
         INGESTION, ANSWER, GENERATION
-    }
-
-    public record QuotaDecision(boolean allowed, long retryAfterSeconds) {
     }
 }
