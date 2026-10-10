@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,15 +36,6 @@ public class WorkspaceFileService {
     private final WorkspaceFileMapper workspaceFileMapper;
     private final FileStorage fileStorage;
     private final WorkspaceFileValidator workspaceFileValidator;
-
-    @Autowired
-    public WorkspaceFileService(
-            WorkspaceFileRepository workspaceFileRepository,
-            WorkspaceFileMapper workspaceFileMapper,
-            FileStorage fileStorage
-    ) {
-        this(workspaceFileRepository, workspaceFileMapper, fileStorage, new WorkspaceFileValidator());
-    }
 
     @Transactional
     public WorkspaceFile createFile(CreateWorkspaceFileRequest request) throws IOException {

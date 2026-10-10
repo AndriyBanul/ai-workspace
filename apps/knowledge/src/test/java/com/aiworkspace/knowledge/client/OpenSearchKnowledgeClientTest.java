@@ -1,19 +1,19 @@
 package com.aiworkspace.knowledge.client;
 
-import com.aiworkspace.knowledge.models.KnowledgeItem;
+import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
 import com.aiworkspace.knowledge.models.KnowledgeChunkMetadata;
+import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
-import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.MediaType;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -23,8 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class OpenSearchKnowledgeClientTest {
 
@@ -45,7 +45,7 @@ class OpenSearchKnowledgeClientTest {
                 .andRespond(withSuccess());
         server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
                 .andRespond(withSuccess("{\"hits\":{\"hits\":[]}}", MediaType.APPLICATION_JSON));
-        OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
+        OpenSearchKnowledgeClient client = OpenSearchKnowledgeClientTestFactory.create(
                 URI.create("http://localhost:9200"),
                 builder.build(),
                 new ObjectMapper(),
@@ -75,7 +75,7 @@ class OpenSearchKnowledgeClientTest {
                 .andExpect(content().string(containsString("\"speaker\":\"Speaker 1\"")))
                 .andExpect(content().string(containsString("\"_index\":\"knowledge-items-v3\"")))
                 .andRespond(withSuccess("{\"errors\":false,\"items\":[]}", MediaType.APPLICATION_JSON));
-        OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
+        OpenSearchKnowledgeClient client = OpenSearchKnowledgeClientTestFactory.create(
                 URI.create("http://localhost:9200"),
                 builder.build(),
                 new ObjectMapper()
@@ -117,7 +117,7 @@ class OpenSearchKnowledgeClientTest {
         server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_count"))
                 .andExpect(content().string(containsString("\"sourceGeneration\":\"file-1:generation-2\"")))
                 .andRespond(withSuccess("{\"count\":0}", MediaType.APPLICATION_JSON));
-        OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
+        OpenSearchKnowledgeClient client = OpenSearchKnowledgeClientTestFactory.create(
                 URI.create("http://localhost:9200"), builder.build(), new ObjectMapper());
         KnowledgeItem item = KnowledgeItem.builder()
                 .id("file-1:generation-2:0")
@@ -151,7 +151,7 @@ class OpenSearchKnowledgeClientTest {
                 .andExpect(content().string(containsString("\"sourceId\":\"file-1\"")))
                 .andExpect(content().string(containsString("\"ids\":{\"values\":[\"file-1:1\"]}")))
                 .andRespond(withSuccess("{\"timed_out\":false,\"failures\":[]}", MediaType.APPLICATION_JSON));
-        OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
+        OpenSearchKnowledgeClient client = OpenSearchKnowledgeClientTestFactory.create(
                 URI.create("http://localhost:9200"), builder.build(), new ObjectMapper()
         );
         KnowledgeItem replacement = KnowledgeItem.builder()
@@ -182,7 +182,7 @@ class OpenSearchKnowledgeClientTest {
                 .andExpect(content().string(containsString("\"workspaceId\":\"workspace-1\"")))
                 .andExpect(content().string(containsString("\"sourceId\":\"file-1\"")))
                 .andRespond(withSuccess("{\"timed_out\":false,\"failures\":[]}", MediaType.APPLICATION_JSON));
-        OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
+        OpenSearchKnowledgeClient client = OpenSearchKnowledgeClientTestFactory.create(
                 URI.create("http://localhost:9200"), builder.build(), new ObjectMapper()
         );
 
@@ -202,7 +202,7 @@ class OpenSearchKnowledgeClientTest {
                 ))
                 .andExpect(content().string(containsString("\"workspaceId\":\"workspace-1\"")))
                 .andRespond(withSuccess("{\"timed_out\":false,\"failures\":[]}", MediaType.APPLICATION_JSON));
-        OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
+        OpenSearchKnowledgeClient client = OpenSearchKnowledgeClientTestFactory.create(
                 URI.create("http://localhost:9200"), builder.build(), new ObjectMapper()
         );
 
@@ -233,7 +233,7 @@ class OpenSearchKnowledgeClientTest {
                           "createdAt":"2026-09-08T09:00:00Z"
                         }}]}}
                         """, MediaType.APPLICATION_JSON));
-        OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
+        OpenSearchKnowledgeClient client = OpenSearchKnowledgeClientTestFactory.create(
                 URI.create("http://localhost:9200"),
                 builder.build(),
                 new ObjectMapper()
@@ -263,7 +263,7 @@ class OpenSearchKnowledgeClientTest {
                 .andExpect(content().string(containsString("\"vector\":[1.0,0.0,0.0]")))
                 .andExpect(content().string(containsString("\"workspaceId\":\"workspace-1\"")))
                 .andRespond(withSuccess(searchResponse("vector", "Semantic match"), MediaType.APPLICATION_JSON));
-        OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
+        OpenSearchKnowledgeClient client = OpenSearchKnowledgeClientTestFactory.create(
                 URI.create("http://localhost:9200"),
                 builder.build(),
                 new ObjectMapper(),
@@ -290,7 +290,7 @@ class OpenSearchKnowledgeClientTest {
                 .andExpect(content().string(containsString("\"knn\"")))
                 .andExpect(content().string(containsString("\"vector\":[1.0,0.0,0.0]")))
                 .andRespond(withSuccess(searchResponse("vector", "Semantic match"), MediaType.APPLICATION_JSON));
-        OpenSearchKnowledgeClient client = new OpenSearchKnowledgeClient(
+        OpenSearchKnowledgeClient client = OpenSearchKnowledgeClientTestFactory.create(
                 URI.create("http://localhost:9200"),
                 builder.build(),
                 new ObjectMapper(),

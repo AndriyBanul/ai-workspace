@@ -19,37 +19,24 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@RequiredArgsConstructor
 public class KnowledgeIndexingService {
 
     private final KnowledgeRepository knowledgeRepository;
     private final KnowledgeValidator knowledgeValidator;
     private final TextEmbeddingProvider textEmbeddingProvider;
-    private final boolean versionedWrites;
-
-    public KnowledgeIndexingService(KnowledgeRepository knowledgeRepository, KnowledgeValidator knowledgeValidator,
-            TextEmbeddingProvider textEmbeddingProvider) {
-        this(knowledgeRepository, knowledgeValidator, textEmbeddingProvider, false);
-    }
-
-    @Autowired
-    public KnowledgeIndexingService(KnowledgeRepository knowledgeRepository, KnowledgeValidator knowledgeValidator,
-            TextEmbeddingProvider textEmbeddingProvider, SourceIndexManifestService manifestService) {
-        this(knowledgeRepository, knowledgeValidator, textEmbeddingProvider, true);
-    }
+    private final SourceIndexManifestService manifestService;
 
     public StagedKnowledgeIndex record(String workspaceId, KnowledgeSourceType sourceType, String sourceName, String jobId,
             String value, KnowledgeSourceMetadata sourceMetadata) throws IOException {
         knowledgeValidator.validateKnowledgeItemContent(value);
         knowledgeValidator.validateWorkspaceId(workspaceId);
         String sourceId = sourceMetadata == null ? null : normalized(sourceMetadata.sourceId());
-        String generation = versionedWrites && sourceId != null ? UUID.randomUUID().toString() : null;
+        String generation = manifestService != null && sourceId != null ? UUID.randomUUID().toString() : null;
         KnowledgeItem item = KnowledgeItem.builder()
                 .id(sourceId == null ? UUID.randomUUID().toString()
                         : generation == null ? sourceId + ":0" : sourceId + ":" + generation + ":0")
@@ -76,7 +63,7 @@ public class KnowledgeIndexingService {
             sourceIdentity = UUID.randomUUID().toString();
         }
         String sourceId = sourceMetadata == null ? null : normalized(sourceMetadata.sourceId());
-        String generation = versionedWrites && sourceId != null ? UUID.randomUUID().toString() : null;
+        String generation = manifestService != null && sourceId != null ? UUID.randomUUID().toString() : null;
 
         Instant createdAt = Instant.now();
         List<KnowledgeItem> items = new ArrayList<>(chunks.size());

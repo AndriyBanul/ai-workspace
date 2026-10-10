@@ -4,11 +4,13 @@ import com.aiworkspace.documents.models.DocumentBlockType;
 import com.aiworkspace.documents.models.DocumentTextBlock;
 import com.aiworkspace.documents.services.DocumentChunker;
 import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
+import com.aiworkspace.knowledge.interfaces.EmbeddingTextSplitter;
 import com.aiworkspace.knowledge.models.KnowledgeChunkMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeEmbeddingMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
+import com.aiworkspace.knowledge.observability.SearchTelemetry;
 import com.aiworkspace.models.RetrievalEvaluationConfig;
 import com.aiworkspace.models.RetrievalEvaluationCorpus;
 import com.aiworkspace.models.RetrievalEvaluationOutcome;
@@ -184,7 +186,7 @@ class RetrievalEvaluationTest {
     }
 
     private OpenSearchKnowledgeClient client(int weight) {
-        return new OpenSearchKnowledgeClient(URI.create(URL), RestClient.create(), json, properties, weight);
+        return OpenSearchKnowledgeClientTestFactory.create(URI.create(URL), RestClient.create(), json, properties, weight);
     }
 
     private RetrievalEvaluationRun evaluate(RetrievalEvaluationConfig config, String mode, String split, RetrievalEvaluationCorpus corpus, List<KnowledgeItem> items,

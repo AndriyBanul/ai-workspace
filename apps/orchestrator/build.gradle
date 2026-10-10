@@ -13,6 +13,7 @@ dependencyManagement {
 }
 
 dependencies {
+	testImplementation testFixtures(project(':knowledge'))
 	implementation project(':audio')
 	implementation project(':documents')
 	implementation project(':images')

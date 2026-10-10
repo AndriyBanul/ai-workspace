@@ -71,6 +71,8 @@ If this file conflicts with other project guidance, follow this file first unles
 - Keep service methods focused and named by product behavior.
 - Prefer constructor injection.
 - Prefer Lombok `@RequiredArgsConstructor` with `final` dependency fields over hand-written constructors that only assign dependencies, including in services, controllers, and clients.
+- Keep one constructor with explicit dependencies in Spring-managed classes. Use plain `@RequiredArgsConstructor` when Lombok can generate it; do not keep convenience constructors just for tests.
+- Put default test dependencies and complex service assembly in test helpers or Gradle test fixtures. Tests should call the same dependency constructor as production.
 - Preserve Spring injection annotations such as `@Qualifier` on generated constructor parameters through Lombok configuration when needed.
 - Keep explicit constructors when they perform necessary initialization or validation beyond assigning dependencies; keep test-only convenience construction in test helpers.
 - Keep validation separate from normalization/trimming for required input values:

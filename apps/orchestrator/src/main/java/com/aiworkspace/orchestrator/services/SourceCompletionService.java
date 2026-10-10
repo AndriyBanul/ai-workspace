@@ -12,7 +12,6 @@ import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -20,7 +19,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 /** Commits job, source and recovery state under the same leased source row lock. */
 @Service
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@RequiredArgsConstructor
 public class SourceCompletionService {
 
     private static final Logger log = LoggerFactory.getLogger(SourceCompletionService.class);
@@ -30,11 +29,6 @@ public class SourceCompletionService {
     private final SourceRecoveryTracker recovery;
     private final SourceIndexManifestService manifests;
     private final KnowledgeRepository knowledge;
-
-    public SourceCompletionService(IngestionJobService jobs, WorkspaceFileService sources,
-            SourceRecoveryTracker recovery) {
-        this(jobs, sources, recovery, null, null);
-    }
 
     @Transactional
     public void complete(IngestionJobDetails job, IngestionContentType contentType, WorkspaceFile source,

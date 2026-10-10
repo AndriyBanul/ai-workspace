@@ -79,6 +79,6 @@ class LocalFileStorageTest {
     }
 
     private LocalFileStorage newStorage() {
-        return new LocalFileStorage(new LocalStorageProperties(storageRoot));
+        return new LocalFileStorage(new LocalStorageProperties(storageRoot), new FileStorageValidator());
     }
 }

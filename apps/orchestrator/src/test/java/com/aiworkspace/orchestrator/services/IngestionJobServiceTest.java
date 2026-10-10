@@ -255,6 +255,6 @@ class IngestionJobServiceTest {
     }
 
     private static IngestionJobService newService(CapturingRepository repository) {
-        return new IngestionJobService(repository, new IngestionJobDetailsMapperImpl());
+        return new IngestionJobService(repository, new IngestionJobDetailsMapperImpl(), new IngestionJobValidator());
     }
 }

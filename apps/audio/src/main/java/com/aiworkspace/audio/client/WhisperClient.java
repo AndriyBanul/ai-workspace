@@ -1,7 +1,7 @@
 package com.aiworkspace.audio.client;
 
-import com.aiworkspace.audio.models.TranscriptionResponse;
 import com.aiworkspace.audio.interfaces.SpeechToTextProvider;
+import com.aiworkspace.audio.models.TranscriptionResponse;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.aiworkspace.shared.media.TranscriptSegment;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,7 +17,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -31,21 +30,12 @@ public class WhisperClient implements SpeechToTextProvider {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
-    @Autowired
     public WhisperClient(
             @Value("${ai-workspace.whisper.base-url:http://localhost:9000}") String baseUrl,
             RestClient restClient,
             ObjectMapper objectMapper
     ) {
-        this(
-                URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
-                restClient,
-                objectMapper
-        );
-    }
-
-    WhisperClient(URI baseUri, RestClient restClient, ObjectMapper objectMapper) {
-        this.baseUri = baseUri;
+        this.baseUri = URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NORMAL)

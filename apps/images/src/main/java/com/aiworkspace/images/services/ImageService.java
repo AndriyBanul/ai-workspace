@@ -7,12 +7,11 @@ import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.models.ImageGenerationRequest;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@RequiredArgsConstructor
 public class ImageService {
 
     private final ImageUnderstandingProvider imageUnderstandingProvider;
@@ -20,14 +19,6 @@ public class ImageService {
     @Value("${ai-workspace.gemini.image-description-prompt:Describe this image clearly and concisely.}")
     private final String descriptionPrompt;
     private final ImageValidator imageValidator;
-
-    public ImageService(
-            ImageUnderstandingProvider imageUnderstandingProvider,
-            ImageGenerationProvider imageGenerationProvider,
-            @Value("${ai-workspace.gemini.image-description-prompt:Describe this image clearly and concisely.}") String descriptionPrompt
-    ) {
-        this(imageUnderstandingProvider, imageGenerationProvider, descriptionPrompt, new ImageValidator());
-    }
 
     public ImageDescription describe(String filename, String contentType, byte[] imageContent)
             throws IOException, InterruptedException {

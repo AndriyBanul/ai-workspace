@@ -127,9 +127,19 @@ class SourceRecoveryTaskServiceTest {
                 Duration.ofMinutes(30), Duration.ofHours(6), Duration.ofSeconds(30), 50);
         SourceRetryPolicy retryPolicy = new SourceRetryPolicy(properties);
         SourceRecoveryTaskService firstInstance = new SourceRecoveryTaskService(
-                repository, retryPolicy, properties, clock);
+                repository,
+                retryPolicy,
+                properties,
+                clock,
+                IngestionTelemetry.NOOP
+        );
         SourceRecoveryTaskService secondInstance = new SourceRecoveryTaskService(
-                repository, retryPolicy, properties, clock);
+                repository,
+                retryPolicy,
+                properties,
+                clock,
+                IngestionTelemetry.NOOP
+        );
 
         RecoveryClaim first = firstInstance.startAttempt(source(), SourceOperationType.PROCESS);
         currentTime.set(NOW.plus(Duration.ofMinutes(31)));
@@ -162,7 +172,7 @@ class SourceRecoveryTaskServiceTest {
                 Duration.ofMinutes(30), Duration.ofHours(6), Duration.ofSeconds(30), 50);
         SourceRetryPolicy retryPolicy = new SourceRetryPolicy(properties);
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-        return new SourceRecoveryTaskTestContext(new SourceRecoveryTaskService(repository, retryPolicy, properties, clock), saved);
+        return new SourceRecoveryTaskTestContext(new SourceRecoveryTaskService(repository, retryPolicy, properties, clock, IngestionTelemetry.NOOP), saved);
     }
 
     private WorkspaceFile source() {

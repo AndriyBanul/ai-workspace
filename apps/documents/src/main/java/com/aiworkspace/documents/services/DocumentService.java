@@ -28,12 +28,11 @@ import org.apache.tika.parser.ocr.TesseractOCRConfig;
 import org.apache.tika.parser.pdf.PDFParserConfig;
 import org.apache.tika.sax.BodyContentHandler;
 import org.apache.tika.sax.WriteOutContentHandler;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
 
 @Service
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@RequiredArgsConstructor
 public class DocumentService {
 
     private static final String DOCX_MEDIA_TYPE =
@@ -49,22 +48,6 @@ public class DocumentService {
     private final DocumentChunker documentChunker;
     private final PdfOcrFallback pdfOcrFallback;
     private final AutoDetectParser parser = new AutoDetectParser();
-
-    public DocumentService(GenericRestClient restClient) {
-        this(restClient, new DocumentExtractionProperties(null, null, null, null, null));
-    }
-
-    DocumentService(GenericRestClient restClient, DocumentExtractionProperties extractionProperties) {
-        this(
-                restClient,
-                new DocumentValidator(),
-                extractionProperties,
-                new DocxStructureExtractor(),
-                new WebPageContentExtractor(),
-                new DocumentChunker(),
-                null
-        );
-    }
 
     public ParsedTextDocument parseTextDocument(String filename, byte[] bytes) throws IOException {
         return extractDocumentText(filename, null, bytes);

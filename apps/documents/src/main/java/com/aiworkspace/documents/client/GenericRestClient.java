@@ -12,7 +12,6 @@ import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -22,16 +21,12 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@RequiredArgsConstructor
 public class GenericRestClient {
 
     @Qualifier("webPageRestClient")
     private final RestClient restClient;
     private final WebPageFetchProperties properties;
-
-    GenericRestClient(RestClient restClient) {
-        this(restClient, new WebPageFetchProperties(null, null));
-    }
 
     public FetchedWebPage get(String rawUrl) throws IOException {
         URI uri = parseSafeHttpUri(rawUrl);

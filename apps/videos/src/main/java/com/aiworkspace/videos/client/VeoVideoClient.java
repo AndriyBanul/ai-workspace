@@ -13,9 +13,6 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +22,6 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class VeoVideoClient implements VideoGenerationProvider {
 
     private static final int MAX_POLL_ATTEMPTS = 60;
@@ -38,7 +34,6 @@ public class VeoVideoClient implements VideoGenerationProvider {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
-    @Autowired
     public VeoVideoClient(
             @Value("${ai-workspace.veo.base-url:https://generativelanguage.googleapis.com/v1beta}") String baseUrl,
             @Value("${ai-workspace.veo.api-key:${GEMINI_API_KEY:}}") String apiKey,
@@ -47,14 +42,12 @@ public class VeoVideoClient implements VideoGenerationProvider {
             RestClient restClient,
             ObjectMapper objectMapper
     ) {
-        this(
-                URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
-                apiKey,
-                model,
-                aspectRatio,
-                restClient,
-                objectMapper
-        );
+        this.baseUri = URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
+        this.apiKey = apiKey;
+        this.model = model;
+        this.aspectRatio = aspectRatio;
+        this.restClient = restClient;
+        this.objectMapper = objectMapper;
     }
 
     @Override

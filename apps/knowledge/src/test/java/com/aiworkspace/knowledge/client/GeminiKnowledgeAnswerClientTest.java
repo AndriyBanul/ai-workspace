@@ -1,7 +1,6 @@
 package com.aiworkspace.knowledge.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.net.URI;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -22,7 +21,7 @@ class GeminiKnowledgeAnswerClientTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         var client = new GeminiKnowledgeAnswerClient(
-                URI.create("https://gemini.example/v1beta"),
+                "https://gemini.example/v1beta",
                 "test-key",
                 "test-model",
                 builder.build(),
@@ -48,7 +47,7 @@ class GeminiKnowledgeAnswerClientTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         var client = new GeminiKnowledgeAnswerClient(
-                URI.create("https://gemini.example/v1beta"),
+                "https://gemini.example/v1beta",
                 "test-key",
                 "test-model",
                 builder.build(),

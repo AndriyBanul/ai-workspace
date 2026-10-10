@@ -9,7 +9,6 @@ import java.time.Instant;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -27,15 +26,6 @@ public class UserAccountService implements UserDetailsService {
     private final UserAccountMapper userAccountMapper;
     private final PasswordEncoder passwordEncoder;
     private final UserAccountValidator userAccountValidator;
-
-    @Autowired
-    public UserAccountService(
-            UserAccountRepository userAccountRepository,
-            UserAccountMapper userAccountMapper,
-            PasswordEncoder passwordEncoder
-    ) {
-        this(userAccountRepository, userAccountMapper, passwordEncoder, new UserAccountValidator());
-    }
 
     @Transactional
     public UserAccount register(RegisterRequest request) {

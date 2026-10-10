@@ -4,18 +4,18 @@ import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
 import com.aiworkspace.knowledge.config.KnowledgeQueryExpansionProperties;
 import com.aiworkspace.knowledge.config.KnowledgeRerankingProperties;
 import com.aiworkspace.knowledge.config.KnowledgeSearchProperties;
+import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
 import com.aiworkspace.knowledge.interfaces.SearchQueryProvider;
 import com.aiworkspace.knowledge.interfaces.TextEmbeddingProvider;
 import com.aiworkspace.knowledge.interfaces.TextReranker;
-import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeChunk;
 import com.aiworkspace.knowledge.models.KnowledgeChunkMetadata;
+import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
-import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import java.io.IOException;
 import java.time.Instant;
@@ -57,7 +57,7 @@ class KnowledgeServiceTest {
     @Test
     void fetchesWorkspaceKnowledgeByTrimmedWorkspaceId() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
 
         service.findWorkspaceKnowledge(" workspace-1 ");
 
@@ -66,7 +66,7 @@ class KnowledgeServiceTest {
 
     @Test
     void rejectsBlankWorkspaceId() {
-        KnowledgeService service = new KnowledgeService(
+        KnowledgeService service = KnowledgeServiceTestFactory.create(
                 new CapturingKnowledgeRepository(),
                 new CapturingKnowledgeAnswerProvider()
         );
@@ -82,7 +82,7 @@ class KnowledgeServiceTest {
     @Test
     void updatesWorkspaceKnowledgeField() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
 
         service.updateWorkspaceKnowledgeField(" workspace-1 ", WorkspaceKnowledgeField.DOCUMENTS_INFO, " New info ");
 
@@ -94,7 +94,7 @@ class KnowledgeServiceTest {
     @Test
     void recordsDocumentsInfoForWorkspace() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
 
         service.recordDocumentsInfo("workspace-1", "document.txt", "job-1", "Document text");
 
@@ -108,7 +108,7 @@ class KnowledgeServiceTest {
     @Test
     void recordsDurableDocumentSourceMetadata() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
         Instant extractedAt = Instant.parse("2026-09-07T12:00:00Z");
 
         service.recordDocumentsInfo(
@@ -134,7 +134,7 @@ class KnowledgeServiceTest {
     @Test
     void recordsDocumentChunksWithStableSourceAndLocationMetadata() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
 
         service.recordDocumentsInfo(
                 "workspace-1",
@@ -158,7 +158,7 @@ class KnowledgeServiceTest {
     @Test
     void replacesPreviousChunksFromTheSameDocumentSource() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
         KnowledgeSourceMetadata source = new KnowledgeSourceMetadata("file-42", null, null, "parser-1");
 
         service.recordDocumentsInfo(
@@ -187,7 +187,7 @@ class KnowledgeServiceTest {
     @Test
     void deletesKnowledgeByWorkspaceAndSource() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
         service.recordDocumentsInfo(
                 "workspace-1",
                 "report.pdf",
@@ -204,7 +204,7 @@ class KnowledgeServiceTest {
     @Test
     void recordsAudioInfoForWorkspace() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
 
         service.recordAudioInfo("workspace-1", "meeting.mp3", "job-1", "Audio transcript");
 
@@ -216,7 +216,7 @@ class KnowledgeServiceTest {
     @Test
     void recordsAudioChunksWithStableSourceAndTimingMetadata() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
         Instant extractedAt = Instant.parse("2026-09-15T12:00:00Z");
 
         service.recordAudioInfo(
@@ -261,7 +261,7 @@ class KnowledgeServiceTest {
     @Test
     void recordsVideoInfoForWorkspace() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
 
         service.recordVideoInfo("workspace-1", "video.mp4", "job-1", "Video description");
 
@@ -273,7 +273,7 @@ class KnowledgeServiceTest {
     @Test
     void recordsVideoUrlSourceMetadata() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
         Instant extractedAt = Instant.parse("2026-09-15T00:00:00Z");
 
         service.recordVideoInfo(
@@ -299,7 +299,7 @@ class KnowledgeServiceTest {
     @Test
     void recordsImagesInfoForWorkspace() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider());
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider());
 
         service.recordImagesInfo("workspace-1", "image.png", "job-1", "Image description");
 
@@ -310,7 +310,7 @@ class KnowledgeServiceTest {
 
     @Test
     void rejectsMissingKnowledgeField() {
-        KnowledgeService service = new KnowledgeService(
+        KnowledgeService service = KnowledgeServiceTestFactory.create(
                 new CapturingKnowledgeRepository(),
                 new CapturingKnowledgeAnswerProvider()
         );
@@ -325,7 +325,7 @@ class KnowledgeServiceTest {
 
     @Test
     void rejectsBlankKnowledgeFieldValue() {
-        KnowledgeService service = new KnowledgeService(
+        KnowledgeService service = KnowledgeServiceTestFactory.create(
                 new CapturingKnowledgeRepository(),
                 new CapturingKnowledgeAnswerProvider()
         );
@@ -388,7 +388,7 @@ class KnowledgeServiceTest {
                         .build()
         );
         CapturingKnowledgeAnswerProvider answerProvider = new CapturingKnowledgeAnswerProvider();
-        KnowledgeService service = new KnowledgeService(repository, answerProvider);
+        KnowledgeService service = KnowledgeServiceTestFactory.create(repository, answerProvider);
 
         var answer = service.answerWorkspaceQuestion(" workspace-1 ", " What do we know? ");
 
@@ -452,7 +452,7 @@ class KnowledgeServiceTest {
                 .content("Vector result")
                 .createdAt(Instant.now())
                 .build());
-        KnowledgeService service = new KnowledgeService(
+        KnowledgeService service = KnowledgeServiceTestFactory.create(
                 repository,
                 new CapturingKnowledgeAnswerProvider(),
                 null,
@@ -476,7 +476,7 @@ class KnowledgeServiceTest {
                 item("second", "Second candidate")
         );
         CapturingTextReranker reranker = new CapturingTextReranker();
-        KnowledgeService service = new KnowledgeService(
+        KnowledgeService service = KnowledgeServiceTestFactory.create(
                 repository,
                 new CapturingKnowledgeAnswerProvider(),
                 null,
@@ -515,7 +515,7 @@ class KnowledgeServiceTest {
                 return List.of("expanded query");
             }
         };
-        KnowledgeService service = new KnowledgeService(
+        KnowledgeService service = KnowledgeServiceTestFactory.create(
                 repository,
                 new CapturingKnowledgeAnswerProvider(),
                 null,
@@ -549,7 +549,7 @@ class KnowledgeServiceTest {
             @Override public boolean isConfigured() { return true; }
             @Override public List<String> expand(String question, int limit) { return List.of("expanded query"); }
         };
-        var service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider(), null,
+        var service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider(), null,
                 new KnowledgeValidator(), new FixedTextEmbeddingProvider(),
                 new KnowledgeEmbeddingProperties(true, "test-model", 3, 32, null, 60),
                 new KnowledgeSearchProperties(KnowledgeSearchProperties.HYBRID),
@@ -570,7 +570,7 @@ class KnowledgeServiceTest {
     void widerSingleQueryRetrievalKeepsTheFinalContextBounded() throws IOException {
         var repository = new CapturingKnowledgeRepository();
         repository.searchResults = candidatesWithEvidence("candidate", item("evidence", "Fact"));
-        var service = new KnowledgeService(repository, new CapturingKnowledgeAnswerProvider(), null,
+        var service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider(), null,
                 new KnowledgeValidator(), new FixedTextEmbeddingProvider(),
                 new KnowledgeEmbeddingProperties(true, "test-model", 3, 32, 75, 60),
                 new KnowledgeSearchProperties(KnowledgeSearchProperties.VECTOR));
@@ -616,7 +616,7 @@ class KnowledgeServiceTest {
     }
 
     private KnowledgeService embeddingService(CapturingKnowledgeRepository repository) {
-        return new KnowledgeService(
+        return KnowledgeServiceTestFactory.create(
                 repository,
                 new CapturingKnowledgeAnswerProvider(),
                 null,
@@ -628,7 +628,7 @@ class KnowledgeServiceTest {
 
     @Test
     void rejectsBlankQuestion() {
-        KnowledgeService service = new KnowledgeService(
+        KnowledgeService service = KnowledgeServiceTestFactory.create(
                 new CapturingKnowledgeRepository(),
                 new CapturingKnowledgeAnswerProvider()
         );
@@ -643,7 +643,7 @@ class KnowledgeServiceTest {
 
     @Test
     void rejectsTooLongQuestion() {
-        KnowledgeService service = new KnowledgeService(
+        KnowledgeService service = KnowledgeServiceTestFactory.create(
                 new CapturingKnowledgeRepository(),
                 new CapturingKnowledgeAnswerProvider()
         );
@@ -658,7 +658,7 @@ class KnowledgeServiceTest {
 
     @Test
     void failsWhenWorkspaceKnowledgeIsMissing() {
-        KnowledgeService service = new KnowledgeService(
+        KnowledgeService service = KnowledgeServiceTestFactory.create(
                 new CapturingKnowledgeRepository(),
                 new CapturingKnowledgeAnswerProvider()
         );

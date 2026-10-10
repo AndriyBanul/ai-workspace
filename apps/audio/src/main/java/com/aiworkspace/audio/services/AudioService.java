@@ -15,11 +15,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@RequiredArgsConstructor
 public class AudioService {
 
     private static final String TRANSCRIPT_SECTION_ID = "transcript";
@@ -28,10 +27,6 @@ public class AudioService {
     private final SpeechToTextProvider speechToTextProvider;
     private final TextToSpeechProvider textToSpeechProvider;
     private final AudioValidator audioValidator;
-
-    public AudioService(SpeechToTextProvider speechToTextProvider, TextToSpeechProvider textToSpeechProvider) {
-        this(speechToTextProvider, textToSpeechProvider, new AudioValidator());
-    }
 
     public AudioTranscription transcribe(String filename, byte[] fileContent) throws IOException, InterruptedException {
         audioValidator.validateTranscriptionFile(filename, fileContent);

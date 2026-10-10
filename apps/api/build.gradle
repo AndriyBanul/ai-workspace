@@ -18,6 +18,7 @@ repositories {
 }
 
 dependencies {
+	testImplementation testFixtures(project(':knowledge'))
 	implementation project(':shared')
 	implementation project(':documents')
 	implementation project(':images')

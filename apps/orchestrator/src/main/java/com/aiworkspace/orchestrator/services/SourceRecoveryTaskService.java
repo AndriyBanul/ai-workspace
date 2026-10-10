@@ -16,15 +16,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+@RequiredArgsConstructor
 public class SourceRecoveryTaskService implements SourceRecoveryTracker {
 
     private static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
@@ -34,17 +32,6 @@ public class SourceRecoveryTaskService implements SourceRecoveryTracker {
     private final SourceRecoveryProperties properties;
     private final Clock clock;
     private final IngestionTelemetry telemetry;
-
-    @Autowired
-    public SourceRecoveryTaskService(SourceRecoveryTaskRepository repository, SourceRetryPolicy retryPolicy,
-            SourceRecoveryProperties properties, IngestionTelemetry telemetry) {
-        this(repository, retryPolicy, properties, Clock.systemUTC(), telemetry);
-    }
-
-    SourceRecoveryTaskService(SourceRecoveryTaskRepository repository, SourceRetryPolicy retryPolicy,
-            SourceRecoveryProperties properties, Clock clock) {
-        this(repository, retryPolicy, properties, clock, IngestionTelemetry.NOOP);
-    }
 
     @Override
     @Transactional

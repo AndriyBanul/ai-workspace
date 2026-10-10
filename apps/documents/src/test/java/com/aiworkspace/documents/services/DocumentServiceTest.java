@@ -20,10 +20,10 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
 import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.apache.poi.poifs.crypt.EncryptionInfo;
 import org.apache.poi.poifs.crypt.EncryptionMode;
@@ -73,7 +73,7 @@ class DocumentServiceTest {
 
     @Test
     void extractsLegacyDocFromContentDespiteMisleadingFilename() throws IOException {
-        var service = new DocumentService(new TestRestClient());
+        var service = DocumentServiceTestFactory.create(new TestRestClient());
         try (var input = getClass().getResourceAsStream("/documents/simple.doc")) {
             var document = service.extractDocumentText("disguised.txt", "text/plain", input.readAllBytes());
             assertEquals("application/msword", document.detectedContentType());
@@ -84,7 +84,7 @@ class DocumentServiceTest {
 
     @Test
     void extractsLegacyXlsWithSheetLocationsAndTableRows() throws IOException {
-        var service = new DocumentService(new TestRestClient());
+        var service = DocumentServiceTestFactory.create(new TestRestClient());
         try (var workbook = new org.apache.poi.hssf.usermodel.HSSFWorkbook();
                 var output = new ByteArrayOutputStream()) {
             for (String name : List.of("North", "South")) {
@@ -104,7 +104,7 @@ class DocumentServiceTest {
 
     @Test
     void extractsLegacyPptWithSlideLocations() throws IOException {
-        var service = new DocumentService(new TestRestClient());
+        var service = DocumentServiceTestFactory.create(new TestRestClient());
         try (var presentation = new org.apache.poi.hslf.usermodel.HSLFSlideShow();
                 var output = new ByteArrayOutputStream()) {
             for (String text : List.of("First legacy slide", "Second legacy slide")) {
@@ -127,7 +127,7 @@ class DocumentServiceTest {
 
     @Test
     void preservesPlainTextParagraphsAndChaptersBeforeChunking() throws IOException {
-        var service = new DocumentService(new TestRestClient());
+        var service = DocumentServiceTestFactory.create(new TestRestClient());
         var document = service.parseTextDocument("book.txt",
                 "I. FIRST STORY\n\nFirst sentence.\n\nSecond paragraph.\n\nII. SECOND STORY\n\nAnother sentence."
                         .getBytes(StandardCharsets.UTF_8));
@@ -141,7 +141,7 @@ class DocumentServiceTest {
 
     @Test
     void parsesUtf8TextDocumentAndRemovesBom() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
         var document = service.parseTextDocument("notes.txt", "\uFEFFHello workspace".getBytes());
 
@@ -153,7 +153,7 @@ class DocumentServiceTest {
 
     @Test
     void extractsUtf8TextDocumentWithTika() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
         var document = service.extractDocumentText("notes.txt", "text/plain", "\uFEFFHello workspace".getBytes());
 
@@ -163,7 +163,7 @@ class DocumentServiceTest {
 
     @Test
     void extractsUtf16TextDocumentWithBom() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
         byte[] text = "Résumé workspace".getBytes(StandardCharsets.UTF_16LE);
         byte[] bytes = new byte[text.length + 2];
         bytes[0] = (byte) 0xff;
@@ -177,7 +177,7 @@ class DocumentServiceTest {
 
     @Test
     void extractsPdfTextWithTika() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
         var document = service.extractDocumentText("deck.pdf", "application/pdf", pdfWithText("PDF workspace text"));
 
@@ -191,7 +191,7 @@ class DocumentServiceTest {
 
     @Test
     void extractsDocxTextWithTika() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
         var document = service.extractDocumentText(
                 "memo.docx",
@@ -209,7 +209,7 @@ class DocumentServiceTest {
 
     @Test
     void preservesDocumentHeadingsAndTitleMetadata() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
         var document = service.extractDocumentText(
                 "memo.docx",
@@ -227,7 +227,7 @@ class DocumentServiceTest {
 
     @Test
     void preservesDocxTableRowsAndEmptyCells() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
         var document = service.extractDocumentText(
                 "table.docx",
@@ -242,7 +242,7 @@ class DocumentServiceTest {
 
     @Test
     void preservesPageSlideAndSheetLocationsInOrder() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
         var pdf = service.extractDocumentText("pages.pdf", "application/pdf", pdfWithPages("Page one", "Page two"));
         var presentation = service.extractDocumentText(
@@ -266,7 +266,7 @@ class DocumentServiceTest {
 
     @Test
     void extractsXlsxTextWithTika() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
         var document = service.extractDocumentText(
                 "metrics.xlsx",
@@ -289,7 +289,7 @@ class DocumentServiceTest {
 
     @Test
     void extractsPptxTextWithTika() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
         var document = service.extractDocumentText(
                 "deck.pptx",
@@ -308,7 +308,7 @@ class DocumentServiceTest {
 
     @Test
     void detectsActualFormatDespiteMisleadingFilenameAndMimeType() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
         var document = service.extractDocumentText("picture.png", "image/png", pdfWithText("Actual PDF text"));
 
@@ -317,7 +317,7 @@ class DocumentServiceTest {
 
     @Test
     void acceptsMissingOrMalformedClientMimeType() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
         byte[] bytes = docxWithText("Detected DOCX text");
 
         assertTrue(service.extractDocumentText("upload", null, bytes).content().contains("Detected DOCX text"));
@@ -413,7 +413,7 @@ class DocumentServiceTest {
 
     @Test
     void rejectsDocumentWhenExtractedTextExceedsConfiguredLimit() {
-        DocumentService service = new DocumentService(
+        DocumentService service = DocumentServiceTestFactory.create(
                 new TestRestClient(),
                 new DocumentExtractionProperties(32, null, null, null, null)
         );
@@ -433,7 +433,7 @@ class DocumentServiceTest {
 
     @Test
     void rejectsDocumentWhenStructuralBlockCountExceedsConfiguredLimit() throws IOException {
-        DocumentService service = new DocumentService(
+        DocumentService service = DocumentServiceTestFactory.create(
                 new TestRestClient(),
                 new DocumentExtractionProperties(1_000, 2, null, null, null)
         );
@@ -452,7 +452,7 @@ class DocumentServiceTest {
 
     @Test
     void appliesCharacterLimitToStructuredDocxExtraction() throws IOException {
-        DocumentService service = new DocumentService(
+        DocumentService service = DocumentServiceTestFactory.create(
                 new TestRestClient(),
                 new DocumentExtractionProperties(32, 100, null, null, null)
         );
@@ -470,7 +470,7 @@ class DocumentServiceTest {
     }
 
     private void assertFailure(DocumentFailureCode expected, String filename, String contentType, byte[] bytes) {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
         DocumentProcessingException exception = assertThrows(DocumentProcessingException.class,
                 () -> service.extractDocumentText(filename, contentType, bytes));
 
@@ -480,7 +480,7 @@ class DocumentServiceTest {
 
     @Test
     void extractsTextFromFetchedWebPage() throws IOException {
-        DocumentService service = new DocumentService(new TestRestClient());
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
         var page = service.extractWebPage(" https://example.com/page ");
 
@@ -501,7 +501,7 @@ class DocumentServiceTest {
                 </article></main><footer>Footer text</footer>
                 </body></html>
                 """;
-        DocumentService service = new DocumentService(TestRestClient.html(html));
+        DocumentService service = DocumentServiceTestFactory.create(TestRestClient.html(html));
 
         var page = service.extractWebPage("https://example.com/article");
 
@@ -514,7 +514,7 @@ class DocumentServiceTest {
     @Test
     void respectsDeclaredPlainTextCharsetAndParagraphs() throws IOException {
         byte[] body = "Café\r\n\r\nSecond paragraph".getBytes(StandardCharsets.ISO_8859_1);
-        DocumentService service = new DocumentService(new TestRestClient(new FetchedWebPage(
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient(new FetchedWebPage(
                 "https://example.com/notes",
                 "text/plain",
                 "ISO-8859-1",
@@ -532,7 +532,7 @@ class DocumentServiceTest {
     void respectsHtmlMetaCharsetWhenHeaderOmitsCharset() throws IOException {
         String html = "<html><head><meta charset=windows-1252></head>"
                 + "<body><article><p>Price: 10 €</p></article></body></html>";
-        DocumentService service = new DocumentService(new TestRestClient(new FetchedWebPage(
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient(new FetchedWebPage(
                 "https://example.com/prices",
                 "text/html",
                 null,
@@ -545,7 +545,7 @@ class DocumentServiceTest {
     @Test
     void detectsHtmlWhenResponseOmitsContentType() throws IOException {
         String html = "<!-- proxy removed headers --><html><body><main><p>Recovered page</p></main></body></html>";
-        DocumentService service = new DocumentService(new TestRestClient(new FetchedWebPage(
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient(new FetchedWebPage(
                 "https://example.com/headerless",
                 null,
                 null,
@@ -560,7 +560,7 @@ class DocumentServiceTest {
     @Test
     void preservesFullExtractedWebContentWithoutFalseTruncation() throws IOException {
         String content = "A".repeat(25_000);
-        DocumentService service = new DocumentService(new TestRestClient(new FetchedWebPage(
+        DocumentService service = DocumentServiceTestFactory.create(new TestRestClient(new FetchedWebPage(
                         "https://example.com/large",
                         "text/plain",
                         "UTF-8",
