@@ -20,21 +20,19 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.transformers.ResourceCacheService;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class OnnxTextReranker implements TextReranker, DisposableBean {
 
     private final KnowledgeRerankingProperties properties;
     private final Object initializationLock = new Object();
     private final Object inferenceLock = new Object();
     private volatile RerankerRuntime runtime;
-
-    public OnnxTextReranker(KnowledgeRerankingProperties properties) {
-        this.properties = properties;
-    }
 
     @Override
     public boolean isConfigured() {

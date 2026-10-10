@@ -4,6 +4,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -15,15 +16,11 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class ApiSecurityErrorHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
     private final ApiSecurityResponseWriter responseWriter;
     private final SecurityAuditService auditService;
-
-    public ApiSecurityErrorHandler(ApiSecurityResponseWriter responseWriter, SecurityAuditService auditService) {
-        this.responseWriter = responseWriter;
-        this.auditService = auditService;
-    }
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,

@@ -1,11 +1,11 @@
 package com.aiworkspace.audio.services;
 
+import com.aiworkspace.audio.interfaces.SpeechToTextProvider;
+import com.aiworkspace.audio.interfaces.TextToSpeechProvider;
 import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.models.TextToSpeechRequest;
 import com.aiworkspace.audio.models.TranscriptionResponse;
-import com.aiworkspace.audio.interfaces.SpeechToTextProvider;
-import com.aiworkspace.audio.interfaces.TextToSpeechProvider;
 import com.aiworkspace.knowledge.models.KnowledgeChunk;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
 import com.aiworkspace.shared.media.TranscriptSegment;
@@ -14,10 +14,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class AudioService {
 
     private static final String TRANSCRIPT_SECTION_ID = "transcript";
@@ -29,17 +31,6 @@ public class AudioService {
 
     public AudioService(SpeechToTextProvider speechToTextProvider, TextToSpeechProvider textToSpeechProvider) {
         this(speechToTextProvider, textToSpeechProvider, new AudioValidator());
-    }
-
-    @Autowired
-    public AudioService(
-            SpeechToTextProvider speechToTextProvider,
-            TextToSpeechProvider textToSpeechProvider,
-            AudioValidator audioValidator
-    ) {
-        this.speechToTextProvider = speechToTextProvider;
-        this.textToSpeechProvider = textToSpeechProvider;
-        this.audioValidator = audioValidator;
     }
 
     public AudioTranscription transcribe(String filename, byte[] fileContent) throws IOException, InterruptedException {

@@ -1,17 +1,19 @@
 package com.aiworkspace.knowledge.client;
 
-import com.aiworkspace.knowledge.observability.SearchTelemetry;
-import com.aiworkspace.knowledge.interfaces.EmbeddingTextSplitter;
 import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
+import com.aiworkspace.knowledge.interfaces.EmbeddingTextSplitter;
 import com.aiworkspace.knowledge.interfaces.TextEmbeddingProvider;
+import com.aiworkspace.knowledge.observability.SearchTelemetry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class SpringAiTextEmbeddingClient implements TextEmbeddingProvider {
 
     private static final String PASSAGE_PREFIX = "passage: ";
@@ -21,14 +23,6 @@ public class SpringAiTextEmbeddingClient implements TextEmbeddingProvider {
     private final ObjectProvider<EmbeddingModel> embeddingModelProvider;
     private SearchTelemetry telemetry = SearchTelemetry.NOOP;
     private final KnowledgeEmbeddingProperties properties;
-
-    public SpringAiTextEmbeddingClient(
-            ObjectProvider<EmbeddingModel> embeddingModelProvider,
-            KnowledgeEmbeddingProperties properties
-    ) {
-        this.embeddingModelProvider = embeddingModelProvider;
-        this.properties = properties;
-    }
 
     @org.springframework.beans.factory.annotation.Autowired
     public SpringAiTextEmbeddingClient(ObjectProvider<EmbeddingModel> modelProvider,

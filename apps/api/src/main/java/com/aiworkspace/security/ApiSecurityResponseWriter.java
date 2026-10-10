@@ -6,18 +6,16 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Instant;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class ApiSecurityResponseWriter {
 
     private final ObjectMapper objectMapper;
-
-    public ApiSecurityResponseWriter(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
 
     public void write(HttpServletRequest request, HttpServletResponse response, HttpStatus status,
             String detail, String code) throws IOException {

@@ -7,6 +7,7 @@ import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.orchestrator.services.OrchestratorService;
 import com.aiworkspace.users.services.UserAccountService;
 import java.io.IOException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -21,18 +22,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/images")
+@RequiredArgsConstructor
 public class ImageController {
 
     private final ImageService imageService;
     private final OrchestratorService orchestratorService;
     private final UserAccountService userAccountService;
-
-    public ImageController(ImageService imageService, OrchestratorService orchestratorService,
-            UserAccountService userAccountService) {
-        this.imageService = imageService;
-        this.orchestratorService = orchestratorService;
-        this.userAccountService = userAccountService;
-    }
 
     @PostMapping(path = "/descriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ImageDescriptionResponse> describe(

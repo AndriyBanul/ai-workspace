@@ -1,10 +1,10 @@
 package com.aiworkspace.workspaces.services;
 
-import com.aiworkspace.workspaces.models.Workspace;
-import com.aiworkspace.workspaces.models.CreateWorkspaceRequest;
-import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.entities.WorkspaceEntity;
 import com.aiworkspace.workspaces.mappers.WorkspaceMapper;
+import com.aiworkspace.workspaces.models.CreateWorkspaceRequest;
+import com.aiworkspace.workspaces.models.Workspace;
+import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.repositories.WorkspaceRepository;
 import java.io.IOException;
 import java.time.Instant;
@@ -12,11 +12,13 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class WorkspaceService {
 
     private final WorkspaceRepository workspaceRepository;
@@ -26,19 +28,6 @@ public class WorkspaceService {
 
     public WorkspaceService(WorkspaceRepository workspaceRepository, WorkspaceMapper workspaceMapper) {
         this(workspaceRepository, workspaceMapper, null, new WorkspaceValidator());
-    }
-
-    @Autowired
-    public WorkspaceService(
-            WorkspaceRepository workspaceRepository,
-            WorkspaceMapper workspaceMapper,
-            WorkspaceFileService workspaceFileService,
-            WorkspaceValidator workspaceValidator
-    ) {
-        this.workspaceRepository = workspaceRepository;
-        this.workspaceMapper = workspaceMapper;
-        this.workspaceFileService = workspaceFileService;
-        this.workspaceValidator = workspaceValidator;
     }
 
     @Transactional

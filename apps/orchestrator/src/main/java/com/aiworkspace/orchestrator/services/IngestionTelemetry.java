@@ -6,17 +6,15 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class IngestionTelemetry {
 
     public static final IngestionTelemetry NOOP = new IngestionTelemetry(new CompositeMeterRegistry());
     private final MeterRegistry registry;
-
-    public IngestionTelemetry(MeterRegistry registry) {
-        this.registry = registry;
-    }
 
     public void recordAttempt(SourceOperationType operation, String outcome, long elapsedNanos) {
         registry.counter("source.operation.attempts", "operation", operation.name().toLowerCase(),

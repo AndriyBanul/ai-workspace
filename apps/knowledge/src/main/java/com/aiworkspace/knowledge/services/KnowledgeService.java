@@ -24,11 +24,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Stable facade for knowledge workflows used by API and media modules. */
 @Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class KnowledgeService {
 
     private final KnowledgeRepository knowledgeRepository;
@@ -95,20 +97,6 @@ public class KnowledgeService {
                 rerankingProperties, searchQueryProvider, queryExpansionProperties, telemetry);
         this.answerService = new KnowledgeAnswerService(knowledgeAnswerProvider, citationService);
         this.manifestService = null;
-    }
-
-    @Autowired
-    public KnowledgeService(KnowledgeRepository knowledgeRepository, WorkspaceService workspaceService,
-            KnowledgeValidator knowledgeValidator, KnowledgeIndexingService indexingService,
-            KnowledgeRetrievalService retrievalService, KnowledgeAnswerService answerService,
-            SourceIndexManifestService manifestService) {
-        this.knowledgeRepository = knowledgeRepository;
-        this.workspaceService = workspaceService;
-        this.knowledgeValidator = knowledgeValidator;
-        this.indexingService = indexingService;
-        this.retrievalService = retrievalService;
-        this.answerService = answerService;
-        this.manifestService = manifestService;
     }
 
     public Optional<WorkspaceKnowledge> findWorkspaceKnowledge(String workspaceId) throws IOException {

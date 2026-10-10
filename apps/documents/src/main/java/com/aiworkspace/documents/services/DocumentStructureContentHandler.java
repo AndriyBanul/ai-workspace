@@ -10,10 +10,13 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class DocumentStructureContentHandler extends DefaultHandler {
 
     private final int maxBlocks;
@@ -28,10 +31,6 @@ final class DocumentStructureContentHandler extends DefaultHandler {
     private boolean spreadsheet;
     private int pageCount;
     private int slideCount;
-
-    DocumentStructureContentHandler(int maxBlocks) {
-        this.maxBlocks = maxBlocks;
-    }
 
     void detectedContentType(String contentType) {
         spreadsheet = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".equals(contentType)
@@ -203,6 +202,7 @@ final class DocumentStructureContentHandler extends DefaultHandler {
         return null;
     }
 
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private static final class ActiveBlock {
 
         private final String element;
@@ -212,20 +212,6 @@ final class DocumentStructureContentHandler extends DefaultHandler {
         private final String sheetName;
         private final StringBuilder text = new StringBuilder();
         private int cellCount;
-
-        private ActiveBlock(
-                String element,
-                DocumentBlockType type,
-                Integer pageNumber,
-                Integer slideNumber,
-                String sheetName
-        ) {
-            this.element = element;
-            this.type = type;
-            this.pageNumber = pageNumber;
-            this.slideNumber = slideNumber;
-            this.sheetName = sheetName;
-        }
 
         void startCell() {
             if (cellCount++ > 0) {

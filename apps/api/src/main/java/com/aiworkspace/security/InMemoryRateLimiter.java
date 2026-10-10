@@ -7,9 +7,12 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class InMemoryRateLimiter {
 
     private static final long WINDOW_SECONDS = 60;
@@ -21,10 +24,6 @@ public class InMemoryRateLimiter {
 
     public InMemoryRateLimiter() {
         this(Clock.systemUTC());
-    }
-
-    InMemoryRateLimiter(Clock clock) {
-        this.clock = clock;
     }
 
     public RateLimitDecision acquire(String key, int limit) {

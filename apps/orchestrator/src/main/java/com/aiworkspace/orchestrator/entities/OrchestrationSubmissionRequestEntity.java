@@ -6,6 +6,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -13,6 +15,8 @@ import lombok.NoArgsConstructor;
 @Getter
 @Table(name = "orchestration_submission_requests")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
 public class OrchestrationSubmissionRequestEntity {
 
     @Id
@@ -32,15 +36,6 @@ public class OrchestrationSubmissionRequestEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-    public OrchestrationSubmissionRequestEntity(String id, String ownerId, String workspaceId,
-            String fingerprint, Instant createdAt) {
-        this.id = id;
-        this.ownerId = ownerId;
-        this.workspaceId = workspaceId;
-        this.fingerprint = fingerprint;
-        this.createdAt = createdAt;
-    }
 
     public void complete(String responseJson) {
         this.responseJson = responseJson;

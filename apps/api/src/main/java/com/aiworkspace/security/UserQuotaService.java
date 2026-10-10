@@ -6,24 +6,19 @@ import com.aiworkspace.users.services.UserAccountService;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Serializes each user's quota updates on the account row, across API instances. */
 @Service
+@RequiredArgsConstructor
 public class UserQuotaService {
 
     private final UserAccountService users;
     private final UserQuotaUsageRepository usage;
     private final SecurityProperties properties;
-
-    public UserQuotaService(UserAccountService users, UserQuotaUsageRepository usage,
-            SecurityProperties properties) {
-        this.users = users;
-        this.usage = usage;
-        this.properties = properties;
-    }
 
     @Transactional
     public QuotaDecision acquire(String email, Action action) {
@@ -32,7 +27,12 @@ public class UserQuotaService {
         Instant start = now.truncatedTo(ChronoUnit.DAYS);
         String id = userId + ':' + action.name() + ':' + start.toEpochMilli();
         UserQuotaUsageEntity current = usage.findById(id).orElseGet(() ->
-                new UserQuotaUsageEntity(id, userId, action.name(), start));
+                UserQuotaUsageEntity.builder()
+                        .id(id)
+                        .userId(userId)
+                        .action(action.name())
+                        .windowStart(start)
+                        .build());
         int limit = switch (action) {
             case INGESTION -> properties.userQuota().ingestionsPerDay();
             case ANSWER -> properties.userQuota().answersPerDay();

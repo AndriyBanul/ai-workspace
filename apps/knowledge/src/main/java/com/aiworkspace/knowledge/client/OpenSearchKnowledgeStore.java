@@ -16,29 +16,24 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class OpenSearchKnowledgeStore {
 
     static final String INDEX = "knowledge-items-v3";
 
+    private final URI baseUri;
     final RestClient restClient;
     final ObjectMapper objectMapper;
-    private final URI baseUri;
     private final KnowledgeEmbeddingProperties embeddingProperties;
     private volatile boolean indexChecked;
-
-    OpenSearchKnowledgeStore(URI baseUri, RestClient restClient, ObjectMapper objectMapper,
-            KnowledgeEmbeddingProperties embeddingProperties) {
-        this.baseUri = baseUri;
-        this.restClient = restClient;
-        this.objectMapper = objectMapper;
-        this.embeddingProperties = embeddingProperties;
-    }
 
     void ensureIndex() throws IOException {
         if (indexChecked) return;

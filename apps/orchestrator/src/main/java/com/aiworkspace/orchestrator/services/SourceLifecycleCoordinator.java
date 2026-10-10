@@ -8,12 +8,14 @@ import com.aiworkspace.orchestrator.models.SourceProcessingResult;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import java.util.List;
-import org.springframework.stereotype.Service;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Owns the state transitions shared by every source ingestion path. */
 @Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class SourceLifecycleCoordinator {
 
     private final IngestionJobService ingestionJobService;
@@ -33,19 +35,6 @@ public class SourceLifecycleCoordinator {
         this(ingestionJobService, workspaceFileService, recoveryTracker,
                 new SourceCompletionService(ingestionJobService, workspaceFileService, recoveryTracker), null,
                 IngestionTelemetry.NOOP);
-    }
-
-    @Autowired
-    public SourceLifecycleCoordinator(IngestionJobService ingestionJobService,
-            WorkspaceFileService workspaceFileService, SourceRecoveryTracker recoveryTracker,
-            SourceCompletionService completionService, SourceLeaseKeeper leaseKeeper,
-            IngestionTelemetry telemetry) {
-        this.ingestionJobService = ingestionJobService;
-        this.workspaceFileService = workspaceFileService;
-        this.recoveryTracker = recoveryTracker;
-        this.completionService = completionService;
-        this.leaseKeeper = leaseKeeper;
-        this.telemetry = telemetry;
     }
 
     public <T> T process(IngestionJobDetails job, IngestionContentType contentType, WorkspaceFile source,

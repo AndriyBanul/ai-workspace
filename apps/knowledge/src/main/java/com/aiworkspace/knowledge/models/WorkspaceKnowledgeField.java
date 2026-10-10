@@ -1,5 +1,9 @@
 package com.aiworkspace.knowledge.models;
 
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum WorkspaceKnowledgeField {
 
     DOCUMENTS_INFO("documentsInfo"),
@@ -8,10 +12,6 @@ public enum WorkspaceKnowledgeField {
     IMAGES_INFO("imagesInfo");
 
     private final String fieldName;
-
-    WorkspaceKnowledgeField(String fieldName) {
-        this.fieldName = fieldName;
-    }
 
     public String fieldName() {
         return fieldName;

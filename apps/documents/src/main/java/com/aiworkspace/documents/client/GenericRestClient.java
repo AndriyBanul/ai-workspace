@@ -11,6 +11,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
@@ -21,19 +22,12 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class GenericRestClient {
 
+    @Qualifier("webPageRestClient")
     private final RestClient restClient;
     private final WebPageFetchProperties properties;
-
-    @Autowired
-    public GenericRestClient(
-            @Qualifier("webPageRestClient") RestClient restClient,
-            WebPageFetchProperties properties
-    ) {
-        this.restClient = restClient;
-        this.properties = properties;
-    }
 
     GenericRestClient(RestClient restClient) {
         this(restClient, new WebPageFetchProperties(null, null));

@@ -8,6 +8,7 @@ import com.aiworkspace.users.repositories.UserAccountRepository;
 import java.time.Instant;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.User;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class UserAccountService implements UserDetailsService {
 
     private final UserAccountRepository userAccountRepository;
@@ -33,18 +35,6 @@ public class UserAccountService implements UserDetailsService {
             PasswordEncoder passwordEncoder
     ) {
         this(userAccountRepository, userAccountMapper, passwordEncoder, new UserAccountValidator());
-    }
-
-    public UserAccountService(
-            UserAccountRepository userAccountRepository,
-            UserAccountMapper userAccountMapper,
-            PasswordEncoder passwordEncoder,
-            UserAccountValidator userAccountValidator
-    ) {
-        this.userAccountRepository = userAccountRepository;
-        this.userAccountMapper = userAccountMapper;
-        this.passwordEncoder = passwordEncoder;
-        this.userAccountValidator = userAccountValidator;
     }
 
     @Transactional

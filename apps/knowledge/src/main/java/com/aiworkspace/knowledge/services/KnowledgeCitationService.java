@@ -8,6 +8,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -147,6 +149,7 @@ public class KnowledgeCitationService {
         return value == null ? "" : value;
     }
 
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private static final class SourceFileAccumulator {
 
         private final String key;
@@ -158,18 +161,6 @@ public class KnowledgeCitationService {
         private final Instant extractedAt;
         private final String parserVersion;
         private int sourceCount;
-
-        private SourceFileAccumulator(String key, String name, String type, String jobId, String sourceId,
-                String sourceUrl, Instant extractedAt, String parserVersion) {
-            this.key = key;
-            this.name = name;
-            this.type = type;
-            this.jobId = jobId;
-            this.sourceId = sourceId;
-            this.sourceUrl = sourceUrl;
-            this.extractedAt = extractedAt;
-            this.parserVersion = parserVersion;
-        }
 
         private void increment() {
             sourceCount++;

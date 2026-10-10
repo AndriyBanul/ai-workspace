@@ -19,6 +19,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -26,20 +27,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Atomically reserves request keys, persists responses, and dispatches workers after commit. */
 @Service
+@RequiredArgsConstructor
 public class OrchestrationSubmissionService {
 
     private final OrchestratorService orchestrator;
     private final WorkspaceService workspaces;
     private final OrchestrationSubmissionRequestRepository requests;
     private final ObjectMapper json;
-
-    public OrchestrationSubmissionService(OrchestratorService orchestrator, WorkspaceService workspaces,
-            OrchestrationSubmissionRequestRepository requests, ObjectMapper json) {
-        this.orchestrator = orchestrator;
-        this.workspaces = workspaces;
-        this.requests = requests;
-        this.json = json;
-    }
 
     @Transactional
     public OrchestrationSubmission submitUploads(String ownerId, String workspaceId, String idempotencyKey,
@@ -93,8 +87,13 @@ public class OrchestrationSubmissionService {
             return new OrchestrationReservation(null, json.readValue(request.getResponseJson(), OrchestrationSubmission.class));
         }
         try {
-            return new OrchestrationReservation(requests.saveAndFlush(new OrchestrationSubmissionRequestEntity(
-                    id, ownerId, workspaceId, fingerprint, Instant.now())), null);
+            return new OrchestrationReservation(requests.saveAndFlush(OrchestrationSubmissionRequestEntity.builder()
+                    .id(id)
+                    .ownerId(ownerId)
+                    .workspaceId(workspaceId)
+                    .fingerprint(fingerprint)
+                    .createdAt(Instant.now())
+                    .build()), null);
         } catch (DataIntegrityViolationException exception) {
             throw new WorkspaceSourceConflictException("Idempotent submission is being committed; retry shortly");
         }

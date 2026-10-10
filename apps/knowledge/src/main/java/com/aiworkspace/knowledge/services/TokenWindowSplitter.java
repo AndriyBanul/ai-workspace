@@ -4,16 +4,13 @@ import com.aiworkspace.knowledge.interfaces.EmbeddingTextSplitter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.ToIntFunction;
+import lombok.RequiredArgsConstructor;
 
 /** Partitions inference inputs only. Stored sentence chunks are never split or truncated. */
+@RequiredArgsConstructor
 public class TokenWindowSplitter implements EmbeddingTextSplitter {
     private final ToIntFunction<String> tokenCount;
     private final int limit;
-
-    public TokenWindowSplitter(ToIntFunction<String> tokenCount, int limit) {
-        this.tokenCount = tokenCount;
-        this.limit = limit;
-    }
 
     @Override
     public List<String> split(String prefix, String text) {

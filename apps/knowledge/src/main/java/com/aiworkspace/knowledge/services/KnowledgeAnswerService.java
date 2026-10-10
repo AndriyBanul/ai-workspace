@@ -5,18 +5,15 @@ import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeAnswer;
 import java.io.IOException;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class KnowledgeAnswerService {
 
     private final KnowledgeAnswerProvider answerProvider;
     private final KnowledgeCitationService citationService;
-
-    public KnowledgeAnswerService(KnowledgeAnswerProvider answerProvider, KnowledgeCitationService citationService) {
-        this.answerProvider = answerProvider;
-        this.citationService = citationService;
-    }
 
     public WorkspaceKnowledgeAnswer answer(String workspaceId, String question, List<KnowledgeItem> evidence)
             throws IOException {

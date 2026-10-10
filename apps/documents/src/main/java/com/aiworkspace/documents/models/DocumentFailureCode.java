@@ -1,5 +1,9 @@
 package com.aiworkspace.documents.models;
 
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum DocumentFailureCode {
     EMPTY_DOCUMENT("Document must not be empty."),
     UNSUPPORTED_DOCUMENT_FORMAT("Unsupported document format. Supported formats: TXT, PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX."),
@@ -9,10 +13,6 @@ public enum DocumentFailureCode {
     NO_EXTRACTABLE_TEXT("Document contains no extractable text. Scanned PDFs require enabled OCR and readable page images.");
 
     private final String message;
-
-    DocumentFailureCode(String message) {
-        this.message = message;
-    }
 
     public String message() {
         return message;

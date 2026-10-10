@@ -1,5 +1,9 @@
 package com.aiworkspace.orchestrator.models;
 
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum IngestionContentType {
 
     DOCUMENTS("documents"),
@@ -8,10 +12,6 @@ public enum IngestionContentType {
     VIDEOS("videos");
 
     private final String apiName;
-
-    IngestionContentType(String apiName) {
-        this.apiName = apiName;
-    }
 
     public String apiName() {
         return apiName;

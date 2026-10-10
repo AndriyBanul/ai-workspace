@@ -1,17 +1,18 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.users.services.UserAccountService;
-import com.aiworkspace.orchestrator.services.WorkspaceLifecycleService;
-import com.aiworkspace.orchestrator.services.OrchestrationSubmissionService;
 import com.aiworkspace.orchestrator.models.OrchestrationSubmission;
 import com.aiworkspace.orchestrator.models.SourceRecoveryTask;
+import com.aiworkspace.orchestrator.services.OrchestrationSubmissionService;
 import com.aiworkspace.orchestrator.services.SourceRecoveryTaskService;
+import com.aiworkspace.orchestrator.services.WorkspaceLifecycleService;
+import com.aiworkspace.users.services.UserAccountService;
 import com.aiworkspace.workspaces.models.CreateWorkspaceRequest;
 import com.aiworkspace.workspaces.models.Workspace;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,11 +24,12 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import static org.springframework.http.HttpStatus.CREATED;
 import static org.springframework.http.HttpStatus.ACCEPTED;
+import static org.springframework.http.HttpStatus.CREATED;
 
 @RestController
 @RequestMapping("/api/v1/workspaces")
+@RequiredArgsConstructor
 public class WorkspaceController {
 
     private final WorkspaceService workspaceService;
@@ -35,20 +37,6 @@ public class WorkspaceController {
     private final WorkspaceLifecycleService workspaceLifecycleService;
     private final OrchestrationSubmissionService submissionService;
     private final SourceRecoveryTaskService sourceRecoveryTaskService;
-
-    public WorkspaceController(
-            WorkspaceService workspaceService,
-            UserAccountService userAccountService,
-            WorkspaceLifecycleService workspaceLifecycleService,
-            OrchestrationSubmissionService submissionService,
-            SourceRecoveryTaskService sourceRecoveryTaskService
-    ) {
-        this.workspaceService = workspaceService;
-        this.userAccountService = userAccountService;
-        this.workspaceLifecycleService = workspaceLifecycleService;
-        this.submissionService = submissionService;
-        this.sourceRecoveryTaskService = sourceRecoveryTaskService;
-    }
 
     @PostMapping
     public ResponseEntity<Workspace> createWorkspace(@RequestBody CreateWorkspaceRequest request, Authentication authentication) {

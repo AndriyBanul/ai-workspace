@@ -32,10 +32,12 @@ import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /** Dispatches source-specific extraction and indexes the normalized result. */
 @Service
+@RequiredArgsConstructor
 public class WorkspaceSourceProcessingService {
 
     private final DocumentService documentService;
@@ -44,17 +46,6 @@ public class WorkspaceSourceProcessingService {
     private final VideoService videoService;
     private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
-
-    public WorkspaceSourceProcessingService(DocumentService documentService, AudioService audioService,
-            ImageService imageService, VideoService videoService, WorkspaceFileService workspaceFileService,
-            KnowledgeService knowledgeService) {
-        this.documentService = documentService;
-        this.audioService = audioService;
-        this.imageService = imageService;
-        this.videoService = videoService;
-        this.workspaceFileService = workspaceFileService;
-        this.knowledgeService = knowledgeService;
-    }
 
     public SourceProcessingResult process(IngestionJobDetails job, WorkspaceFile source, OrchestrationContent original)
             throws Exception {

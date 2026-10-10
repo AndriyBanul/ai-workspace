@@ -1,24 +1,27 @@
 package com.aiworkspace.videos.services;
 
+import com.aiworkspace.videos.interfaces.VideoGenerationProvider;
+import com.aiworkspace.videos.interfaces.VideoUnderstandingProvider;
+import com.aiworkspace.videos.interfaces.YouTubeVideoUnderstandingProvider;
 import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.models.VideoAnalysis;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.models.VideoGenerationRequest;
-import com.aiworkspace.videos.interfaces.VideoGenerationProvider;
-import com.aiworkspace.videos.interfaces.VideoUnderstandingProvider;
-import com.aiworkspace.videos.interfaces.YouTubeVideoUnderstandingProvider;
 import java.io.IOException;
 import java.util.Locale;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class VideoService {
 
     private final VideoUnderstandingProvider videoUnderstandingProvider;
     private final YouTubeVideoUnderstandingProvider youTubeVideoUnderstandingProvider;
     private final VideoGenerationProvider videoGenerationProvider;
+    @Value("${ai-workspace.gemini.video-description-prompt:Describe what is happening in this video clearly and concisely.}")
     private final String descriptionPrompt;
     private final VideoValidator videoValidator;
 
@@ -34,21 +37,6 @@ public class VideoService {
                 descriptionPrompt,
                 new VideoValidator()
         );
-    }
-
-    @Autowired
-    public VideoService(
-            VideoUnderstandingProvider videoUnderstandingProvider,
-            YouTubeVideoUnderstandingProvider youTubeVideoUnderstandingProvider,
-            VideoGenerationProvider videoGenerationProvider,
-            @Value("${ai-workspace.gemini.video-description-prompt:Describe what is happening in this video clearly and concisely.}") String descriptionPrompt,
-            VideoValidator videoValidator
-    ) {
-        this.videoUnderstandingProvider = videoUnderstandingProvider;
-        this.youTubeVideoUnderstandingProvider = youTubeVideoUnderstandingProvider;
-        this.videoGenerationProvider = videoGenerationProvider;
-        this.descriptionPrompt = descriptionPrompt;
-        this.videoValidator = videoValidator;
     }
 
     public VideoDescription describe(String filename, String contentType, byte[] videoContent)
