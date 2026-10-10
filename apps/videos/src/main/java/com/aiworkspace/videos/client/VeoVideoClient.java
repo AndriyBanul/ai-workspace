@@ -3,7 +3,10 @@ package com.aiworkspace.videos.client;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.aiworkspace.videos.interfaces.VideoGenerationProvider;
 import com.aiworkspace.videos.models.GeneratedVideo;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.aiworkspace.videos.models.VeoGeneratedVideoResponse;
+import com.aiworkspace.videos.models.VeoGenerationResponse;
+import com.aiworkspace.videos.models.VeoOperationResponse;
+import com.aiworkspace.videos.models.VeoVideoResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -57,7 +60,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
         }
 
         String operationName = startGeneration(description);
-        JsonNode operation = waitForOperation(operationName);
+        VeoOperationResponse operation = waitForOperation(operationName);
 
         GeneratedVideo inlineVideo = decodeInlineVideo(operation);
         if (inlineVideo != null) {
@@ -95,11 +98,11 @@ public class VeoVideoClient implements VideoGenerationProvider {
             );
         }
 
-        JsonNode responseJson = parseResponseJson(
+        VeoOperationResponse operation = parseResponse(
                 response.getBody(),
                 "Veo returned an invalid generation response"
         );
-        String operationName = responseJson.path("name").asText();
+        String operationName = operation.name();
         if (operationName == null || operationName.isBlank()) {
             throw new UpstreamServiceException("Veo", "Veo did not return an operation name");
         }
@@ -107,7 +110,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
         return operationName;
     }
 
-    private JsonNode waitForOperation(String operationName) throws IOException, InterruptedException {
+    private VeoOperationResponse waitForOperation(String operationName) throws IOException, InterruptedException {
         for (int attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
             ResponseEntity<String> response;
             try {
@@ -129,13 +132,12 @@ public class VeoVideoClient implements VideoGenerationProvider {
                 );
             }
 
-            JsonNode operation = parseResponseJson(
+            VeoOperationResponse operation = parseResponse(
                     response.getBody(),
                     "Veo operation returned an invalid response"
             );
-            if (operation.path("done").asBoolean(false)) {
-                JsonNode error = operation.get("error");
-                if (error != null && !error.isNull()) {
+            if (operation.done()) {
+                if (operation.error() != null) {
                     throw new UpstreamServiceException("Veo", "Veo operation failed");
                 }
 
@@ -219,55 +221,60 @@ public class VeoVideoClient implements VideoGenerationProvider {
         return objectMapper.writeValueAsString(body);
     }
 
-    private GeneratedVideo decodeInlineVideo(JsonNode operation) throws IOException {
-        JsonNode video = findFirstVideo(operation);
+    GeneratedVideo decodeInlineVideo(VeoOperationResponse operation) throws IOException {
+        VeoVideoResponse video = findFirstVideo(operation);
         if (video == null) {
             return null;
         }
 
-        JsonNode bytes = findFirstPresentField(video, "bytesBase64Encoded", "bytes_base64_encoded", "data");
-        if (bytes == null || bytes.asText().isBlank()) {
+        String bytes = readFirstPresentValue(video.bytesBase64Encoded(), video.snakeCaseBytesBase64Encoded(), video.data());
+        if (bytes == null || bytes.isBlank()) {
             return null;
         }
 
-        String mediaType = readTextValue(video, "mimeType", "mime_type");
+        String mediaType = readFirstPresentValue(video.mimeType(), video.snakeCaseMimeType());
         if (mediaType == null || mediaType.isBlank()) {
             mediaType = "video/mp4";
         }
 
         try {
-            return new GeneratedVideo(resolveVideoFilename(mediaType), mediaType, Base64.getDecoder().decode(bytes.asText()));
+            return new GeneratedVideo(resolveVideoFilename(mediaType), mediaType, Base64.getDecoder().decode(bytes));
         } catch (IllegalArgumentException exception) {
             throw new UpstreamServiceException("Veo", "Veo returned invalid inline video content", exception);
         }
     }
 
-    private String extractVideoUri(JsonNode operation) {
-        JsonNode video = findFirstVideo(operation);
+    String extractVideoUri(VeoOperationResponse operation) {
+        VeoVideoResponse video = findFirstVideo(operation);
         if (video == null) {
             return "";
         }
 
-        String uri = readTextValue(video, "uri");
+        String uri = video.uri();
         if (uri != null && !uri.isBlank()) {
             return uri;
         }
 
-        return readTextValue(video, "url");
+        return video.url() == null ? "" : video.url();
     }
 
-    private JsonNode findFirstVideo(JsonNode operation) {
-        List<JsonNode> candidates = List.of(
-                operation.path("response").path("generatedVideos").path(0).path("video"),
-                operation.path("response").path("generatedSamples").path(0).path("video"),
-                operation.path("response").path("generateVideoResponse").path("generatedVideos").path(0).path("video"),
-                operation.path("response").path("generateVideoResponse").path("generatedSamples").path(0).path("video"),
-                operation.path("response").path("videos").path(0),
-                operation.path("response").path("video")
-        );
+    private VeoVideoResponse findFirstVideo(VeoOperationResponse operation) {
+        VeoGenerationResponse response = operation.response();
+        if (response == null) {
+            return null;
+        }
+        VeoGenerationResponse nested = response.generateVideoResponse();
+        VeoVideoResponse[] candidates = {
+                findFirstGeneratedVideo(response.generatedVideos()),
+                findFirstGeneratedVideo(response.generatedSamples()),
+                nested == null ? null : findFirstGeneratedVideo(nested.generatedVideos()),
+                nested == null ? null : findFirstGeneratedVideo(nested.generatedSamples()),
+                response.videos() == null || response.videos().isEmpty() ? null : response.videos().getFirst(),
+                response.video()
+        };
 
-        for (JsonNode candidate : candidates) {
-            if (!candidate.isMissingNode() && !candidate.isNull()) {
+        for (VeoVideoResponse candidate : candidates) {
+            if (candidate != null) {
                 return candidate;
             }
         }
@@ -275,10 +282,16 @@ public class VeoVideoClient implements VideoGenerationProvider {
         return null;
     }
 
-    private JsonNode findFirstPresentField(JsonNode node, String... fieldNames) {
-        for (String fieldName : fieldNames) {
-            JsonNode value = node.get(fieldName);
-            if (value != null && !value.isNull()) {
+    private VeoVideoResponse findFirstGeneratedVideo(List<VeoGeneratedVideoResponse> videos) {
+        if (videos == null || videos.isEmpty() || videos.getFirst() == null) {
+            return null;
+        }
+        return videos.getFirst().video();
+    }
+
+    private String readFirstPresentValue(String... values) {
+        for (String value : values) {
+            if (value != null) {
                 return value;
             }
         }
@@ -286,14 +299,15 @@ public class VeoVideoClient implements VideoGenerationProvider {
         return null;
     }
 
-    private String readTextValue(JsonNode node, String... fieldNames) {
-        JsonNode value = findFirstPresentField(node, fieldNames);
-        return value == null ? "" : value.asText();
-    }
-
-    private JsonNode parseResponseJson(String responseBody, String message) {
+    VeoOperationResponse parseResponse(String responseBody, String message) {
         try {
-            return objectMapper.readTree(responseBody == null ? "" : responseBody);
+            VeoOperationResponse response = objectMapper.readValue(
+                    responseBody == null ? "" : responseBody, VeoOperationResponse.class
+            );
+            if (response == null) {
+                throw new UpstreamServiceException("Veo", message);
+            }
+            return response;
         } catch (IOException exception) {
             throw new UpstreamServiceException("Veo", message, exception);
         }
