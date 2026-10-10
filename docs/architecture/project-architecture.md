@@ -68,7 +68,7 @@ D:\ai-workspace
 ├── .github/workflows/ci.yml       CI
 ├── .env.example                   документований конфіг без секретів
 ├── AGENTS.md                      інструкції для AI-агентів
-└── DEVELOPER_CODE_PREFERENCES.md  ваші особисті вподобання
+└── JAVA_DEVELOPER_CODE_PREFERENCES.md  ваші особисті вподобання
 ```
 
 ### Правило меж модулів
@@ -748,7 +748,7 @@ TypeScript-міграція **неповна**: `npm run typecheck` переві
 | Frontend | `cd apps/web && npm test` | 10 тестів у 5 файлах |
 | E2E | `docs/end-to-end-test-specification.md` | 58 кейсів — **ще не запускався** |
 
-Правило з `DEVELOPER_CODE_PREFERENCES.md`:
+Правило з `JAVA_DEVELOPER_CODE_PREFERENCES.md`:
 
 ```text
 test                          після змін коду
@@ -786,4 +786,4 @@ Kafka, Redis, Kubernetes, Object Storage, Knowledge Graph, multi-agent. За `ro
 | Які межі модулів | `apps/build.gradle`, `docs/agent-context/module-boundaries.md` |
 | Які рішення ухвалено | `docs/adr/`, `docs/adr/README.md` |
 | Проєктна пам'ять | `docs/agent-context/handoff.md` |
-| Ваші вподобання | `DEVELOPER_CODE_PREFERENCES.md` |
+| Ваші вподобання | `JAVA_DEVELOPER_CODE_PREFERENCES.md` |

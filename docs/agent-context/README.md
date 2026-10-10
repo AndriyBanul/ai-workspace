@@ -9,12 +9,12 @@ Use it together with the root `AGENTS.md` file.
 Before making changes, read:
 
 1. `AGENTS.md`
-2. `DEVELOPER_CODE_PREFERENCES.md`
+2. `JAVA_DEVELOPER_CODE_PREFERENCES.md`
 3. `docs/agent-context/README.md`
 4. `docs/agent-context/handoff.md`
 5. The specific files in this directory that are relevant to the task.
 
-`DEVELOPER_CODE_PREFERENCES.md` has higher priority than the general files in this directory. If it conflicts with this directory, follow `DEVELOPER_CODE_PREFERENCES.md` unless Andrii explicitly says otherwise.
+`JAVA_DEVELOPER_CODE_PREFERENCES.md` has higher priority than the general files in this directory. If it conflicts with this directory, follow `JAVA_DEVELOPER_CODE_PREFERENCES.md` unless Andrii explicitly says otherwise.
 
 Act as a senior engineer working on a long-term commercial AI Platform product, not as a coding assistant generating isolated snippets.
 
@@ -113,12 +113,12 @@ You are working on this repository as a senior engineer building a long-term com
 Before making changes, read:
 
 1. AGENTS.md
-2. DEVELOPER_CODE_PREFERENCES.md
+2. JAVA_DEVELOPER_CODE_PREFERENCES.md
 3. docs/agent-context/README.md
 4. docs/agent-context/handoff.md
 5. The specific files in docs/agent-context/ that are relevant to the task.
 
-DEVELOPER_CODE_PREFERENCES.md captures Andrii's code-writing preferences and has higher priority than the general docs/agent-context guidance unless Andrii explicitly says otherwise.
+JAVA_DEVELOPER_CODE_PREFERENCES.md captures Andrii's code-writing preferences and has higher priority than the general docs/agent-context guidance unless Andrii explicitly says otherwise.
 
 Follow the architecture, coding standards, testing rules, database rules, API guidelines, AI-layer guidelines, security rules, Git workflow, and definition of done described there.
 
@@ -128,5 +128,5 @@ Do not treat this as a one-off code generation task. Make maintainable, producti
 Short version:
 
 ```text
-Use AGENTS.md as your primary instruction file. Then read DEVELOPER_CODE_PREFERENCES.md, docs/agent-context/README.md, docs/agent-context/handoff.md, and relevant project guidance files before coding. Act as a senior engineer on a long-term commercial product, not as a snippet generator.
+Use AGENTS.md as your primary instruction file. Then read JAVA_DEVELOPER_CODE_PREFERENCES.md, docs/agent-context/README.md, docs/agent-context/handoff.md, and relevant project guidance files before coding. Act as a senior engineer on a long-term commercial product, not as a snippet generator.
 ```

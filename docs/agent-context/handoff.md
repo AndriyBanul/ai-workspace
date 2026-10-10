@@ -80,7 +80,7 @@ continue in a new chat.
 At the start of a new session:
 
 1. Read `AGENTS.md`.
-2. Read `DEVELOPER_CODE_PREFERENCES.md`.
+2. Read `JAVA_DEVELOPER_CODE_PREFERENCES.md`.
 3. Read `docs/agent-context/README.md`.
 4. Read this file.
 5. Run `git status --short` before assuming what changed.

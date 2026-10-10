@@ -9,7 +9,7 @@ Implement the AI Workspace frontend design supplied in
 `docs/design/mantine-workspace` using Mantine. Treat this directory as the visual
 reference and handoff, and `apps/web` as the application to change.
 
-Read AGENTS.md, DEVELOPER_CODE_PREFERENCES.md, the project architecture guidance,
+Read AGENTS.md, JAVA_DEVELOPER_CODE_PREFERENCES.md, the project architecture guidance,
 and the current handoff first. Then read this design package's README.md,
 DESIGN-SPEC.md, and API-MAPPING.md. Inspect gallery.html and the desktop/mobile
 screenshots. Run the standalone prototype if useful to understand interactions.

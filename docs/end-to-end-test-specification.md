@@ -31,7 +31,7 @@ and deviation in the report template in section 20.
 Treat this document as a test plan, not as permission to change application code,
 commit, push, reset a worktree, delete existing data, or spend an unbounded amount
 on providers. Before testing, read `AGENTS.md`,
-`DEVELOPER_CODE_PREFERENCES.md`, `docs/agent-context/README.md`, and
+`JAVA_DEVELOPER_CODE_PREFERENCES.md`, `docs/agent-context/README.md`, and
 `docs/agent-context/handoff.md`; inspect the current routes/configuration if
 they differ from examples here. Record the exact commit plus any uncommitted
 diff/untracked files. Do not clean or overwrite the user's worktree to satisfy a
