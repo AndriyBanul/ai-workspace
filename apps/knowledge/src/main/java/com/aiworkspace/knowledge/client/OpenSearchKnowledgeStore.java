@@ -6,13 +6,14 @@ import com.aiworkspace.knowledge.models.KnowledgeEmbeddingMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.aiworkspace.knowledge.models.KnowledgeSourceType;
+import com.aiworkspace.knowledge.models.OpenSearchHitResponse;
+import com.aiworkspace.knowledge.models.OpenSearchKnowledgeDocument;
+import com.aiworkspace.knowledge.models.OpenSearchSearchResponse;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,14 +54,14 @@ final class OpenSearchKnowledgeStore {
         try {
             ResponseEntity<String> response = restClient.post().uri(uri).contentType(MediaType.APPLICATION_JSON)
                     .body(objectMapper.writeValueAsString(request)).retrieve().toEntity(String.class);
-            JsonNode hits = parseSearchHits(response.getBody(), errorMessage);
+            List<OpenSearchHitResponse> hits = parseSearchHits(response.getBody(), errorMessage);
             Map<String, KnowledgeItem> items = new LinkedHashMap<>();
-            for (JsonNode hit : hits) {
+            for (OpenSearchHitResponse hit : hits) {
                 try {
-                    KnowledgeItem item = toKnowledgeItem(hit.path("_source"), hit.path("_id").asText());
+                    KnowledgeItem item = toKnowledgeItem(hit.source(), hit.id() == null ? "" : hit.id());
                     org.slf4j.LoggerFactory.getLogger(OpenSearchKnowledgeSearchReader.class).debug(
                             "retrieval_candidate workspaceId={} chunkId={} score={}",
-                            item.workspaceId(), item.id(), hit.path("_score").asDouble());
+                            item.workspaceId(), item.id(), hit.score());
                     items.putIfAbsent(item.id(), item);
                 } catch (RuntimeException exception) {
                     throw createInvalidResponseException(errorMessage, exception);
@@ -194,50 +195,51 @@ final class OpenSearchKnowledgeStore {
         return properties;
     }
 
-    private JsonNode parseSearchHits(String responseBody, String errorMessage) {
+    private List<OpenSearchHitResponse> parseSearchHits(String responseBody, String errorMessage) {
         try {
-            JsonNode hits = objectMapper.readTree(responseBody == null ? "{}" : responseBody)
-                    .path("hits").path("hits");
-            if (!hits.isArray()) throw createInvalidResponseException(errorMessage, null);
-            return hits;
+            OpenSearchSearchResponse response = objectMapper.readValue(
+                    responseBody == null ? "" : responseBody, OpenSearchSearchResponse.class
+            );
+            if (response == null || response.hits() == null || response.hits().hits() == null) {
+                throw createInvalidResponseException(errorMessage, null);
+            }
+            return response.hits().hits();
         } catch (IOException exception) {
             throw createInvalidResponseException(errorMessage, exception);
         }
     }
 
-    private KnowledgeItem toKnowledgeItem(JsonNode source, String fallbackId) {
+    private KnowledgeItem toKnowledgeItem(OpenSearchKnowledgeDocument document, String fallbackId) {
+        OpenSearchKnowledgeDocument source = document == null ? OpenSearchKnowledgeDocument.builder().build() : document;
         return KnowledgeItem.builder()
-                .id(readText(source, "id", fallbackId))
-                .workspaceId(readText(source, "workspaceId", ""))
+                .id(source.id() == null ? fallbackId : source.id())
+                .workspaceId(source.workspaceId() == null ? "" : source.workspaceId())
                 .source(KnowledgeItemSource.builder()
-                        .type(resolveSourceType(readText(source, "sourceType", "documents")))
-                        .name(readText(source, "sourceName", null))
-                        .jobId(readText(source, "jobId", null))
-                        .id(readText(source, "sourceId", null))
-                        .url(readText(source, "sourceUrl", null))
-                        .extractedAt(readInstant(source, "extractedAt"))
-                        .parserVersion(readText(source, "parserVersion", null))
-                        .generation(readText(source, "generation", null))
+                        .type(resolveSourceType(source.sourceType()))
+                        .name(source.sourceName())
+                        .jobId(source.jobId())
+                        .id(source.sourceId())
+                        .url(source.sourceUrl())
+                        .extractedAt(parseOptionalInstant(source.extractedAt()))
+                        .parserVersion(source.parserVersion())
+                        .generation(source.generation())
                         .build())
-                .content(readText(source, "content", ""))
+                .content(source.content() == null ? "" : source.content())
                 .chunkMetadata(KnowledgeChunkMetadata.builder()
-                        .id(readText(source, "chunkId", null))
-                        .sequence(readInteger(source, "chunkSequence"))
-                        .sectionId(readText(source, "sectionId", null))
-                        .heading(readText(source, "heading", null))
-                        .pageNumber(readInteger(source, "pageNumber"))
-                        .slideNumber(readInteger(source, "slideNumber"))
-                        .sheetName(readText(source, "sheetName", null))
-                        .startMilliseconds(readLong(source, "startMilliseconds"))
-                        .endMilliseconds(readLong(source, "endMilliseconds"))
-                        .speaker(readText(source, "speaker", null))
+                        .id(source.chunkId())
+                        .sequence(source.chunkSequence())
+                        .sectionId(source.sectionId())
+                        .heading(source.heading())
+                        .pageNumber(source.pageNumber())
+                        .slideNumber(source.slideNumber())
+                        .sheetName(source.sheetName())
+                        .startMilliseconds(source.startMilliseconds())
+                        .endMilliseconds(source.endMilliseconds())
+                        .speaker(source.speaker())
                         .build())
                 .embeddingMetadata(new KnowledgeEmbeddingMetadata(
-                        readFloats(source, "embedding"),
-                        readText(source, "embeddingModel", null),
-                        readInteger(source, "embeddingDimensions"),
-                        readText(source, "contentHash", null)))
-                .createdAt(Instant.parse(readText(source, "createdAt", Instant.EPOCH.toString())))
+                        source.embedding(), source.embeddingModel(), source.embeddingDimensions(), source.contentHash()))
+                .createdAt(source.createdAt() == null ? Instant.EPOCH : Instant.parse(source.createdAt()))
                 .build();
     }
 
@@ -246,31 +248,7 @@ final class OpenSearchKnowledgeStore {
         return KnowledgeSourceType.DOCUMENT;
     }
 
-    private String readText(JsonNode source, String field, String defaultValue) {
-        JsonNode value = source.path(field);
-        return value.isMissingNode() || value.isNull() ? defaultValue : value.asText();
-    }
-
-    private Instant readInstant(JsonNode source, String field) {
-        String value = readText(source, field, null);
+    private Instant parseOptionalInstant(String value) {
         return value == null ? null : Instant.parse(value);
-    }
-
-    private Integer readInteger(JsonNode source, String field) {
-        JsonNode value = source.path(field);
-        return value.isMissingNode() || value.isNull() ? null : value.asInt();
-    }
-
-    private Long readLong(JsonNode source, String field) {
-        JsonNode value = source.path(field);
-        return value.isMissingNode() || value.isNull() ? null : value.asLong();
-    }
-
-    private List<Float> readFloats(JsonNode source, String field) {
-        JsonNode values = source.path(field);
-        if (!values.isArray()) return null;
-        List<Float> result = new ArrayList<>(values.size());
-        values.forEach(value -> result.add(value.floatValue()));
-        return List.copyOf(result);
     }
 }

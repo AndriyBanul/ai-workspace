@@ -19,6 +19,7 @@ import org.springframework.web.client.RestClient;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -343,6 +344,91 @@ class OpenSearchKnowledgeClientTest {
 
             assertThrows(UpstreamServiceException.class,
                     () -> client.deleteKnowledgeItemsBySourceId("workspace-1", "file-1"), response);
+            server.verify();
+        }
+    }
+
+    @Test
+    void preservesLegacySearchDefaultsFallbackIdsAndDeduplication() throws Exception {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
+                .andRespond(withSuccess("""
+                        {"took":1,"hits":{"total":{"value":2},"hits":[
+                          {"_id":"legacy-id","_score":1.5,"_source":{
+                            "workspaceId":"workspace-1","sourceType":"future-type","extra":true
+                          }},
+                          {"_id":"legacy-id","_source":null}
+                        ]}}
+                        """, MediaType.APPLICATION_JSON));
+        var client = OpenSearchKnowledgeClientTestFactory.create(
+                URI.create("http://localhost:9200"), builder.build(), new ObjectMapper()
+        );
+
+        var results = client.searchKnowledgeItems("workspace-1", "query", 8);
+
+        assertEquals(1, results.size());
+        var item = results.getFirst();
+        assertEquals("legacy-id", item.id());
+        assertEquals("workspace-1", item.workspaceId());
+        assertEquals(KnowledgeSourceType.DOCUMENT, item.source().type());
+        assertEquals("", item.content());
+        assertEquals(Instant.EPOCH, item.createdAt());
+        assertNull(item.embeddingMetadata().vector());
+        assertNull(item.chunkMetadata().sequence());
+        server.verify();
+    }
+
+    @Test
+    void parsesSourceDatesAndEmbeddingMetadataFromTypedSearchHits() throws Exception {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping")).andRespond(withSuccess());
+        server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
+                .andRespond(withSuccess("""
+                        {"hits":{"hits":[{"_id":"item-1","_source":{
+                          "workspaceId":"workspace-1","sourceType":"audio","sourceId":"file-1",
+                          "generation":"g1","extractedAt":"2026-09-08T09:00:00Z",
+                          "embedding":[0.25,0.75],"embeddingModel":"test-model","embeddingDimensions":2,
+                          "contentHash":"hash","createdAt":"2026-09-08T09:00:00Z"
+                        }}]}}
+                        """, MediaType.APPLICATION_JSON));
+        var client = OpenSearchKnowledgeClientTestFactory.create(
+                URI.create("http://localhost:9200"), builder.build(), new ObjectMapper()
+        );
+
+        var item = client.searchKnowledgeItems("workspace-1", "query", 8).getFirst();
+
+        assertEquals(Instant.parse("2026-09-08T09:00:00Z"), item.source().extractedAt());
+        assertEquals("g1", item.source().generation());
+        assertEquals(List.of(0.25f, 0.75f), item.embeddingMetadata().vector());
+        assertEquals("test-model", item.embeddingMetadata().model());
+        assertEquals(2, item.embeddingMetadata().dimensions());
+        assertEquals("hash", item.embeddingMetadata().contentHash());
+        server.verify();
+    }
+
+    @Test
+    void rejectsInvalidSearchResponsesAndSourceDates() {
+        for (String response : List.of(
+                "null", "{}", "{invalid", "{\"hits\":{\"hits\":{}}}",
+                "{\"hits\":{\"hits\":[{\"_source\":{\"createdAt\":\"invalid\"}}]}}"
+        )) {
+            var builder = RestClient.builder();
+            var server = MockRestServiceServer.bindTo(builder).build();
+            server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());
+            server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping")).andRespond(withSuccess());
+            server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
+                    .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+            var client = OpenSearchKnowledgeClientTestFactory.create(
+                    URI.create("http://localhost:9200"), builder.build(), new ObjectMapper()
+            );
+
+            assertThrows(UpstreamServiceException.class,
+                    () -> client.searchKnowledgeItems("workspace-1", "query", 8), response);
             server.verify();
         }
     }
