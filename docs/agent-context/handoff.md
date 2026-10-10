@@ -1,5 +1,25 @@
 # Active Handoff
 
+## Typed provider responses (2026-10-10)
+
+- Replaced production JSON tree parsing in Whisper, Gemini image/video/OCR/knowledge,
+  Veo, Piper, and the OpenSearch search/write integrations with typed response records.
+- Shared Gemini envelope records live in `apps/shared`; clients retain provider
+  validation and domain mapping. Provider-specific payloads stay in their owning
+  modules. Shared uses Boot-managed Jackson annotations for unknown-field handling.
+- Preserved transcript normalization/timing, query filtering, OCR completion checks
+  and strict region text, OpenSearch legacy defaults and flat schema, and Veo's six
+  supported video layouts and field precedence. Malformed response structures now
+  fail deserialization and are reported through the provider error boundary.
+- Piper reads typed headers and event-specific payloads, rejects negative lengths
+  and incomplete frames, and reports typed error text. Removed the uncalled
+  `WorkspaceKnowledge.fromSource` JSON-tree factory.
+- Added/expanded parsing regression tests. Production/test/test-fixture compilation,
+  module boundary checks, API bootJar, and whitespace checks passed. Tests and live
+  provider calls were not run, per Andrii's test-execution preferences.
+- Changes are committed separately on `develop`. Pre-existing ADR/spec changes and
+  local artifacts remain outside this delivery.
+
 ## Verb-based method names (2026-10-10)
 
 - Added the behavior-method naming preference to `JAVA_DEVELOPER_CODE_PREFERENCES.md`.
