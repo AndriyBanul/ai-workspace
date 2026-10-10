@@ -4,7 +4,9 @@ import com.aiworkspace.knowledge.models.KnowledgeChunkMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeEmbeddingMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeItemSource;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.aiworkspace.knowledge.models.OpenSearchBulkResponse;
+import com.aiworkspace.knowledge.models.OpenSearchCountResponse;
+import com.aiworkspace.knowledge.models.OpenSearchDeleteResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
@@ -35,8 +37,10 @@ final class OpenSearchKnowledgeIndexWriter {
             ResponseEntity<String> response = store.restClient.post().uri(store.buildBulkUri())
                     .contentType(MediaType.parseMediaType("application/x-ndjson"))
                     .body(body.toString().getBytes(StandardCharsets.UTF_8)).retrieve().toEntity(String.class);
-            JsonNode responseBody = store.objectMapper.readTree(response.getBody() == null ? "{}" : response.getBody());
-            if (responseBody.path("errors").asBoolean(true)) {
+            OpenSearchBulkResponse responseBody = parseResponse(
+                    response.getBody(), OpenSearchBulkResponse.class, "Failed to add workspace knowledge items"
+            );
+            if (!Boolean.FALSE.equals(responseBody.errors())) {
                 throw store.createInvalidResponseException("Failed to add workspace knowledge items", null);
             }
         } catch (RestClientResponseException exception) {
@@ -80,11 +84,13 @@ final class OpenSearchKnowledgeIndexWriter {
                     .body(store.objectMapper.writeValueAsString(Map.of("query", buildSourceGenerationQuery(
                             workspaceId, sourceId, generation))))
                     .retrieve().toEntity(String.class);
-            JsonNode body = store.objectMapper.readTree(response.getBody() == null ? "{}" : response.getBody());
-            if (!body.path("count").canConvertToInt()) {
+            OpenSearchCountResponse body = parseResponse(
+                    response.getBody(), OpenSearchCountResponse.class, "Failed to count indexed source generation"
+            );
+            if (body.count() == null) {
                 throw store.createInvalidResponseException("Failed to count indexed source generation", null);
             }
-            return body.path("count").asInt();
+            return body.count();
         } catch (RestClientResponseException exception) {
             throw store.createResponseException("Failed to count indexed source generation", exception);
         } catch (RestClientException exception) {
@@ -140,15 +146,23 @@ final class OpenSearchKnowledgeIndexWriter {
     }
 
     private void validateDeleteResponse(String responseBody) {
-        JsonNode response;
-        try {
-            response = store.objectMapper.readTree(responseBody == null ? "{}" : responseBody);
-        } catch (IOException exception) {
-            throw store.createInvalidResponseException("Failed to delete source knowledge", exception);
-        }
-        if (response.path("timed_out").asBoolean(false) || !response.path("failures").isArray()
-                || !response.path("failures").isEmpty()) {
+        OpenSearchDeleteResponse response = parseResponse(
+                responseBody, OpenSearchDeleteResponse.class, "Failed to delete source knowledge"
+        );
+        if (Boolean.TRUE.equals(response.timedOut()) || response.failures() == null || !response.failures().isEmpty()) {
             throw store.createInvalidResponseException("Failed to delete source knowledge", null);
+        }
+    }
+
+    private <T> T parseResponse(String responseBody, Class<T> responseType, String errorMessage) {
+        try {
+            T response = store.objectMapper.readValue(responseBody == null ? "" : responseBody, responseType);
+            if (response == null) {
+                throw store.createInvalidResponseException(errorMessage, null);
+            }
+            return response;
+        } catch (IOException exception) {
+            throw store.createInvalidResponseException(errorMessage, exception);
         }
     }
 

@@ -305,6 +305,48 @@ class OpenSearchKnowledgeClientTest {
         server.verify();
     }
 
+    @Test
+    void rejectsMissingBulkStatusAndMalformedBulkResponses() {
+        for (String response : List.of("null", "{}", "{invalid", "{\"errors\":true}")) {
+            var builder = RestClient.builder();
+            var server = MockRestServiceServer.bindTo(builder).build();
+            server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());
+            server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping")).andRespond(withSuccess());
+            server.expect(requestTo("http://localhost:9200/_bulk?refresh=wait_for"))
+                    .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+            var client = OpenSearchKnowledgeClientTestFactory.create(
+                    URI.create("http://localhost:9200"), builder.build(), new ObjectMapper()
+            );
+            var item = KnowledgeItem.builder().id("item-1").workspaceId("workspace-1")
+                    .content("Content").createdAt(Instant.EPOCH).build();
+
+            assertThrows(UpstreamServiceException.class, () -> client.addKnowledgeItems(List.of(item)), response);
+            server.verify();
+        }
+    }
+
+    @Test
+    void rejectsDeletionTimeoutsFailuresAndMissingFailureList() {
+        for (String response : List.of(
+                "null", "{}", "{invalid", "{\"timed_out\":true,\"failures\":[]}",
+                "{\"timed_out\":false,\"failures\":[{\"index\":\"knowledge-items-v3\",\"status\":500}]}"
+        )) {
+            var builder = RestClient.builder();
+            var server = MockRestServiceServer.bindTo(builder).build();
+            server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());
+            server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping")).andRespond(withSuccess());
+            server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_delete_by_query?refresh=true&conflicts=proceed"))
+                    .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+            var client = OpenSearchKnowledgeClientTestFactory.create(
+                    URI.create("http://localhost:9200"), builder.build(), new ObjectMapper()
+            );
+
+            assertThrows(UpstreamServiceException.class,
+                    () -> client.deleteKnowledgeItemsBySourceId("workspace-1", "file-1"), response);
+            server.verify();
+        }
+    }
+
     private String buildSearchResponse(String id, String content) {
         return """
                 {"hits":{"hits":[{"_id":"%s","_source":{
