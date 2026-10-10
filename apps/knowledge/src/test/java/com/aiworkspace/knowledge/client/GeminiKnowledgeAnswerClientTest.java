@@ -1,6 +1,9 @@
 package com.aiworkspace.knowledge.client;
 
+import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -9,6 +12,7 @@ import org.springframework.web.client.RestClient;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -71,5 +75,89 @@ class GeminiKnowledgeAnswerClientTest {
                 client.expand("What is Sherlock Holmes's address?", 2)
         );
         server.verify();
+    }
+
+    @Test
+    void joinsAnswerPartsAndIgnoresAdditionalProviderFields() throws Exception {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://gemini.example/v1beta/models/test-model:generateContent?key=test-key"))
+                .andRespond(withSuccess("""
+                        {"usageMetadata":{},"candidates":[{"finishReason":"STOP","index":0,
+                          "content":{"role":"model","parts":[
+                            {"text":" Combined"},{"text":null},{"text":" answer "}
+                          ]}}]}
+                        """, MediaType.APPLICATION_JSON));
+        var client = createClient(builder.build());
+
+        assertEquals("Combined answer", client.answer("What happened?", "Context"));
+        server.verify();
+    }
+
+    @Test
+    void trimsQueriesRemovesBlanksDuplicatesAndOriginalAndAppliesLimit() throws Exception {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        String response = buildResponse("""
+                {"extra":true,"queries":[null," "," ORIGINAL QUESTION ",
+                 " first query ","first query","second query","third query"]}
+                """);
+        server.expect(requestTo("https://gemini.example/v1beta/models/test-model:generateContent?key=test-key"))
+                .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+        var client = createClient(builder.build());
+
+        assertEquals(List.of("first query", "second query"), client.expand("Original question", 2));
+        server.verify();
+    }
+
+    @Test
+    void wrapsInvalidQueryPayloadsAsUpstreamFailures() throws Exception {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        List<String> payloads = List.of("null", "{}", "{invalid", "{\"queries\":{}}");
+        for (String payload : payloads) {
+            server.expect(requestTo("https://gemini.example/v1beta/models/test-model:generateContent?key=test-key"))
+                    .andRespond(withSuccess(buildResponse(payload), MediaType.APPLICATION_JSON));
+        }
+        var client = createClient(builder.build());
+
+        for (String payload : payloads) {
+            var exception = assertThrows(UpstreamServiceException.class, () -> client.expand("Question", 2), payload);
+            assertEquals("Gemini returned invalid search queries", exception.getMessage());
+        }
+        server.verify();
+    }
+
+    @Test
+    void rejectsInvalidOrIncompleteAnswerEnvelopes() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        List<String> responses = List.of(
+                "null", "{invalid", "{}", "{\"candidates\":[]}",
+                "{\"candidates\":[{\"content\":{}}]}",
+                "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\" \"}]}}]}"
+        );
+        for (String response : responses) {
+            server.expect(requestTo("https://gemini.example/v1beta/models/test-model:generateContent?key=test-key"))
+                    .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+        }
+        var client = createClient(builder.build());
+
+        for (String response : responses) {
+            assertThrows(UpstreamServiceException.class, () -> client.answer("Question", "Context"), response);
+        }
+        server.verify();
+    }
+
+    private GeminiKnowledgeAnswerClient createClient(RestClient restClient) {
+        return new GeminiKnowledgeAnswerClient(
+                "https://gemini.example/v1beta", "test-key", "test-model", restClient, new ObjectMapper()
+        );
+    }
+
+    private String buildResponse(String payload) throws Exception {
+        return new ObjectMapper().writeValueAsString(Map.of("candidates", List.of(Map.of(
+                "content", Map.of("parts", List.of(Map.of("text", payload)))
+        ))));
     }
 }

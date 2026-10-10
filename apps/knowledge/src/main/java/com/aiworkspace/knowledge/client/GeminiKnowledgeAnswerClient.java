@@ -2,13 +2,17 @@ package com.aiworkspace.knowledge.client;
 
 import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
 import com.aiworkspace.knowledge.interfaces.SearchQueryProvider;
+import com.aiworkspace.knowledge.models.GeminiQueryExpansionResponse;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.aiworkspace.shared.models.GeminiCandidateResponse;
+import com.aiworkspace.shared.models.GeminiPartResponse;
+import com.aiworkspace.shared.models.GeminiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,13 +68,13 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
         }
         String response = generate(buildQueryExpansionRequestBody(question.trim(), limit));
         try {
-            JsonNode queries = objectMapper.readTree(response).path("queries");
-            if (!queries.isArray()) {
+            GeminiQueryExpansionResponse expansion = objectMapper.readValue(response, GeminiQueryExpansionResponse.class);
+            if (expansion == null || expansion.queries() == null) {
                 throw new IOException("Gemini did not return search queries");
             }
-            List<String> result = new java.util.ArrayList<>();
-            for (JsonNode query : queries) {
-                String value = query.asText("").trim();
+            List<String> result = new ArrayList<>();
+            for (String query : expansion.queries()) {
+                String value = query == null ? "" : query.trim();
                 if (!value.isEmpty() && !value.equalsIgnoreCase(question) && !result.contains(value)) {
                     result.add(value);
                 }
@@ -189,22 +193,20 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
     }
 
     private String parseAnswer(String responseBody) {
-        JsonNode responseJson = parseResponseJson(responseBody);
-        JsonNode candidates = responseJson.path("candidates");
-        if (!candidates.isArray() || candidates.isEmpty()) {
+        GeminiResponse response = parseResponse(responseBody);
+        if (response == null || response.candidates() == null || response.candidates().isEmpty()) {
             throw new UpstreamServiceException("Gemini", "Gemini did not return any candidates");
         }
 
-        JsonNode parts = candidates.get(0).path("content").path("parts");
-        if (!parts.isArray()) {
+        GeminiCandidateResponse candidate = response.candidates().getFirst();
+        if (candidate == null || candidate.content() == null || candidate.content().parts() == null) {
             throw new UpstreamServiceException("Gemini", "Gemini did not return response content");
         }
 
         StringBuilder answer = new StringBuilder();
-        for (JsonNode part : parts) {
-            JsonNode text = part.get("text");
-            if (text != null && !text.isNull()) {
-                answer.append(text.asText());
+        for (GeminiPartResponse part : candidate.content().parts()) {
+            if (part != null && part.text() != null) {
+                answer.append(part.text());
             }
         }
 
@@ -216,9 +218,9 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
         return result;
     }
 
-    private JsonNode parseResponseJson(String responseBody) {
+    private GeminiResponse parseResponse(String responseBody) {
         try {
-            return objectMapper.readTree(responseBody);
+            return objectMapper.readValue(responseBody == null ? "" : responseBody, GeminiResponse.class);
         } catch (IOException exception) {
             throw new UpstreamServiceException("Gemini", "Gemini returned an invalid response", exception);
         }
