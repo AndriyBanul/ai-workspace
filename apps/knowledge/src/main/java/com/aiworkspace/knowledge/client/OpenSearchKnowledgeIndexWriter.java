@@ -30,19 +30,19 @@ final class OpenSearchKnowledgeIndexWriter {
             for (KnowledgeItem item : items) {
                 body.append(store.objectMapper.writeValueAsString(Map.of(
                         "index", Map.of("_index", OpenSearchKnowledgeStore.INDEX, "_id", item.id())))).append('\n');
-                body.append(store.objectMapper.writeValueAsString(document(item))).append('\n');
+                body.append(store.objectMapper.writeValueAsString(toIndexDocument(item))).append('\n');
             }
-            ResponseEntity<String> response = store.restClient.post().uri(store.bulkUri())
+            ResponseEntity<String> response = store.restClient.post().uri(store.buildBulkUri())
                     .contentType(MediaType.parseMediaType("application/x-ndjson"))
                     .body(body.toString().getBytes(StandardCharsets.UTF_8)).retrieve().toEntity(String.class);
             JsonNode responseBody = store.objectMapper.readTree(response.getBody() == null ? "{}" : response.getBody());
             if (responseBody.path("errors").asBoolean(true)) {
-                throw store.invalidResponse("Failed to add workspace knowledge items", null);
+                throw store.createInvalidResponseException("Failed to add workspace knowledge items", null);
             }
         } catch (RestClientResponseException exception) {
-            throw store.responseException("Failed to add workspace knowledge items", exception);
+            throw store.createResponseException("Failed to add workspace knowledge items", exception);
         } catch (RestClientException exception) {
-            throw store.clientException("Failed to add workspace knowledge items", exception);
+            throw store.createClientException("Failed to add workspace knowledge items", exception);
         }
     }
 
@@ -68,27 +68,27 @@ final class OpenSearchKnowledgeIndexWriter {
         }
         add(items);
         if (countSourceGeneration(workspaceId, sourceId, generation) != items.size()) {
-            throw store.invalidResponse("Incomplete source generation after bulk indexing", null);
+            throw store.createInvalidResponseException("Incomplete source generation after bulk indexing", null);
         }
     }
 
     int countSourceGeneration(String workspaceId, String sourceId, String generation) throws IOException {
         store.ensureIndex();
         try {
-            ResponseEntity<String> response = store.restClient.post().uri(store.countUri())
+            ResponseEntity<String> response = store.restClient.post().uri(store.buildCountUri())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(store.objectMapper.writeValueAsString(Map.of("query", sourceGenerationQuery(
+                    .body(store.objectMapper.writeValueAsString(Map.of("query", buildSourceGenerationQuery(
                             workspaceId, sourceId, generation))))
                     .retrieve().toEntity(String.class);
             JsonNode body = store.objectMapper.readTree(response.getBody() == null ? "{}" : response.getBody());
             if (!body.path("count").canConvertToInt()) {
-                throw store.invalidResponse("Failed to count indexed source generation", null);
+                throw store.createInvalidResponseException("Failed to count indexed source generation", null);
             }
             return body.path("count").asInt();
         } catch (RestClientResponseException exception) {
-            throw store.responseException("Failed to count indexed source generation", exception);
+            throw store.createResponseException("Failed to count indexed source generation", exception);
         } catch (RestClientException exception) {
-            throw store.clientException("Failed to count indexed source generation", exception);
+            throw store.createClientException("Failed to count indexed source generation", exception);
         }
     }
 
@@ -117,7 +117,7 @@ final class OpenSearchKnowledgeIndexWriter {
         executeDelete(Map.of("bool", bool));
     }
 
-    private Map<String, Object> sourceGenerationQuery(String workspaceId, String sourceId, String generation) {
+    private Map<String, Object> buildSourceGenerationQuery(String workspaceId, String sourceId, String generation) {
         return Map.of("bool", Map.of("filter", List.of(
                 Map.of("term", Map.of("workspaceId", workspaceId)),
                 Map.of("term", Map.of("sourceId", sourceId)),
@@ -127,15 +127,15 @@ final class OpenSearchKnowledgeIndexWriter {
     private void executeDelete(Map<String, Object> query) throws IOException {
         store.ensureIndex();
         try {
-            ResponseEntity<String> response = store.restClient.post().uri(store.deleteByQueryUri())
+            ResponseEntity<String> response = store.restClient.post().uri(store.buildDeleteByQueryUri())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(store.objectMapper.writeValueAsString(Map.of("query", query)))
                     .retrieve().toEntity(String.class);
             validateDeleteResponse(response.getBody());
         } catch (RestClientResponseException exception) {
-            throw store.responseException("Failed to delete source knowledge", exception);
+            throw store.createResponseException("Failed to delete source knowledge", exception);
         } catch (RestClientException exception) {
-            throw store.clientException("Failed to delete source knowledge", exception);
+            throw store.createClientException("Failed to delete source knowledge", exception);
         }
     }
 
@@ -144,15 +144,15 @@ final class OpenSearchKnowledgeIndexWriter {
         try {
             response = store.objectMapper.readTree(responseBody == null ? "{}" : responseBody);
         } catch (IOException exception) {
-            throw store.invalidResponse("Failed to delete source knowledge", exception);
+            throw store.createInvalidResponseException("Failed to delete source knowledge", exception);
         }
         if (response.path("timed_out").asBoolean(false) || !response.path("failures").isArray()
                 || !response.path("failures").isEmpty()) {
-            throw store.invalidResponse("Failed to delete source knowledge", null);
+            throw store.createInvalidResponseException("Failed to delete source knowledge", null);
         }
     }
 
-    private Map<String, Object> document(KnowledgeItem item) {
+    private Map<String, Object> toIndexDocument(KnowledgeItem item) {
         KnowledgeItemSource source = item.source();
         KnowledgeChunkMetadata chunk = item.chunkMetadata();
         KnowledgeEmbeddingMetadata embedding = item.embeddingMetadata();

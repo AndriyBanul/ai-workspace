@@ -20,14 +20,14 @@ public record KnowledgeRerankingProperties(
 
     public KnowledgeRerankingProperties {
         enabled = enabled != null && enabled;
-        model = defaultValue(model, DEFAULT_MODEL);
-        modelUri = requiredWhenEnabled(modelUri, enabled, "Reranking model URI");
-        tokenizerUri = requiredWhenEnabled(tokenizerUri, enabled, "Reranking tokenizer URI");
-        cacheDirectory = defaultValue(cacheDirectory, DEFAULT_CACHE_DIRECTORY);
-        candidateLimit = positive(candidateLimit, 100, "Reranking candidate limit");
-        resultLimit = positive(resultLimit, 12, "Reranking result limit");
-        batchSize = positive(batchSize, 16, "Reranking batch size");
-        maxTokens = positive(maxTokens, 512, "Reranking maximum tokens");
+        model = resolveDefaultValue(model, DEFAULT_MODEL);
+        modelUri = resolveRequiredValue(modelUri, enabled, "Reranking model URI");
+        tokenizerUri = resolveRequiredValue(tokenizerUri, enabled, "Reranking tokenizer URI");
+        cacheDirectory = resolveDefaultValue(cacheDirectory, DEFAULT_CACHE_DIRECTORY);
+        candidateLimit = resolvePositiveValue(candidateLimit, 100, "Reranking candidate limit");
+        resultLimit = resolvePositiveValue(resultLimit, 12, "Reranking result limit");
+        batchSize = resolvePositiveValue(batchSize, 16, "Reranking batch size");
+        maxTokens = resolvePositiveValue(maxTokens, 512, "Reranking maximum tokens");
         if (resultLimit > 12) {
             throw new IllegalArgumentException("Reranking result limit must not exceed 12");
         }
@@ -39,15 +39,15 @@ public record KnowledgeRerankingProperties(
         }
     }
 
-    public static KnowledgeRerankingProperties disabled() {
+    public static KnowledgeRerankingProperties createDisabled() {
         return new KnowledgeRerankingProperties(false, null, null, null, null, null, null, null, null);
     }
 
-    private static String defaultValue(String value, String defaultValue) {
+    private static String resolveDefaultValue(String value, String defaultValue) {
         return value == null || value.isBlank() ? defaultValue : value.trim();
     }
 
-    private static String requiredWhenEnabled(String value, boolean enabled, String name) {
+    private static String resolveRequiredValue(String value, boolean enabled, String name) {
         if (value == null || value.isBlank()) {
             if (enabled) {
                 throw new IllegalArgumentException(name + " must not be blank when reranking is enabled");
@@ -57,7 +57,7 @@ public record KnowledgeRerankingProperties(
         return value.trim();
     }
 
-    private static int positive(Integer value, int defaultValue, String name) {
+    private static int resolvePositiveValue(Integer value, int defaultValue, String name) {
         int resolved = value == null ? defaultValue : value;
         if (resolved <= 0) {
             throw new IllegalArgumentException(name + " must be positive");

@@ -52,7 +52,7 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
         }
 
         List<ScoredKnowledgeCandidate> scored = new ArrayList<>(candidates.size());
-        RerankerRuntime activeRuntime = runtime();
+        RerankerRuntime activeRuntime = getOrLoadRuntime();
         synchronized (inferenceLock) {
             for (int from = 0; from < candidates.size(); from += properties.batchSize()) {
                 int to = Math.min(from + properties.batchSize(), candidates.size());
@@ -75,12 +75,12 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
             throws IOException {
         PairList<String, String> pairs = new PairList<>(candidates.size());
         for (KnowledgeItem candidate : candidates) {
-            pairs.add(query, passage(candidate));
+            pairs.add(query, buildPassage(candidate));
         }
         Encoding[] encodings = activeRuntime.tokenizer().batchEncode(pairs);
-        long[][] inputIds = arrays(encodings, Encoding::getIds);
-        long[][] attentionMask = arrays(encodings, Encoding::getAttentionMask);
-        long[][] tokenTypeIds = arrays(encodings, Encoding::getTypeIds);
+        long[][] inputIds = extractEncodingArrays(encodings, Encoding::getIds);
+        long[][] attentionMask = extractEncodingArrays(encodings, Encoding::getAttentionMask);
+        long[][] tokenTypeIds = extractEncodingArrays(encodings, Encoding::getTypeIds);
 
         Map<String, OnnxTensor> inputs = new HashMap<>();
         try {
@@ -91,7 +91,7 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
                 inputs.put("token_type_ids", OnnxTensor.createTensor(environment, tokenTypeIds));
             }
             try (OrtSession.Result result = activeRuntime.session().run(inputs)) {
-                return scores(result.get(0).getValue(), candidates.size());
+                return extractScores(result.get(0).getValue(), candidates.size());
             }
         } catch (OrtException exception) {
             throw new IOException("Local reranking inference failed", exception);
@@ -100,7 +100,7 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
         }
     }
 
-    private long[][] arrays(Encoding[] encodings, EncodingValues values) {
+    private long[][] extractEncodingArrays(Encoding[] encodings, EncodingValues values) {
         long[][] result = new long[encodings.length][];
         for (int index = 0; index < encodings.length; index++) {
             result[index] = values.get(encodings[index]);
@@ -108,7 +108,7 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
         return result;
     }
 
-    private List<Double> scores(Object output, int expectedSize) throws IOException {
+    private List<Double> extractScores(Object output, int expectedSize) throws IOException {
         List<Double> scores = new ArrayList<>(expectedSize);
         if (output instanceof float[][] values) {
             for (float[] value : values) {
@@ -133,7 +133,7 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
         return List.copyOf(scores);
     }
 
-    private RerankerRuntime runtime() throws IOException {
+    private RerankerRuntime getOrLoadRuntime() throws IOException {
         RerankerRuntime current = runtime;
         if (current != null) {
             return current;
@@ -171,7 +171,7 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
         }
     }
 
-    private String passage(KnowledgeItem item) {
+    private String buildPassage(KnowledgeItem item) {
         if (item.heading() == null || item.heading().isBlank()) {
             return item.content();
         }

@@ -39,38 +39,38 @@ final class OpenSearchKnowledgeStore {
         if (indexChecked) return;
         synchronized (this) {
             if (indexChecked) return;
-            if (!indexExists(indexUri())) createIndex();
+            if (!indexExists(buildIndexUri())) createIndex();
             updateMapping();
             indexChecked = true;
         }
     }
 
     List<KnowledgeItem> searchItems(Map<String, Object> request, String errorMessage) throws IOException {
-        return searchItems(request, searchUri(), errorMessage);
+        return searchItems(request, buildSearchUri(), errorMessage);
     }
 
     List<KnowledgeItem> searchItems(Map<String, Object> request, URI uri, String errorMessage) throws IOException {
         try {
             ResponseEntity<String> response = restClient.post().uri(uri).contentType(MediaType.APPLICATION_JSON)
                     .body(objectMapper.writeValueAsString(request)).retrieve().toEntity(String.class);
-            JsonNode hits = searchHits(response.getBody(), errorMessage);
+            JsonNode hits = parseSearchHits(response.getBody(), errorMessage);
             Map<String, KnowledgeItem> items = new LinkedHashMap<>();
             for (JsonNode hit : hits) {
                 try {
-                    KnowledgeItem item = itemFrom(hit.path("_source"), hit.path("_id").asText());
+                    KnowledgeItem item = toKnowledgeItem(hit.path("_source"), hit.path("_id").asText());
                     org.slf4j.LoggerFactory.getLogger(OpenSearchKnowledgeSearchReader.class).debug(
                             "retrieval_candidate workspaceId={} chunkId={} score={}",
                             item.workspaceId(), item.id(), hit.path("_score").asDouble());
                     items.putIfAbsent(item.id(), item);
                 } catch (RuntimeException exception) {
-                    throw invalidResponse(errorMessage, exception);
+                    throw createInvalidResponseException(errorMessage, exception);
                 }
             }
             return List.copyOf(items.values());
         } catch (RestClientResponseException exception) {
-            throw responseException(errorMessage, exception);
+            throw createResponseException(errorMessage, exception);
         } catch (RestClientException exception) {
-            throw clientException(errorMessage, exception);
+            throw createClientException(errorMessage, exception);
         }
     }
 
@@ -81,43 +81,43 @@ final class OpenSearchKnowledgeStore {
         }
     }
 
-    URI searchUri() {
+    URI buildSearchUri() {
         return URI.create(baseUri + "/" + INDEX + "/_search");
     }
 
-    URI bulkUri() {
+    URI buildBulkUri() {
         return URI.create(baseUri + "/_bulk?refresh=wait_for");
     }
 
-    URI countUri() {
+    URI buildCountUri() {
         return URI.create(baseUri + "/" + INDEX + "/_count");
     }
 
-    URI deleteByQueryUri() {
+    URI buildDeleteByQueryUri() {
         return URI.create(baseUri + "/" + INDEX + "/_delete_by_query?refresh=true&conflicts=proceed");
     }
 
-    UpstreamServiceException responseException(String message, RestClientResponseException exception) {
+    UpstreamServiceException createResponseException(String message, RestClientResponseException exception) {
         return new UpstreamServiceException("OpenSearch",
                 message + ": OpenSearch returned HTTP " + exception.getStatusCode().value(), exception);
     }
 
-    UpstreamServiceException clientException(String message, RestClientException exception) {
+    UpstreamServiceException createClientException(String message, RestClientException exception) {
         return new UpstreamServiceException("OpenSearch", message + ": OpenSearch is unavailable", exception);
     }
 
-    UpstreamServiceException invalidResponse(String message, Exception exception) {
+    UpstreamServiceException createInvalidResponseException(String message, Exception exception) {
         return exception == null
                 ? new UpstreamServiceException("OpenSearch", message + ": OpenSearch returned an invalid response")
                 : new UpstreamServiceException(
                         "OpenSearch", message + ": OpenSearch returned an invalid response", exception);
     }
 
-    private URI indexUri() {
+    private URI buildIndexUri() {
         return URI.create(baseUri + "/" + INDEX);
     }
 
-    private URI mappingUri() {
+    private URI buildMappingUri() {
         return URI.create(baseUri + "/" + INDEX + "/_mapping");
     }
 
@@ -127,41 +127,41 @@ final class OpenSearchKnowledgeStore {
             return true;
         } catch (RestClientResponseException exception) {
             if (exception.getStatusCode().value() == 404) return false;
-            throw responseException("Failed to check OpenSearch index", exception);
+            throw createResponseException("Failed to check OpenSearch index", exception);
         } catch (RestClientException exception) {
-            throw clientException("Failed to check OpenSearch index", exception);
+            throw createClientException("Failed to check OpenSearch index", exception);
         }
     }
 
     private void createIndex() throws IOException {
         try {
-            restClient.put().uri(indexUri()).contentType(MediaType.APPLICATION_JSON)
+            restClient.put().uri(buildIndexUri()).contentType(MediaType.APPLICATION_JSON)
                     .body(objectMapper.writeValueAsString(Map.of(
                             "settings", Map.of("index", Map.of("knn", true)),
-                            "mappings", Map.of("properties", properties()))))
+                            "mappings", Map.of("properties", buildMappingProperties()))))
                     .retrieve().toBodilessEntity();
         } catch (RestClientResponseException exception) {
             if (exception.getStatusCode().value() == 400
                     && exception.getResponseBodyAsString().contains("resource_already_exists_exception")) return;
-            throw responseException("Failed to create knowledge items index", exception);
+            throw createResponseException("Failed to create knowledge items index", exception);
         } catch (RestClientException exception) {
-            throw clientException("Failed to create knowledge items index", exception);
+            throw createClientException("Failed to create knowledge items index", exception);
         }
     }
 
     private void updateMapping() throws IOException {
         try {
-            restClient.put().uri(mappingUri()).contentType(MediaType.APPLICATION_JSON)
-                    .body(objectMapper.writeValueAsString(Map.of("properties", properties())))
+            restClient.put().uri(buildMappingUri()).contentType(MediaType.APPLICATION_JSON)
+                    .body(objectMapper.writeValueAsString(Map.of("properties", buildMappingProperties())))
                     .retrieve().toBodilessEntity();
         } catch (RestClientResponseException exception) {
-            throw responseException("Failed to update workspace knowledge mapping", exception);
+            throw createResponseException("Failed to update workspace knowledge mapping", exception);
         } catch (RestClientException exception) {
-            throw clientException("Failed to update workspace knowledge mapping", exception);
+            throw createClientException("Failed to update workspace knowledge mapping", exception);
         }
     }
 
-    private Map<String, Object> properties() {
+    private Map<String, Object> buildMappingProperties() {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("id", Map.of("type", "keyword"));
         properties.put("workspaceId", Map.of("type", "keyword"));
@@ -194,79 +194,79 @@ final class OpenSearchKnowledgeStore {
         return properties;
     }
 
-    private JsonNode searchHits(String responseBody, String errorMessage) {
+    private JsonNode parseSearchHits(String responseBody, String errorMessage) {
         try {
             JsonNode hits = objectMapper.readTree(responseBody == null ? "{}" : responseBody)
                     .path("hits").path("hits");
-            if (!hits.isArray()) throw invalidResponse(errorMessage, null);
+            if (!hits.isArray()) throw createInvalidResponseException(errorMessage, null);
             return hits;
         } catch (IOException exception) {
-            throw invalidResponse(errorMessage, exception);
+            throw createInvalidResponseException(errorMessage, exception);
         }
     }
 
-    private KnowledgeItem itemFrom(JsonNode source, String fallbackId) {
+    private KnowledgeItem toKnowledgeItem(JsonNode source, String fallbackId) {
         return KnowledgeItem.builder()
-                .id(text(source, "id", fallbackId))
-                .workspaceId(text(source, "workspaceId", ""))
+                .id(readText(source, "id", fallbackId))
+                .workspaceId(readText(source, "workspaceId", ""))
                 .source(KnowledgeItemSource.builder()
-                        .type(sourceType(text(source, "sourceType", "documents")))
-                        .name(text(source, "sourceName", null))
-                        .jobId(text(source, "jobId", null))
-                        .id(text(source, "sourceId", null))
-                        .url(text(source, "sourceUrl", null))
-                        .extractedAt(instant(source, "extractedAt"))
-                        .parserVersion(text(source, "parserVersion", null))
-                        .generation(text(source, "generation", null))
+                        .type(resolveSourceType(readText(source, "sourceType", "documents")))
+                        .name(readText(source, "sourceName", null))
+                        .jobId(readText(source, "jobId", null))
+                        .id(readText(source, "sourceId", null))
+                        .url(readText(source, "sourceUrl", null))
+                        .extractedAt(readInstant(source, "extractedAt"))
+                        .parserVersion(readText(source, "parserVersion", null))
+                        .generation(readText(source, "generation", null))
                         .build())
-                .content(text(source, "content", ""))
+                .content(readText(source, "content", ""))
                 .chunkMetadata(KnowledgeChunkMetadata.builder()
-                        .id(text(source, "chunkId", null))
-                        .sequence(integer(source, "chunkSequence"))
-                        .sectionId(text(source, "sectionId", null))
-                        .heading(text(source, "heading", null))
-                        .pageNumber(integer(source, "pageNumber"))
-                        .slideNumber(integer(source, "slideNumber"))
-                        .sheetName(text(source, "sheetName", null))
-                        .startMilliseconds(longValue(source, "startMilliseconds"))
-                        .endMilliseconds(longValue(source, "endMilliseconds"))
-                        .speaker(text(source, "speaker", null))
+                        .id(readText(source, "chunkId", null))
+                        .sequence(readInteger(source, "chunkSequence"))
+                        .sectionId(readText(source, "sectionId", null))
+                        .heading(readText(source, "heading", null))
+                        .pageNumber(readInteger(source, "pageNumber"))
+                        .slideNumber(readInteger(source, "slideNumber"))
+                        .sheetName(readText(source, "sheetName", null))
+                        .startMilliseconds(readLong(source, "startMilliseconds"))
+                        .endMilliseconds(readLong(source, "endMilliseconds"))
+                        .speaker(readText(source, "speaker", null))
                         .build())
                 .embeddingMetadata(new KnowledgeEmbeddingMetadata(
-                        floats(source, "embedding"),
-                        text(source, "embeddingModel", null),
-                        integer(source, "embeddingDimensions"),
-                        text(source, "contentHash", null)))
-                .createdAt(Instant.parse(text(source, "createdAt", Instant.EPOCH.toString())))
+                        readFloats(source, "embedding"),
+                        readText(source, "embeddingModel", null),
+                        readInteger(source, "embeddingDimensions"),
+                        readText(source, "contentHash", null)))
+                .createdAt(Instant.parse(readText(source, "createdAt", Instant.EPOCH.toString())))
                 .build();
     }
 
-    private KnowledgeSourceType sourceType(String apiName) {
+    private KnowledgeSourceType resolveSourceType(String apiName) {
         for (KnowledgeSourceType type : KnowledgeSourceType.values()) if (type.apiName().equals(apiName)) return type;
         return KnowledgeSourceType.DOCUMENT;
     }
 
-    private String text(JsonNode source, String field, String defaultValue) {
+    private String readText(JsonNode source, String field, String defaultValue) {
         JsonNode value = source.path(field);
         return value.isMissingNode() || value.isNull() ? defaultValue : value.asText();
     }
 
-    private Instant instant(JsonNode source, String field) {
-        String value = text(source, field, null);
+    private Instant readInstant(JsonNode source, String field) {
+        String value = readText(source, field, null);
         return value == null ? null : Instant.parse(value);
     }
 
-    private Integer integer(JsonNode source, String field) {
+    private Integer readInteger(JsonNode source, String field) {
         JsonNode value = source.path(field);
         return value.isMissingNode() || value.isNull() ? null : value.asInt();
     }
 
-    private Long longValue(JsonNode source, String field) {
+    private Long readLong(JsonNode source, String field) {
         JsonNode value = source.path(field);
         return value.isMissingNode() || value.isNull() ? null : value.asLong();
     }
 
-    private List<Float> floats(JsonNode source, String field) {
+    private List<Float> readFloats(JsonNode source, String field) {
         JsonNode values = source.path(field);
         if (!values.isArray()) return null;
         List<Float> result = new ArrayList<>(values.size());

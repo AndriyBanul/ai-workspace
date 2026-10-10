@@ -16,7 +16,7 @@ public record KnowledgeSearchProperties(String mode) {
         }
     }
 
-    public boolean vectorOnly() {
+    public boolean isVectorOnly() {
         return VECTOR.equals(mode);
     }
 }

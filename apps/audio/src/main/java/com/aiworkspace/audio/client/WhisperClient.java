@@ -47,11 +47,11 @@ public class WhisperClient implements SpeechToTextProvider {
     public TranscriptionResponse transcribe(String filename, byte[] fileContent)
             throws IOException, InterruptedException {
         String boundary = "ai-workspace-" + UUID.randomUUID();
-        HttpRequest request = HttpRequest.newBuilder(transcriptionUri())
+        HttpRequest request = HttpRequest.newBuilder(buildTranscriptionUri())
                 .version(HttpClient.Version.HTTP_1_1)
                 .timeout(REQUEST_TIMEOUT)
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody(boundary, filename, fileContent)))
+                .POST(HttpRequest.BodyPublishers.ofByteArray(buildMultipartBody(boundary, filename, fileContent)))
                 .build();
         HttpResponse<String> response;
         try {
@@ -71,14 +71,14 @@ public class WhisperClient implements SpeechToTextProvider {
             throw new UpstreamServiceException("Whisper", "Whisper returned an invalid response", exception);
         }
 
-        return transcriptionFrom(responseJson);
+        return parseTranscription(responseJson);
     }
 
-    private URI transcriptionUri() {
+    private URI buildTranscriptionUri() {
         return URI.create(baseUri + "/asr?task=transcribe&output=json&word_timestamps=true");
     }
 
-    private byte[] multipartBody(
+    private byte[] buildMultipartBody(
             String boundary,
             String filename,
             byte[] fileContent
@@ -86,14 +86,14 @@ public class WhisperClient implements SpeechToTextProvider {
         ByteArrayOutputStream body = new ByteArrayOutputStream();
         body.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
         body.write(("Content-Disposition: form-data; name=\"audio_file\"; filename=\""
-                + safeFilename(filename) + "\"\r\n").getBytes(StandardCharsets.UTF_8));
+                + escapeMultipartFilename(filename) + "\"\r\n").getBytes(StandardCharsets.UTF_8));
         body.write("Content-Type: application/octet-stream\r\n\r\n".getBytes(StandardCharsets.UTF_8));
         body.write(fileContent);
         body.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
         return body.toByteArray();
     }
 
-    private String safeFilename(String filename) {
+    private String escapeMultipartFilename(String filename) {
         if (filename == null || filename.isBlank()) {
             return "audio";
         }
@@ -101,39 +101,39 @@ public class WhisperClient implements SpeechToTextProvider {
         return filename.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    private String textValue(JsonNode json, String fieldName) {
+    private String readTextValue(JsonNode json, String fieldName) {
         JsonNode value = json.get(fieldName);
         return value == null || value.isNull() ? "" : value.asText();
     }
 
-    TranscriptionResponse transcriptionFrom(JsonNode responseJson) {
+    TranscriptionResponse parseTranscription(JsonNode responseJson) {
         return new TranscriptionResponse(
-                textValue(responseJson, "text"),
-                textValue(responseJson, "language"),
-                segmentsFrom(responseJson.path("segments"))
+                readTextValue(responseJson, "text"),
+                readTextValue(responseJson, "language"),
+                parseSegments(responseJson.path("segments"))
         );
     }
 
-    private List<TranscriptSegment> segmentsFrom(JsonNode segmentsJson) {
+    private List<TranscriptSegment> parseSegments(JsonNode segmentsJson) {
         if (!segmentsJson.isArray()) {
             return List.of();
         }
 
         List<TranscriptSegment> segments = new ArrayList<>();
         for (JsonNode segmentJson : segmentsJson) {
-            String text = firstText(segmentJson, "text", "transcript").trim();
+            String text = readFirstNonBlankText(segmentJson, "text", "transcript").trim();
             if (text.isEmpty()) {
                 continue;
             }
-            long start = timestampMilliseconds(segmentJson, "start", "from");
-            long end = Math.max(start, timestampMilliseconds(segmentJson, "end", "to"));
-            String speaker = normalizedOptionalText(segmentJson, "speaker");
+            long start = readTimestampMilliseconds(segmentJson, "start", "from");
+            long end = Math.max(start, readTimestampMilliseconds(segmentJson, "end", "to"));
+            String speaker = readNormalizedOptionalText(segmentJson, "speaker");
             segments.add(new TranscriptSegment(start, end, speaker, text));
         }
         return List.copyOf(segments);
     }
 
-    private long timestampMilliseconds(JsonNode segmentJson, String directField, String nestedField) {
+    private long readTimestampMilliseconds(JsonNode segmentJson, String directField, String nestedField) {
         JsonNode value = segmentJson.get(directField);
         if (value == null || value.isNull()) {
             value = segmentJson.path("timestamps").get(nestedField);
@@ -160,13 +160,13 @@ public class WhisperClient implements SpeechToTextProvider {
         }
     }
 
-    private String firstText(JsonNode json, String firstField, String secondField) {
-        String first = textValue(json, firstField);
-        return first.isBlank() ? textValue(json, secondField) : first;
+    private String readFirstNonBlankText(JsonNode json, String firstField, String secondField) {
+        String first = readTextValue(json, firstField);
+        return first.isBlank() ? readTextValue(json, secondField) : first;
     }
 
-    private String normalizedOptionalText(JsonNode json, String fieldName) {
-        String value = textValue(json, fieldName);
+    private String readNormalizedOptionalText(JsonNode json, String fieldName) {
+        String value = readTextValue(json, fieldName);
         return value.isBlank() ? null : value.trim();
     }
 }

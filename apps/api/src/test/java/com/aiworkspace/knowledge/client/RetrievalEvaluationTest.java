@@ -64,12 +64,12 @@ class RetrievalEvaluationTest {
 
         try (var tokenizerInput = new org.springframework.ai.transformers.ResourceCacheService(
                     System.getenv().getOrDefault("KNOWLEDGE_EMBEDDING_CACHE_DIRECTORY", "data/models/spring-ai"))
-                    .getCachedResource(defaultValue(configProperties, "spring.ai.embedding.transformer.tokenizer.uri")).getInputStream();
+                    .getCachedResource(extractDefaultValue(configProperties, "spring.ai.embedding.transformer.tokenizer.uri")).getInputStream();
              var tokenizer = ai.djl.huggingface.tokenizers.HuggingFaceTokenizer.newInstance(tokenizerInput,
                     Map.of("padding", "false", "truncation", "false"));
              var model = new TransformersEmbeddingModel()) {
-            model.setModelResource(defaultValue(configProperties, "spring.ai.embedding.transformer.onnx.model-uri"));
-            model.setTokenizerResource(defaultValue(configProperties, "spring.ai.embedding.transformer.tokenizer.uri"));
+            model.setModelResource(extractDefaultValue(configProperties, "spring.ai.embedding.transformer.onnx.model-uri"));
+            model.setTokenizerResource(extractDefaultValue(configProperties, "spring.ai.embedding.transformer.tokenizer.uri"));
             model.setTokenizerOptions(Map.of("padding", "true", "truncation", "false", "maxLength", "512"));
             model.setResourceCacheDirectory(System.getenv().getOrDefault(
                     "KNOWLEDGE_EMBEDDING_CACHE_DIRECTORY", "data/models/spring-ai"));
@@ -92,7 +92,7 @@ class RetrievalEvaluationTest {
                 indexed.put(size, items);
                 index(items);
                 for (int weight : List.of(2, 1, 4)) {
-                    var client = client(weight);
+                    var client = createClient(weight);
                     runs.add(evaluate(new RetrievalEvaluationConfig(size, weight, 32, 60), "BM25", "tune",
                             corpus, items, vectors, client));
                     for (int candidates : List.of(32, 16, 8)) {
@@ -115,7 +115,7 @@ class RetrievalEvaluationTest {
                 var items = indexed.get(config.chunkSentences());
                 index(items);
                 for (var mode : List.of("BM25", "hybrid")) {
-                    validation.add(evaluate(config, mode, "holdout", corpus, items, vectors, client(config.headingWeight())));
+                    validation.add(evaluate(config, mode, "holdout", corpus, items, vectors, createClient(config.headingWeight())));
                 }
             }
             var report = new LinkedHashMap<String, Object>();
@@ -123,7 +123,7 @@ class RetrievalEvaluationTest {
             report.put("corpusSha256", java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
                     .digest(json.writeValueAsBytes(corpus))));
             report.put("openSearchVersion", cluster.path("version").path("number").asText());
-            report.put("modelUri", defaultValue(configProperties, "spring.ai.embedding.transformer.onnx.model-uri"));
+            report.put("modelUri", extractDefaultValue(configProperties, "spring.ai.embedding.transformer.onnx.model-uri"));
             report.put("baseline", BASELINE);
             report.put("selectedOnTuneOnly", selected.config());
             report.put("tuning", runs);
@@ -145,7 +145,7 @@ class RetrievalEvaluationTest {
         }
     }
 
-    private String defaultValue(Properties properties, String key) {
+    private String extractDefaultValue(Properties properties, String key) {
         String value = properties.getProperty(key);
         return value.substring(value.indexOf(':') + 1, value.length() - 1);
     }
@@ -182,10 +182,10 @@ class RetrievalEvaluationTest {
     private void index(List<KnowledgeItem> items) throws Exception {
         http.delete().uri(INDEX).retrieve().onStatus(status -> status.value() == 404,
                 (request, response) -> {}).toBodilessEntity();
-        client(2).addKnowledgeItems(items);
+        createClient(2).addKnowledgeItems(items);
     }
 
-    private OpenSearchKnowledgeClient client(int weight) {
+    private OpenSearchKnowledgeClient createClient(int weight) {
         return OpenSearchKnowledgeClientTestFactory.create(URI.create(URL), RestClient.create(), json, properties, weight);
     }
 
@@ -211,10 +211,10 @@ class RetrievalEvaluationTest {
                     context.stream().map(KnowledgeItem::id).toList(),
                     context.stream().anyMatch(item -> relevant.contains(item.id()))));
         }
-        return new RetrievalEvaluationRun(config, mode, split, hit(outcomes, 1), hit(outcomes, 3), hit(outcomes, 5), outcomes.stream().filter(RetrievalEvaluationOutcome::contextHit).count() / (double) outcomes.size(), outcomes);
+        return new RetrievalEvaluationRun(config, mode, split, calculateHitRate(outcomes, 1), calculateHitRate(outcomes, 3), calculateHitRate(outcomes, 5), outcomes.stream().filter(RetrievalEvaluationOutcome::contextHit).count() / (double) outcomes.size(), outcomes);
     }
 
-    private double hit(List<RetrievalEvaluationOutcome> outcomes, int k) {
+    private double calculateHitRate(List<RetrievalEvaluationOutcome> outcomes, int k) {
         return outcomes.stream().filter(o -> o.firstRelevantRank() > 0 && o.firstRelevantRank() <= k).count()
                 / (double) outcomes.size();
     }

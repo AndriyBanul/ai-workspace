@@ -17,13 +17,13 @@ public class KnowledgeAnswerService {
 
     public WorkspaceKnowledgeAnswer answer(String workspaceId, String question, List<KnowledgeItem> evidence)
             throws IOException {
-        String answer = answerProvider.answer(question, citationService.answerContext(workspaceId, evidence));
+        String answer = answerProvider.answer(question, citationService.buildAnswerContext(workspaceId, evidence));
         return new WorkspaceKnowledgeAnswer(
                 workspaceId,
                 question,
                 answer,
-                citationService.sourceFiles(evidence),
-                citationService.sources(evidence)
+                citationService.collectSourceFiles(evidence),
+                citationService.mapSources(evidence)
         );
     }
 }

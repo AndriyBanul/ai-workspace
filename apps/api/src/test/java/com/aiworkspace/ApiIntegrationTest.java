@@ -72,7 +72,7 @@ class ApiIntegrationTest {
 
     @Test
     void servesBundledFrontendAssetsWithoutAuthentication() throws IOException, InterruptedException {
-        HttpResponse<String> page = send(HttpRequest.newBuilder(uri("/"))
+        HttpResponse<String> page = send(HttpRequest.newBuilder(buildUri("/"))
                 .GET()
                 .build());
 
@@ -85,7 +85,7 @@ class ApiIntegrationTest {
         assertFalse(assets.isEmpty(), "The packaged frontend must reference its built assets");
 
         for (String asset : assets) {
-            HttpResponse<String> response = send(HttpRequest.newBuilder(uri(asset))
+            HttpResponse<String> response = send(HttpRequest.newBuilder(buildUri(asset))
                     .GET()
                     .build());
             assertEquals(HttpStatus.OK.value(), response.statusCode(), asset);
@@ -96,8 +96,8 @@ class ApiIntegrationTest {
     @Test
     void mapsValidationErrorsToStandardErrorResponse() throws IOException, InterruptedException {
         ApiTestUser user = registerUser();
-        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/workspaces"))
-                .header("Authorization", user.basicAuthHeader())
+        HttpResponse<String> response = send(HttpRequest.newBuilder(buildUri("/api/v1/workspaces"))
+                .header("Authorization", user.buildBasicAuthHeader())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{}"))
                 .build());
@@ -114,8 +114,8 @@ class ApiIntegrationTest {
     @Test
     void mapsMissingResourcesToStandardErrorResponse() throws IOException, InterruptedException {
         ApiTestUser user = registerUser();
-        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/workspaces/missing"))
-                .header("Authorization", user.basicAuthHeader())
+        HttpResponse<String> response = send(HttpRequest.newBuilder(buildUri("/api/v1/workspaces/missing"))
+                .header("Authorization", user.buildBasicAuthHeader())
                 .GET()
                 .build());
         JsonNode error = OBJECT_MAPPER.readTree(response.body());
@@ -128,7 +128,7 @@ class ApiIntegrationTest {
 
     @Test
     void requiresAuthenticationForApiEndpoints() throws IOException, InterruptedException {
-        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/workspaces"))
+        HttpResponse<String> response = send(HttpRequest.newBuilder(buildUri("/api/v1/workspaces"))
                 .GET()
                 .build());
         JsonNode error = OBJECT_MAPPER.readTree(response.body());
@@ -145,7 +145,7 @@ class ApiIntegrationTest {
     void rejectsInvalidCredentialsWithoutCreatingSession() throws IOException, InterruptedException {
         String credentials = Base64.getEncoder().encodeToString(
                 "missing@example.com:incorrect-password".getBytes(StandardCharsets.UTF_8));
-        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/workspaces"))
+        HttpResponse<String> response = send(HttpRequest.newBuilder(buildUri("/api/v1/workspaces"))
                 .header("Authorization", "Basic " + credentials)
                 .GET()
                 .build());
@@ -159,8 +159,8 @@ class ApiIntegrationTest {
     void authenticatesWithoutCreatingServerSession() throws IOException, InterruptedException {
         ApiTestUser user = registerUser();
 
-        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/auth/me"))
-                .header("Authorization", user.basicAuthHeader())
+        HttpResponse<String> response = send(HttpRequest.newBuilder(buildUri("/api/v1/auth/me"))
+                .header("Authorization", user.buildBasicAuthHeader())
                 .GET()
                 .build());
 
@@ -177,12 +177,12 @@ class ApiIntegrationTest {
         JsonNode workspace = OBJECT_MAPPER.readTree(created.body());
         String workspaceId = workspace.path("id").asText();
 
-        HttpResponse<String> ownerResponse = send(HttpRequest.newBuilder(uri("/api/v1/workspaces/" + workspaceId))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> ownerResponse = send(HttpRequest.newBuilder(buildUri("/api/v1/workspaces/" + workspaceId))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .GET()
                 .build());
-        HttpResponse<String> otherUserResponse = send(HttpRequest.newBuilder(uri("/api/v1/workspaces/" + workspaceId))
-                .header("Authorization", otherUser.basicAuthHeader())
+        HttpResponse<String> otherUserResponse = send(HttpRequest.newBuilder(buildUri("/api/v1/workspaces/" + workspaceId))
+                .header("Authorization", otherUser.buildBasicAuthHeader())
                 .GET()
                 .build());
 
@@ -199,10 +199,10 @@ class ApiIntegrationTest {
         HttpResponse<String> created = createWorkspace(owner, "Files demo");
         String workspaceId = OBJECT_MAPPER.readTree(created.body()).path("id").asText();
 
-        HttpResponse<String> uploaded = send(HttpRequest.newBuilder(uri("/api/v1/documents/text"))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> uploaded = send(HttpRequest.newBuilder(buildUri("/api/v1/documents/text"))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
-                .POST(multipartBody(
+                .POST(buildMultipartBody(
                         "ai-workspace-test",
                         "workspaceId",
                         workspaceId,
@@ -212,24 +212,24 @@ class ApiIntegrationTest {
                         "Hello from persisted files."
                 ))
                 .build());
-        HttpResponse<String> files = send(HttpRequest.newBuilder(uri("/api/v1/workspaces/" + workspaceId + "/files"))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> files = send(HttpRequest.newBuilder(buildUri("/api/v1/workspaces/" + workspaceId + "/files"))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .GET()
                 .build());
-        HttpResponse<String> otherUserFiles = send(HttpRequest.newBuilder(uri("/api/v1/workspaces/" + workspaceId + "/files"))
-                .header("Authorization", otherUser.basicAuthHeader())
+        HttpResponse<String> otherUserFiles = send(HttpRequest.newBuilder(buildUri("/api/v1/workspaces/" + workspaceId + "/files"))
+                .header("Authorization", otherUser.buildBasicAuthHeader())
                 .GET()
                 .build());
         JsonNode file = OBJECT_MAPPER.readTree(files.body()).path(0);
         JsonNode uploadResponse = OBJECT_MAPPER.readTree(uploaded.body());
         String recoveryPath = "/api/v1/workspaces/" + workspaceId + "/sources/"
                 + file.path("id").asText() + "/recovery";
-        HttpResponse<String> recovery = send(HttpRequest.newBuilder(uri(recoveryPath))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> recovery = send(HttpRequest.newBuilder(buildUri(recoveryPath))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .GET()
                 .build());
-        HttpResponse<String> otherUserRecovery = send(HttpRequest.newBuilder(uri(recoveryPath))
-                .header("Authorization", otherUser.basicAuthHeader())
+        HttpResponse<String> otherUserRecovery = send(HttpRequest.newBuilder(buildUri(recoveryPath))
+                .header("Authorization", otherUser.buildBasicAuthHeader())
                 .GET()
                 .build());
         JsonNode recoveryTask = OBJECT_MAPPER.readTree(recovery.body());
@@ -306,15 +306,15 @@ class ApiIntegrationTest {
         String fileId = OBJECT_MAPPER.readTree(uploaded.body()).path("sourceId").asText();
 
         HttpResponse<String> deleted = send(HttpRequest.newBuilder(
-                        uri("/api/v1/workspaces/" + workspaceId + "/files/" + fileId)
+                        buildUri("/api/v1/workspaces/" + workspaceId + "/files/" + fileId)
                 )
-                .header("Authorization", owner.basicAuthHeader())
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .DELETE()
                 .build());
         HttpResponse<String> fileAfterDeletion = send(HttpRequest.newBuilder(
-                        uri("/api/v1/workspaces/" + workspaceId + "/files/" + fileId)
+                        buildUri("/api/v1/workspaces/" + workspaceId + "/files/" + fileId)
                 )
-                .header("Authorization", owner.basicAuthHeader())
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .GET()
                 .build());
 
@@ -339,9 +339,9 @@ class ApiIntegrationTest {
         String fileId = OBJECT_MAPPER.readTree(uploaded.body()).path("sourceId").asText();
 
         HttpResponse<String> deletion = send(HttpRequest.newBuilder(
-                        uri("/api/v1/workspaces/" + workspaceId + "/files/" + fileId)
+                        buildUri("/api/v1/workspaces/" + workspaceId + "/files/" + fileId)
                 )
-                .header("Authorization", otherUser.basicAuthHeader())
+                .header("Authorization", otherUser.buildBasicAuthHeader())
                 .DELETE()
                 .build());
 
@@ -363,13 +363,13 @@ class ApiIntegrationTest {
         );
         assertEquals(HttpStatus.OK.value(), uploaded.statusCode(), uploaded.body());
 
-        HttpResponse<String> deleted = send(HttpRequest.newBuilder(uri("/api/v1/workspaces/" + workspaceId))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> deleted = send(HttpRequest.newBuilder(buildUri("/api/v1/workspaces/" + workspaceId))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .DELETE()
                 .build());
         HttpResponse<String> workspaceAfterDeletion = send(
-                HttpRequest.newBuilder(uri("/api/v1/workspaces/" + workspaceId))
-                        .header("Authorization", owner.basicAuthHeader())
+                HttpRequest.newBuilder(buildUri("/api/v1/workspaces/" + workspaceId))
+                        .header("Authorization", owner.buildBasicAuthHeader())
                         .GET()
                         .build()
         );
@@ -398,12 +398,12 @@ class ApiIntegrationTest {
         assertEquals(HttpStatus.BAD_GATEWAY.value(), uploaded.statusCode(), uploaded.body());
         assertEquals("Simulated knowledge indexing failure", error.path("detail").asText());
         assertFalse(error.has("code"));
-        assertEquals("FAILED", workspaceFiles(owner, workspaceId).path(0).path("status").asText());
+        assertEquals("FAILED", fetchWorkspaceFiles(owner, workspaceId).path(0).path("status").asText());
         assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
     }
 
     @ParameterizedTest
-    @MethodSource("invalidDocuments")
+    @MethodSource("provideInvalidDocuments")
     void returnsDocumentFailureCodesAndPreservesFailedFileState(
             String filename,
             String contentType,
@@ -426,17 +426,17 @@ class ApiIntegrationTest {
         assertFalse(error.has("trace"));
         assertFalse(error.has("cause"));
 
-        JsonNode files = workspaceFiles(owner, workspaceId);
+        JsonNode files = fetchWorkspaceFiles(owner, workspaceId);
         assertEquals(1, files.size());
         assertEquals(filename, files.path(0).path("originalFilename").asText());
         assertEquals("FAILED", files.path(0).path("status").asText());
         assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
     }
 
-    private static Stream<Arguments> invalidDocuments() {
+    private static Stream<Arguments> provideInvalidDocuments() {
         return Stream.of(
                 Arguments.of("empty.txt", "text/plain", new byte[0], 400, "EMPTY_DOCUMENT"),
-                Arguments.of("image.txt", "text/plain", unsupportedImage(), 415, "UNSUPPORTED_DOCUMENT_FORMAT"),
+                Arguments.of("image.txt", "text/plain", createUnsupportedImage(), 415, "UNSUPPORTED_DOCUMENT_FORMAT"),
                 Arguments.of("broken.pdf", "application/pdf", "%PDF-1.7\ninvalid PDF\n%%EOF"
                         .getBytes(StandardCharsets.UTF_8), 422, "CORRUPT_DOCUMENT"),
                 Arguments.of("large.txt", "text/plain", "A".repeat(512).getBytes(StandardCharsets.UTF_8),
@@ -456,7 +456,7 @@ class ApiIntegrationTest {
                 "This is a plain text document.".getBytes(StandardCharsets.UTF_8));
 
         assertEquals(HttpStatus.OK.value(), uploaded.statusCode(), uploaded.body());
-        assertEquals("PROCESSED", workspaceFiles(owner, workspaceId).path(0).path("status").asText());
+        assertEquals("PROCESSED", fetchWorkspaceFiles(owner, workspaceId).path(0).path("status").asText());
     }
 
     @Test
@@ -467,12 +467,12 @@ class ApiIntegrationTest {
                 .path("id").asText();
 
         HttpResponse<String> uploaded = uploadDocument(otherUser, workspaceId, "image.txt", "text/plain",
-                unsupportedImage());
+                createUnsupportedImage());
         JsonNode error = OBJECT_MAPPER.readTree(uploaded.body());
 
         assertEquals(HttpStatus.NOT_FOUND.value(), uploaded.statusCode(), uploaded.body());
         assertFalse(error.has("code"));
-        assertEquals(0, workspaceFiles(owner, workspaceId).size());
+        assertEquals(0, fetchWorkspaceFiles(owner, workspaceId).size());
         assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
     }
 
@@ -482,10 +482,10 @@ class ApiIntegrationTest {
         HttpResponse<String> created = createWorkspace(owner, "Orchestrator demo");
         String workspaceId = OBJECT_MAPPER.readTree(created.body()).path("id").asText();
 
-        HttpResponse<String> submitted = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> submitted = send(HttpRequest.newBuilder(buildUri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
-                .POST(multipartBody(
+                .POST(buildMultipartBody(
                         "ai-workspace-test",
                         "workspaceId",
                         workspaceId,
@@ -502,15 +502,15 @@ class ApiIntegrationTest {
         assertEquals("audio", submission.path("skipped").path(0).asText());
 
         JsonNode job = waitForJobStatus(owner, submission.path("jobId").asText(), "COMPLETED");
-        assertEquals("COMPLETED", stepStatus(job, "documents"));
-        assertEquals("SKIPPED", stepStatus(job, "audio"));
-        assertEquals("SKIPPED", stepStatus(job, "images"));
-        assertEquals("SKIPPED", stepStatus(job, "videos"));
+        assertEquals("COMPLETED", readStepStatus(job, "documents"));
+        assertEquals("SKIPPED", readStepStatus(job, "audio"));
+        assertEquals("SKIPPED", readStepStatus(job, "images"));
+        assertEquals("SKIPPED", readStepStatus(job, "videos"));
 
-        HttpResponse<String> recovery = send(HttpRequest.newBuilder(uri(
+        HttpResponse<String> recovery = send(HttpRequest.newBuilder(buildUri(
                         "/api/v1/workspaces/" + workspaceId + "/sources/"
                                 + submission.path("sourceIds").path("documents").asText() + "/recovery"))
-                .header("Authorization", owner.basicAuthHeader())
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .GET()
                 .build());
         assertEquals(HttpStatus.OK.value(), recovery.statusCode(), recovery.body());
@@ -524,10 +524,10 @@ class ApiIntegrationTest {
                 .path("id").asText();
         inMemoryKnowledgeRepository.failNextAddFor(workspaceId);
 
-        HttpResponse<String> submitted = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> submitted = send(HttpRequest.newBuilder(buildUri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
-                .POST(multipartBody(
+                .POST(buildMultipartBody(
                         "ai-workspace-test",
                         "workspaceId",
                         workspaceId,
@@ -541,13 +541,13 @@ class ApiIntegrationTest {
 
         assertEquals(HttpStatus.ACCEPTED.value(), submitted.statusCode(), submitted.body());
         JsonNode job = waitForJobStatus(owner, submission.path("jobId").asText(), "FAILED");
-        JsonNode documentsStep = step(job, "documents");
+        JsonNode documentsStep = findStep(job, "documents");
         assertEquals("FAILED", documentsStep.path("status").asText());
         assertEquals("Simulated knowledge indexing failure", documentsStep.path("errorMessage").asText());
         assertTrue(documentsStep.path("errorCode").isNull());
         assertEquals(submission.path("sourceIds").path("documents").asText(),
-                workspaceFiles(owner, workspaceId).path(0).path("id").asText());
-        assertEquals("FAILED", workspaceFiles(owner, workspaceId).path(0).path("status").asText());
+                fetchWorkspaceFiles(owner, workspaceId).path(0).path("id").asText());
+        assertEquals("FAILED", fetchWorkspaceFiles(owner, workspaceId).path(0).path("status").asText());
         assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
     }
 
@@ -557,21 +557,21 @@ class ApiIntegrationTest {
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Empty ingestion document").body())
                 .path("id").asText();
 
-        HttpResponse<String> submitted = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> submitted = send(HttpRequest.newBuilder(buildUri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
-                .POST(multipartBody("ai-workspace-test", "workspaceId", workspaceId, "document",
+                .POST(buildMultipartBody("ai-workspace-test", "workspaceId", workspaceId, "document",
                         "empty.txt", "text/plain", new byte[0]))
                 .build());
         JsonNode submission = OBJECT_MAPPER.readTree(submitted.body());
 
         assertEquals(HttpStatus.ACCEPTED.value(), submitted.statusCode(), submitted.body());
         JsonNode job = waitForJobStatus(owner, submission.path("jobId").asText(), "FAILED");
-        JsonNode documentsStep = step(job, "documents");
+        JsonNode documentsStep = findStep(job, "documents");
         assertEquals("FAILED", documentsStep.path("status").asText());
         assertEquals("EMPTY_DOCUMENT", documentsStep.path("errorCode").asText());
 
-        JsonNode sources = workspaceFiles(owner, workspaceId);
+        JsonNode sources = fetchWorkspaceFiles(owner, workspaceId);
         assertEquals(1, sources.size());
         assertEquals(submission.path("sourceIds").path("documents").asText(), sources.path(0).path("id").asText());
         assertEquals("FAILED", sources.path(0).path("status").asText());
@@ -584,10 +584,10 @@ class ApiIntegrationTest {
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Unselected document input").body())
                 .path("id").asText();
 
-        HttpResponse<String> submitted = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> submitted = send(HttpRequest.newBuilder(buildUri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
-                .POST(multipartBody("ai-workspace-test", "workspaceId", workspaceId, "document",
+                .POST(buildMultipartBody("ai-workspace-test", "workspaceId", workspaceId, "document",
                         "", "application/octet-stream", new byte[0]))
                 .build());
         assertEquals(HttpStatus.ACCEPTED.value(), submitted.statusCode(), submitted.body());
@@ -596,11 +596,11 @@ class ApiIntegrationTest {
         assertEquals(4, submission.path("skipped").size());
 
         JsonNode job = waitForJobStatus(owner, submission.path("jobId").asText(), "COMPLETED");
-        assertEquals("SKIPPED", stepStatus(job, "documents"));
-        assertEquals("SKIPPED", stepStatus(job, "audio"));
-        assertEquals("SKIPPED", stepStatus(job, "images"));
-        assertEquals("SKIPPED", stepStatus(job, "videos"));
-        assertEquals(0, workspaceFiles(owner, workspaceId).size());
+        assertEquals("SKIPPED", readStepStatus(job, "documents"));
+        assertEquals("SKIPPED", readStepStatus(job, "audio"));
+        assertEquals("SKIPPED", readStepStatus(job, "images"));
+        assertEquals("SKIPPED", readStepStatus(job, "videos"));
+        assertEquals(0, fetchWorkspaceFiles(owner, workspaceId).size());
     }
 
     @Test
@@ -610,25 +610,25 @@ class ApiIntegrationTest {
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "Failed ingestion").body())
                 .path("id").asText();
 
-        HttpResponse<String> submitted = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> submitted = send(HttpRequest.newBuilder(buildUri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
-                .POST(multipartBody("ai-workspace-test", "workspaceId", workspaceId, "document",
+                .POST(buildMultipartBody("ai-workspace-test", "workspaceId", workspaceId, "document",
                         "large.txt", "text/plain", "A".repeat(512).getBytes(StandardCharsets.UTF_8)))
                 .build());
         assertEquals(HttpStatus.ACCEPTED.value(), submitted.statusCode(), submitted.body());
         String jobId = OBJECT_MAPPER.readTree(submitted.body()).path("jobId").asText();
 
         JsonNode job = waitForJobStatus(owner, jobId, "FAILED");
-        JsonNode documentsStep = step(job, "documents");
+        JsonNode documentsStep = findStep(job, "documents");
         assertEquals("FAILED", documentsStep.path("status").asText());
         assertEquals("EXTRACTION_LIMIT_EXCEEDED", documentsStep.path("errorCode").asText());
         assertFalse(documentsStep.path("errorMessage").asText().isBlank());
-        assertEquals("FAILED", workspaceFiles(owner, workspaceId).path(0).path("status").asText());
+        assertEquals("FAILED", fetchWorkspaceFiles(owner, workspaceId).path(0).path("status").asText());
         assertTrue(knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).isEmpty());
 
-        HttpResponse<String> otherUserJob = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/jobs/" + jobId))
-                .header("Authorization", otherUser.basicAuthHeader())
+        HttpResponse<String> otherUserJob = send(HttpRequest.newBuilder(buildUri("/api/v1/orchestrator/jobs/" + jobId))
+                .header("Authorization", otherUser.buildBasicAuthHeader())
                 .GET()
                 .build());
         assertEquals(HttpStatus.NOT_FOUND.value(), otherUserJob.statusCode());
@@ -636,8 +636,8 @@ class ApiIntegrationTest {
 
     @Test
     void servesSwaggerUiAndOpenApiSpec() throws IOException, InterruptedException {
-        HttpResponse<String> swagger = send(HttpRequest.newBuilder(uri("/swagger-ui.html")).GET().build());
-        HttpResponse<String> openApi = send(HttpRequest.newBuilder(uri("/openapi.yaml")).GET().build());
+        HttpResponse<String> swagger = send(HttpRequest.newBuilder(buildUri("/swagger-ui.html")).GET().build());
+        HttpResponse<String> openApi = send(HttpRequest.newBuilder(buildUri("/openapi.yaml")).GET().build());
 
         assertEquals(HttpStatus.OK.value(), swagger.statusCode());
         assertTrue(swagger.body().contains("SwaggerUIBundle"));
@@ -661,7 +661,7 @@ class ApiIntegrationTest {
         assertEquals(OBJECT_MAPPER.readTree(first.body()).path("jobId").asText(),
                 OBJECT_MAPPER.readTree(replay.body()).path("jobId").asText());
         assertEquals(HttpStatus.CONFLICT.value(), changed.statusCode(), changed.body());
-        assertEquals(1, workspaceFiles(owner, workspaceId).size());
+        assertEquals(1, fetchWorkspaceFiles(owner, workspaceId).size());
         waitForJobStatus(owner, OBJECT_MAPPER.readTree(first.body()).path("jobId").asText(), "COMPLETED");
     }
 
@@ -676,15 +676,15 @@ class ApiIntegrationTest {
         assertEquals(HttpStatus.OK.value(), uploaded.statusCode(), uploaded.body());
         String path = "/api/v1/knowledge/workspaces/" + workspaceId + "/answers";
 
-        HttpResponse<String> answer = send(HttpRequest.newBuilder(uri(path))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> answer = send(HttpRequest.newBuilder(buildUri(path))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{\"question\":\"Friday\"}"))
                 .build());
-        HttpResponse<String> history = send(HttpRequest.newBuilder(uri(path))
-                .header("Authorization", owner.basicAuthHeader()).GET().build());
-        HttpResponse<String> denied = send(HttpRequest.newBuilder(uri(path))
-                .header("Authorization", other.basicAuthHeader()).GET().build());
+        HttpResponse<String> history = send(HttpRequest.newBuilder(buildUri(path))
+                .header("Authorization", owner.buildBasicAuthHeader()).GET().build());
+        HttpResponse<String> denied = send(HttpRequest.newBuilder(buildUri(path))
+                .header("Authorization", other.buildBasicAuthHeader()).GET().build());
 
         assertEquals(HttpStatus.OK.value(), answer.statusCode(), answer.body());
         assertEquals(HttpStatus.OK.value(), history.statusCode(), history.body());
@@ -698,11 +698,11 @@ class ApiIntegrationTest {
 
     private HttpResponse<String> submitIdempotentDocument(ApiTestUser owner, String workspaceId, String key,
             String content) throws IOException, InterruptedException {
-        return send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/ingestions"))
-                .header("Authorization", owner.basicAuthHeader())
+        return send(HttpRequest.newBuilder(buildUri("/api/v1/orchestrator/ingestions"))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .header("Idempotency-Key", key)
                 .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
-                .POST(multipartBody("ai-workspace-test", "workspaceId", workspaceId,
+                .POST(buildMultipartBody("ai-workspace-test", "workspaceId", workspaceId,
                         "document", "sample.txt", "text/plain", content))
                 .build());
     }
@@ -713,8 +713,8 @@ class ApiIntegrationTest {
         String workspaceId = OBJECT_MAPPER.readTree(createWorkspace(owner, "YouTube workspace").body())
                 .path("id").asText();
 
-        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/videos/youtube"))
-                .header("Authorization", owner.basicAuthHeader())
+        HttpResponse<String> response = send(HttpRequest.newBuilder(buildUri("/api/v1/videos/youtube"))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("""
                         {"workspaceId":"%s","url":"https://youtu.be/9hE5-98ZeCg?t=10"}
@@ -735,7 +735,7 @@ class ApiIntegrationTest {
         assertEquals(body.path("url").asText(), items.getFirst().sourceUrl());
         assertTrue(items.getFirst().content().contains("[00:00:01.000 - 00:00:03.000] Presenter:"));
 
-        JsonNode sources = workspaceSources(owner, workspaceId);
+        JsonNode sources = fetchWorkspaceSources(owner, workspaceId);
         assertEquals(1, sources.size());
         assertEquals("YOUTUBE", sources.path(0).path("sourceType").asText());
         assertEquals("PROCESSED", sources.path(0).path("status").asText());
@@ -743,8 +743,8 @@ class ApiIntegrationTest {
 
         String sourceId = body.path("sourceId").asText();
         HttpResponse<String> reprocessed = send(HttpRequest.newBuilder(
-                        uri("/api/v1/workspaces/" + workspaceId + "/sources/" + sourceId + "/reprocess"))
-                .header("Authorization", owner.basicAuthHeader())
+                        buildUri("/api/v1/workspaces/" + workspaceId + "/sources/" + sourceId + "/reprocess"))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .POST(HttpRequest.BodyPublishers.noBody())
                 .build());
         assertEquals(HttpStatus.ACCEPTED.value(), reprocessed.statusCode(), reprocessed.body());
@@ -753,8 +753,8 @@ class ApiIntegrationTest {
         assertEquals(1, knowledgeRepository.findKnowledgeItemsByWorkspaceId(workspaceId).size());
 
         HttpResponse<String> deleted = send(HttpRequest.newBuilder(
-                        uri("/api/v1/workspaces/" + workspaceId + "/sources/" + sourceId))
-                .header("Authorization", owner.basicAuthHeader())
+                        buildUri("/api/v1/workspaces/" + workspaceId + "/sources/" + sourceId))
+                .header("Authorization", owner.buildBasicAuthHeader())
                 .DELETE()
                 .build());
         assertEquals(HttpStatus.NO_CONTENT.value(), deleted.statusCode(), deleted.body());
@@ -765,14 +765,14 @@ class ApiIntegrationTest {
         return HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    private URI uri(String path) {
+    private URI buildUri(String path) {
         return URI.create("http://localhost:" + port + path);
     }
 
     private ApiTestUser registerUser() throws IOException, InterruptedException {
         String email = UUID.randomUUID() + "@example.com";
         String password = "password1234";
-        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/auth/register"))
+        HttpResponse<String> response = send(HttpRequest.newBuilder(buildUri("/api/v1/auth/register"))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("""
                         {
@@ -789,8 +789,8 @@ class ApiIntegrationTest {
     }
 
     private HttpResponse<String> createWorkspace(ApiTestUser user, String name) throws IOException, InterruptedException {
-        return send(HttpRequest.newBuilder(uri("/api/v1/workspaces"))
-                .header("Authorization", user.basicAuthHeader())
+        return send(HttpRequest.newBuilder(buildUri("/api/v1/workspaces"))
+                .header("Authorization", user.buildBasicAuthHeader())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{\"name\":\"" + name + "\"}"))
                 .build());
@@ -803,24 +803,24 @@ class ApiIntegrationTest {
             String contentType,
             byte[] content
     ) throws IOException, InterruptedException {
-        return send(HttpRequest.newBuilder(uri("/api/v1/documents/text"))
-                .header("Authorization", user.basicAuthHeader())
+        return send(HttpRequest.newBuilder(buildUri("/api/v1/documents/text"))
+                .header("Authorization", user.buildBasicAuthHeader())
                 .header("Content-Type", "multipart/form-data; boundary=ai-workspace-test")
-                .POST(multipartBody("ai-workspace-test", "workspaceId", workspaceId, "file",
+                .POST(buildMultipartBody("ai-workspace-test", "workspaceId", workspaceId, "file",
                         filename, contentType, content))
                 .build());
     }
 
-    private JsonNode workspaceFiles(ApiTestUser user, String workspaceId) throws IOException, InterruptedException {
-        HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/workspaces/" + workspaceId + "/files"))
-                .header("Authorization", user.basicAuthHeader())
+    private JsonNode fetchWorkspaceFiles(ApiTestUser user, String workspaceId) throws IOException, InterruptedException {
+        HttpResponse<String> response = send(HttpRequest.newBuilder(buildUri("/api/v1/workspaces/" + workspaceId + "/files"))
+                .header("Authorization", user.buildBasicAuthHeader())
                 .GET()
                 .build());
         assertEquals(HttpStatus.OK.value(), response.statusCode());
         return OBJECT_MAPPER.readTree(response.body());
     }
 
-    private static byte[] unsupportedImage() {
+    private static byte[] createUnsupportedImage() {
         return new byte[] {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0};
     }
 
@@ -828,8 +828,8 @@ class ApiIntegrationTest {
             throws IOException, InterruptedException {
         JsonNode lastJob = null;
         for (int attempt = 0; attempt < 20; attempt++) {
-            HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/v1/orchestrator/jobs/" + jobId))
-                    .header("Authorization", user.basicAuthHeader())
+            HttpResponse<String> response = send(HttpRequest.newBuilder(buildUri("/api/v1/orchestrator/jobs/" + jobId))
+                    .header("Authorization", user.buildBasicAuthHeader())
                     .GET()
                     .build());
             assertEquals(HttpStatus.OK.value(), response.statusCode());
@@ -846,11 +846,11 @@ class ApiIntegrationTest {
         return lastJob;
     }
 
-    private String stepStatus(JsonNode job, String type) {
-        return step(job, type).path("status").asText();
+    private String readStepStatus(JsonNode job, String type) {
+        return findStep(job, type).path("status").asText();
     }
 
-    private JsonNode step(JsonNode job, String type) {
+    private JsonNode findStep(JsonNode job, String type) {
         for (JsonNode step : job.path("steps")) {
             if (type.equals(step.path("type").asText())) {
                 return step;
@@ -860,7 +860,7 @@ class ApiIntegrationTest {
         throw new AssertionError("Missing ingestion step " + type);
     }
 
-    private HttpRequest.BodyPublisher multipartBody(
+    private HttpRequest.BodyPublisher buildMultipartBody(
             String boundary,
             String textName,
             String textValue,
@@ -869,11 +869,11 @@ class ApiIntegrationTest {
             String contentType,
             String fileContent
     ) {
-        return multipartBody(boundary, textName, textValue, fileName, originalFilename, contentType,
+        return buildMultipartBody(boundary, textName, textValue, fileName, originalFilename, contentType,
                 fileContent.getBytes(StandardCharsets.UTF_8));
     }
 
-    private HttpRequest.BodyPublisher multipartBody(
+    private HttpRequest.BodyPublisher buildMultipartBody(
             String boundary,
             String textName,
             String textValue,
@@ -938,15 +938,15 @@ class ApiIntegrationTest {
 
                 @Override
                 public List<List<Float>> embedDocuments(List<String> texts) {
-                    return texts.stream().map(ignored -> testEmbedding()).toList();
+                    return texts.stream().map(ignored -> createTestEmbedding()).toList();
                 }
 
                 @Override
                 public List<Float> embedQuery(String text) {
-                    return testEmbedding();
+                    return createTestEmbedding();
                 }
 
-                private List<Float> testEmbedding() {
+                private List<Float> createTestEmbedding() {
                     List<Float> vector = new java.util.ArrayList<>(768);
                     for (int index = 0; index < 768; index++) {
                         vector.add(index == 0 ? 1.0f : 0.0f);
@@ -973,10 +973,10 @@ class ApiIntegrationTest {
         }
     }
 
-    private JsonNode workspaceSources(ApiTestUser user, String workspaceId) throws IOException, InterruptedException {
+    private JsonNode fetchWorkspaceSources(ApiTestUser user, String workspaceId) throws IOException, InterruptedException {
         HttpResponse<String> response = send(HttpRequest.newBuilder(
-                        uri("/api/v1/workspaces/" + workspaceId + "/sources"))
-                .header("Authorization", user.basicAuthHeader())
+                        buildUri("/api/v1/workspaces/" + workspaceId + "/sources"))
+                .header("Authorization", user.buildBasicAuthHeader())
                 .GET()
                 .build());
         assertEquals(HttpStatus.OK.value(), response.statusCode(), response.body());
@@ -997,10 +997,10 @@ class ApiIntegrationTest {
 
             return Optional.of(new WorkspaceKnowledge(
                     workspaceId,
-                    joinedContent(workspaceItems, KnowledgeSourceType.DOCUMENT),
-                    joinedContent(workspaceItems, KnowledgeSourceType.AUDIO),
-                    joinedContent(workspaceItems, KnowledgeSourceType.VIDEO),
-                    joinedContent(workspaceItems, KnowledgeSourceType.IMAGE)
+                    joinContent(workspaceItems, KnowledgeSourceType.DOCUMENT),
+                    joinContent(workspaceItems, KnowledgeSourceType.AUDIO),
+                    joinContent(workspaceItems, KnowledgeSourceType.VIDEO),
+                    joinContent(workspaceItems, KnowledgeSourceType.IMAGE)
             ));
         }
 
@@ -1079,7 +1079,7 @@ class ApiIntegrationTest {
                     .id(UUID.randomUUID().toString())
                     .workspaceId(workspaceId)
                     .source(KnowledgeItemSource.builder()
-                            .type(sourceTypeFrom(field))
+                            .type(mapSourceType(field))
                             .name(field.fieldName())
                             .build())
                     .content(value)
@@ -1087,7 +1087,7 @@ class ApiIntegrationTest {
                     .build());
         }
 
-        private String joinedContent(List<KnowledgeItem> workspaceItems, KnowledgeSourceType sourceType) {
+        private String joinContent(List<KnowledgeItem> workspaceItems, KnowledgeSourceType sourceType) {
             return workspaceItems.stream()
                     .filter(item -> item.sourceType() == sourceType)
                     .map(KnowledgeItem::content)
@@ -1095,7 +1095,7 @@ class ApiIntegrationTest {
                     .orElse(null);
         }
 
-        private KnowledgeSourceType sourceTypeFrom(WorkspaceKnowledgeField field) {
+        private KnowledgeSourceType mapSourceType(WorkspaceKnowledgeField field) {
             return switch (field) {
                 case DOCUMENTS_INFO -> KnowledgeSourceType.DOCUMENT;
                 case AUDIO_INFO -> KnowledgeSourceType.AUDIO;

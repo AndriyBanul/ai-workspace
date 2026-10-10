@@ -38,7 +38,7 @@ public class DocumentService {
     private static final String DOCX_MEDIA_TYPE =
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     private static final String TIKA_PARSER_VERSION =
-            parserVersion("ai-workspace-document-structure-v1/tika", AutoDetectParser.class);
+            buildParserVersion("ai-workspace-document-structure-v1/tika", AutoDetectParser.class);
 
     private final GenericRestClient restClient;
     private final DocumentValidator documentValidator;
@@ -86,14 +86,14 @@ public class DocumentService {
                         docxStructureExtractor.parserVersion()
                 );
             }
-            structureHandler.detectedContentType(detectedContentType);
+            structureHandler.setDetectedContentType(detectedContentType);
             metadata.set(Metadata.CONTENT_TYPE, detectedContentType);
-            parser.parse(input, handler, metadata, textExtractionContext());
+            parser.parse(input, handler, metadata, createTextExtractionContext());
         } catch (TikaException | SAXException | IOException exception) {
-            throw documentFailure(exception);
+            throw mapDocumentFailure(exception);
         }
 
-        var blocks = structureHandler.blocks();
+        var blocks = structureHandler.collectBlocks();
         boolean ocrApplied = false;
         if ("application/pdf".equals(detectedContentType) && pdfOcrFallback != null) {
             var expanded = pdfOcrFallback.apply(bytes, blocks);
@@ -105,7 +105,7 @@ public class DocumentService {
         return new ParsedTextDocument(
                 filename,
                 detectedContentType,
-                normalizedOptionalValue(metadata.get(TikaCoreProperties.TITLE)),
+                normalizeOptionalValue(metadata.get(TikaCoreProperties.TITLE)),
                 content,
                 blocks,
                 Instant.now(),
@@ -113,7 +113,7 @@ public class DocumentService {
         );
     }
 
-    private ParseContext textExtractionContext() {
+    private ParseContext createTextExtractionContext() {
         PDFParserConfig pdfConfig = new PDFParserConfig();
         pdfConfig.setOcrStrategy(PDFParserConfig.OCR_STRATEGY.NO_OCR);
         pdfConfig.setCatchIntermediateIOExceptions(false);
@@ -129,7 +129,7 @@ public class DocumentService {
         return context;
     }
 
-    private DocumentProcessingException documentFailure(Exception exception) {
+    private DocumentProcessingException mapDocumentFailure(Exception exception) {
         if (WriteLimitReachedException.isWriteLimitReached(exception)) {
             return new DocumentProcessingException(DocumentFailureCode.EXTRACTION_LIMIT_EXCEEDED, exception);
         }
@@ -179,14 +179,14 @@ public class DocumentService {
         return documentChunker.chunkText(content, extractionProperties.maxChunkSentences());
     }
 
-    private String normalizedOptionalValue(String value) {
+    private String normalizeOptionalValue(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
         return value.trim();
     }
 
-    private static String parserVersion(String parserName, Class<?> libraryType) {
+    private static String buildParserVersion(String parserName, Class<?> libraryType) {
         String libraryVersion = libraryType.getPackage().getImplementationVersion();
         return parserName + "-" + (libraryVersion == null ? "unknown" : libraryVersion);
     }

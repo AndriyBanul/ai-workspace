@@ -28,7 +28,7 @@ public class ImageValidator {
             throw new IllegalArgumentException("File must not be larger than 10MB");
         }
 
-        String extension = extension(filename);
+        String extension = extractExtension(filename);
         if (!SUPPORTED_EXTENSIONS.contains(extension)) {
             throw new IllegalArgumentException("Only JPG, PNG, and WEBP images are supported");
         }
@@ -50,8 +50,8 @@ public class ImageValidator {
         }
     }
 
-    public String mimeType(String filename, String contentType) {
-        String mimeType = MIME_TYPES_BY_EXTENSION.get(extension(filename));
+    public String resolveMimeType(String filename, String contentType) {
+        String mimeType = MIME_TYPES_BY_EXTENSION.get(extractExtension(filename));
         if (contentType != null && contentType.equals(mimeType)) {
             return contentType;
         }
@@ -59,7 +59,7 @@ public class ImageValidator {
         return mimeType;
     }
 
-    private String extension(String filename) {
+    private String extractExtension(String filename) {
         if (filename == null || filename.isBlank()) {
             return "";
         }

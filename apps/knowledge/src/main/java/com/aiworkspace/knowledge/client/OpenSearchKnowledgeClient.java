@@ -37,7 +37,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
             SourceIndexManifestService manifestService
     ) {
         OpenSearchKnowledgeStore store = new OpenSearchKnowledgeStore(
-                normalizedBaseUri(baseUrl), restClient, objectMapper, embeddingProperties);
+                normalizeBaseUri(baseUrl), restClient, objectMapper, embeddingProperties);
         this.reader = new OpenSearchKnowledgeSearchReader(store, headingWeight, telemetry, manifestService);
         this.writer = new OpenSearchKnowledgeIndexWriter(store);
     }
@@ -60,13 +60,13 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
     @Override
     public List<KnowledgeItem> searchKnowledgeItems(String workspaceId, String query, List<Float> queryEmbedding,
             int limit, int candidateLimit, int rrfRankConstant) throws IOException {
-        return reader.hybridSearch(workspaceId, query, queryEmbedding, limit, candidateLimit, rrfRankConstant);
+        return reader.searchHybrid(workspaceId, query, queryEmbedding, limit, candidateLimit, rrfRankConstant);
     }
 
     @Override
     public List<KnowledgeItem> searchKnowledgeItemsByVector(String workspaceId, List<Float> queryEmbedding,
             int limit, int candidateLimit) throws IOException {
-        return reader.vectorSearch(workspaceId, queryEmbedding, limit, candidateLimit);
+        return reader.searchByVector(workspaceId, queryEmbedding, limit, candidateLimit);
     }
 
     @Override
@@ -124,7 +124,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
                 .id(UUID.randomUUID().toString())
                 .workspaceId(workspaceId)
                 .source(KnowledgeItemSource.builder()
-                        .type(sourceTypeFrom(field))
+                        .type(mapSourceType(field))
                         .name(field.fieldName())
                         .build())
                 .content(value)
@@ -132,7 +132,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
                 .build()));
     }
 
-    private KnowledgeSourceType sourceTypeFrom(WorkspaceKnowledgeField field) {
+    private KnowledgeSourceType mapSourceType(WorkspaceKnowledgeField field) {
         return switch (field) {
             case DOCUMENTS_INFO -> KnowledgeSourceType.DOCUMENT;
             case AUDIO_INFO -> KnowledgeSourceType.AUDIO;
@@ -141,7 +141,7 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
         };
     }
 
-    private static URI normalizedBaseUri(String baseUrl) {
+    private static URI normalizeBaseUri(String baseUrl) {
         return URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
     }
 }

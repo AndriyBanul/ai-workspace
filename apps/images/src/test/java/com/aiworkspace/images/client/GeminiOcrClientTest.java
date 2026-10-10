@@ -24,7 +24,7 @@ class GeminiOcrClientTest {
         }
         var client = new GeminiOcrClient(builder.build(), mapper, "https://example.test", "key", "test");
         var result = client.recognize(new byte[]{1}, "image/png");
-        assertEquals("Visible text", result.text());
+        assertEquals("Visible text", result.joinRegionText());
         assertNull(result.regions().getFirst().confidence());
         assertNull(result.regions().getFirst().bounds());
         assertTrue(client.recognize(new byte[]{1}, "image/png").regions().isEmpty());

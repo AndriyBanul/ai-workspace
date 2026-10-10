@@ -32,7 +32,7 @@ public class DocumentController {
             Authentication authentication
     ) throws IOException {
         return ResponseEntity.ok(orchestratorService.ingestDocument(
-                    userAccountService.currentUserId(authentication),
+                    userAccountService.getCurrentUserId(authentication),
                     workspaceId,
                     file.getOriginalFilename(),
                     file.getContentType(),
@@ -47,6 +47,6 @@ public class DocumentController {
     )
             throws IOException {
         return ResponseEntity
-                .ok(orchestratorService.ingestWebPage(userAccountService.currentUserId(authentication), request));
+                .ok(orchestratorService.ingestWebPage(userAccountService.getCurrentUserId(authentication), request));
     }
 }

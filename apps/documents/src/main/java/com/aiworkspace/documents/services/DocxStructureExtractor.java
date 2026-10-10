@@ -36,7 +36,7 @@ class DocxStructureExtractor {
                 if (element instanceof XWPFParagraph paragraph) {
                     extractedCharacters = addBlock(
                             blocks,
-                            paragraphType(paragraph),
+                            classifyParagraph(paragraph),
                             paragraph.getText(),
                             extractedCharacters,
                             properties
@@ -88,7 +88,7 @@ class DocxStructureExtractor {
         return extractedCharacters + text.length();
     }
 
-    private DocumentBlockType paragraphType(XWPFParagraph paragraph) {
+    private DocumentBlockType classifyParagraph(XWPFParagraph paragraph) {
         String style = paragraph.getStyle();
         if (style != null) {
             String normalizedStyle = style.toLowerCase(Locale.ROOT);

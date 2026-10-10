@@ -42,7 +42,7 @@ public class VideoValidator {
             throw new IllegalArgumentException("File must not be larger than 20MB");
         }
 
-        String extension = extension(filename);
+        String extension = extractExtension(filename);
         if (!SUPPORTED_EXTENSIONS.contains(extension)) {
             throw new IllegalArgumentException("Only MP4, MOV, WEBM, MPEG, MPG, and AVI videos are supported");
         }
@@ -75,14 +75,14 @@ public class VideoValidator {
     }
 
     public void validateYouTubeUrl(String rawUrl) {
-        youtubeVideoId(rawUrl);
+        extractYouTubeVideoId(rawUrl);
     }
 
-    public String canonicalYouTubeUrl(String rawUrl) {
-        return "https://www.youtube.com/watch?v=" + youtubeVideoId(rawUrl);
+    public String canonicalizeYouTubeUrl(String rawUrl) {
+        return "https://www.youtube.com/watch?v=" + extractYouTubeVideoId(rawUrl);
     }
 
-    public String youtubeVideoId(String rawUrl) {
+    public String extractYouTubeVideoId(String rawUrl) {
         if (rawUrl == null || rawUrl.isBlank()) {
             throw new IllegalArgumentException("YouTube URL must not be blank");
         }
@@ -90,44 +90,44 @@ public class VideoValidator {
         try {
             uri = URI.create(rawUrl.trim());
         } catch (IllegalArgumentException exception) {
-            throw invalidYouTubeUrl();
+            throw createInvalidYouTubeUrlException();
         }
         String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null || uri.getPort() != -1) {
-            throw invalidYouTubeUrl();
+            throw createInvalidYouTubeUrlException();
         }
 
         if (!YOUTUBE_SHORT_HOST.equals(host) && !YOUTUBE_HOSTS.contains(host)) {
-            throw invalidYouTubeUrl();
+            throw createInvalidYouTubeUrlException();
         }
         String videoId;
         try {
             videoId = YOUTUBE_SHORT_HOST.equals(host)
-                    ? firstPathSegment(uri.getPath())
-                    : videoIdFromYouTubePath(uri);
+                    ? extractFirstPathSegment(uri.getPath())
+                    : extractVideoIdFromYouTubePath(uri);
         } catch (IllegalArgumentException exception) {
-            throw invalidYouTubeUrl();
+            throw createInvalidYouTubeUrlException();
         }
         if (videoId == null || !videoId.matches(VIDEO_ID_PATTERN)) {
-            throw invalidYouTubeUrl();
+            throw createInvalidYouTubeUrlException();
         }
         return videoId;
     }
 
-    private String videoIdFromYouTubePath(URI uri) {
+    private String extractVideoIdFromYouTubePath(URI uri) {
         String path = uri.getPath() == null ? "" : uri.getPath();
         if ("/watch".equals(path)) {
-            return queryParameter(uri.getRawQuery(), "v");
+            return readQueryParameter(uri.getRawQuery(), "v");
         }
         for (String prefix : Set.of("/shorts/", "/embed/", "/live/")) {
             if (path.startsWith(prefix)) {
-                return firstPathSegment(path.substring(prefix.length() - 1));
+                return extractFirstPathSegment(path.substring(prefix.length() - 1));
             }
         }
         return null;
     }
 
-    private String queryParameter(String rawQuery, String name) {
+    private String readQueryParameter(String rawQuery, String name) {
         if (rawQuery == null) {
             return null;
         }
@@ -140,19 +140,19 @@ public class VideoValidator {
         return null;
     }
 
-    private String firstPathSegment(String path) {
+    private String extractFirstPathSegment(String path) {
         if (path == null) {
             return null;
         }
         return path.replaceFirst("^/+", "").split("/", 2)[0];
     }
 
-    private IllegalArgumentException invalidYouTubeUrl() {
+    private IllegalArgumentException createInvalidYouTubeUrlException() {
         return new IllegalArgumentException("URL must identify one public YouTube video");
     }
 
-    public String mimeType(String filename, String contentType) {
-        String mimeType = MIME_TYPES_BY_EXTENSION.get(extension(filename));
+    public String resolveMimeType(String filename, String contentType) {
+        String mimeType = MIME_TYPES_BY_EXTENSION.get(extractExtension(filename));
         if (contentType != null && contentType.equals(mimeType)) {
             return contentType;
         }
@@ -160,7 +160,7 @@ public class VideoValidator {
         return mimeType;
     }
 
-    private String extension(String filename) {
+    private String extractExtension(String filename) {
         if (filename == null || filename.isBlank()) {
             return "";
         }

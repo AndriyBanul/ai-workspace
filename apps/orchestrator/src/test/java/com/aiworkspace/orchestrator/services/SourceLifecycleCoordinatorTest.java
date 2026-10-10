@@ -30,7 +30,7 @@ class SourceLifecycleCoordinatorTest {
         IngestionJobService jobs = mock(IngestionJobService.class);
         WorkspaceFileService sources = mock(WorkspaceFileService.class);
         SourceRecoveryTracker recovery = mock(SourceRecoveryTracker.class);
-        WorkspaceFile source = source();
+        WorkspaceFile source = createSource();
         RecoveryClaim claim = new RecoveryClaim("lease-1", 1);
         when(recovery.startAttempt(source, SourceOperationType.PROCESS)).thenReturn(claim);
         when(jobs.markStepRunning("job-1", IngestionContentType.AUDIO)).thenReturn(true);
@@ -43,7 +43,7 @@ class SourceLifecycleCoordinatorTest {
                 null,
                 IngestionTelemetry.NOOP);
 
-        String result = coordinator.process(job(), IngestionContentType.AUDIO, source, () -> "indexed");
+        String result = coordinator.process(createJob(), IngestionContentType.AUDIO, source, () -> "indexed");
 
         assertEquals("indexed", result);
         InOrder order = inOrder(jobs, sources, recovery);
@@ -61,7 +61,7 @@ class SourceLifecycleCoordinatorTest {
         IngestionJobService jobs = mock(IngestionJobService.class);
         WorkspaceFileService sources = mock(WorkspaceFileService.class);
         SourceRecoveryTracker recovery = mock(SourceRecoveryTracker.class);
-        WorkspaceFile source = source();
+        WorkspaceFile source = createSource();
         RecoveryClaim claim = new RecoveryClaim("lease-1", 1);
         when(recovery.startAttempt(source, SourceOperationType.PROCESS)).thenReturn(claim);
         when(jobs.markStepRunning("job-1", IngestionContentType.AUDIO)).thenReturn(true);
@@ -77,7 +77,7 @@ class SourceLifecycleCoordinatorTest {
                 IngestionTelemetry.NOOP);
 
         assertThrows(IOException.class, () -> coordinator.process(
-                job(), IngestionContentType.AUDIO, source, () -> {
+                createJob(), IngestionContentType.AUDIO, source, () -> {
                     throw new IOException("provider unavailable");
                 }));
 
@@ -93,7 +93,7 @@ class SourceLifecycleCoordinatorTest {
         IngestionJobService jobs = mock(IngestionJobService.class);
         WorkspaceFileService sources = mock(WorkspaceFileService.class);
         SourceRecoveryTracker recovery = mock(SourceRecoveryTracker.class);
-        WorkspaceFile source = source();
+        WorkspaceFile source = createSource();
         RecoveryClaim claim = new RecoveryClaim("lease-1", 1);
         when(recovery.startAttempt(source, SourceOperationType.PROCESS)).thenReturn(claim);
         when(jobs.markStepRunning("job-1", IngestionContentType.AUDIO)).thenReturn(true);
@@ -107,7 +107,7 @@ class SourceLifecycleCoordinatorTest {
                 IngestionTelemetry.NOOP);
 
         assertThrows(IllegalStateException.class, () -> coordinator.process(
-                job(), IngestionContentType.AUDIO, source, () -> "indexed"));
+                createJob(), IngestionContentType.AUDIO, source, () -> "indexed"));
 
         verify(sources).markFailed("workspace-1", "source-1");
         verify(recovery, never()).complete(source, SourceOperationType.PROCESS, claim);
@@ -117,13 +117,13 @@ class SourceLifecycleCoordinatorTest {
                 org.mockito.ArgumentMatchers.any(IllegalStateException.class));
     }
 
-    private IngestionJobDetails job() {
+    private IngestionJobDetails createJob() {
         Instant now = Instant.now();
         return new IngestionJobDetails(
                 "job-1", "workspace-1", IngestionJobStatus.RUNNING, now, now, null, List.of());
     }
 
-    private WorkspaceFile source() {
+    private WorkspaceFile createSource() {
         Instant now = Instant.now();
         return WorkspaceFile.builder()
                 .id("source-1")

@@ -22,7 +22,7 @@ class UserAccountServiceTest {
     void registersUserWithNormalizedEmailAndEncodedPassword() {
         UserAccountRepository repository = mock(UserAccountRepository.class);
         when(repository.save(any(UserAccountEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        UserAccountService service = newService(repository);
+        UserAccountService service = createService(repository);
 
         var user = service.register(" User@Example.COM ", "password1234", " Test User ");
 
@@ -34,7 +34,7 @@ class UserAccountServiceTest {
     void rejectsDuplicateEmail() {
         UserAccountRepository repository = mock(UserAccountRepository.class);
         when(repository.existsByEmail("user@example.com")).thenReturn(true);
-        UserAccountService service = newService(repository);
+        UserAccountService service = createService(repository);
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -46,7 +46,7 @@ class UserAccountServiceTest {
 
     @Test
     void rejectsShortPassword() {
-        UserAccountService service = newService(mock(UserAccountRepository.class));
+        UserAccountService service = createService(mock(UserAccountRepository.class));
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -58,7 +58,7 @@ class UserAccountServiceTest {
 
     @Test
     void rejectsExcessivelyLongPassword() {
-        UserAccountService service = newService(mock(UserAccountRepository.class));
+        UserAccountService service = createService(mock(UserAccountRepository.class));
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -70,7 +70,7 @@ class UserAccountServiceTest {
 
     @Test
     void rejectsMalformedEmail() {
-        UserAccountService service = newService(mock(UserAccountRepository.class));
+        UserAccountService service = createService(mock(UserAccountRepository.class));
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -102,7 +102,7 @@ class UserAccountServiceTest {
 
     @Test
     void failsWhenUserDetailsAreMissing() {
-        UserAccountService service = newService(mock(UserAccountRepository.class));
+        UserAccountService service = createService(mock(UserAccountRepository.class));
 
         assertThrows(UsernameNotFoundException.class, () -> service.loadUserByUsername("missing@example.com"));
     }
@@ -119,24 +119,24 @@ class UserAccountServiceTest {
                 .build()));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getName()).thenReturn(" User@Example.COM ");
-        UserAccountService service = newService(repository);
+        UserAccountService service = createService(repository);
 
-        assertEquals("user-1", service.currentUserId(authentication));
+        assertEquals("user-1", service.getCurrentUserId(authentication));
     }
 
     @Test
     void rejectsMissingAuthenticatedUser() {
-        UserAccountService service = newService(mock(UserAccountRepository.class));
+        UserAccountService service = createService(mock(UserAccountRepository.class));
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> service.currentUser(null)
+                () -> service.getCurrentUser(null)
         );
 
         assertEquals("Authenticated user is required", exception.getMessage());
     }
 
-    private static UserAccountService newService(UserAccountRepository repository) {
+    private static UserAccountService createService(UserAccountRepository repository) {
         return new UserAccountService(repository, new UserAccountMapperImpl(), new BCryptPasswordEncoder(), new UserAccountValidator());
     }
 }

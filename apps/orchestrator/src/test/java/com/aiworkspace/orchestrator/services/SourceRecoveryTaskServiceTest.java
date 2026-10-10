@@ -33,9 +33,9 @@ class SourceRecoveryTaskServiceTest {
 
     @Test
     void persistsPendingSubmissionWithItsJobBeforeAWorkerClaimsIt() {
-        SourceRecoveryTaskTestContext context = context(true);
+        SourceRecoveryTaskTestContext context = createContext(true);
 
-        context.service().queueSubmission(source(), "job-1");
+        context.service().queueSubmission(createSource(), "job-1");
 
         SourceRecoveryTaskEntity pending = context.saved().get();
         assertEquals(SourceRecoveryStatus.SCHEDULED, pending.getStatus());
@@ -43,22 +43,22 @@ class SourceRecoveryTaskServiceTest {
         assertEquals(0, pending.getAttemptCount());
         assertEquals(NOW, pending.getNextAttemptAt());
         assertThrows(WorkspaceSourceConflictException.class,
-                () -> context.service().queueSubmission(source(), "job-2"));
+                () -> context.service().queueSubmission(createSource(), "job-2"));
         assertThrows(WorkspaceSourceConflictException.class,
-                () -> context.service().startAttempt(source(), SourceOperationType.DELETE));
+                () -> context.service().startAttempt(createSource(), SourceOperationType.DELETE));
 
-        context.service().startAttempt(source(), SourceOperationType.PROCESS);
+        context.service().startAttempt(createSource(), SourceOperationType.PROCESS);
         assertEquals(SourceRecoveryStatus.RUNNING, pending.getStatus());
         assertEquals("job-1", pending.getJobId());
     }
 
     @Test
     void recordsRunningAttemptAndSchedulesTransientFailure() {
-        SourceRecoveryTaskTestContext context = context(true);
+        SourceRecoveryTaskTestContext context = createContext(true);
 
-        RecoveryClaim claim = context.service().startAttempt(source(), SourceOperationType.PROCESS);
+        RecoveryClaim claim = context.service().startAttempt(createSource(), SourceOperationType.PROCESS);
         assertEquals(1, claim.attempt());
-        context.service().fail(source(), SourceOperationType.PROCESS, claim,
+        context.service().fail(createSource(), SourceOperationType.PROCESS, claim,
                 new IOException("OpenSearch unavailable"));
 
         SourceRecoveryTaskEntity task = context.saved().get();
@@ -71,10 +71,10 @@ class SourceRecoveryTaskServiceTest {
 
     @Test
     void completionSchedulesFutureIntegrityReconciliation() {
-        SourceRecoveryTaskTestContext context = context(true);
+        SourceRecoveryTaskTestContext context = createContext(true);
 
-        RecoveryClaim claim = context.service().startAttempt(source(), SourceOperationType.PROCESS);
-        context.service().complete(source(), SourceOperationType.PROCESS, claim);
+        RecoveryClaim claim = context.service().startAttempt(createSource(), SourceOperationType.PROCESS);
+        context.service().complete(createSource(), SourceOperationType.PROCESS, claim);
 
         SourceRecoveryTaskEntity task = context.saved().get();
         assertEquals(SourceRecoveryStatus.COMPLETED, task.getStatus());
@@ -84,10 +84,10 @@ class SourceRecoveryTaskServiceTest {
 
     @Test
     void disabledRecoveryMovesFailureToDeadLetter() {
-        SourceRecoveryTaskTestContext context = context(false);
+        SourceRecoveryTaskTestContext context = createContext(false);
 
-        RecoveryClaim claim = context.service().startAttempt(source(), SourceOperationType.PROCESS);
-        context.service().fail(source(), SourceOperationType.PROCESS, claim,
+        RecoveryClaim claim = context.service().startAttempt(createSource(), SourceOperationType.PROCESS);
+        context.service().fail(createSource(), SourceOperationType.PROCESS, claim,
                 new IOException("OpenSearch unavailable"));
 
         SourceRecoveryTaskEntity task = context.saved().get();
@@ -141,24 +141,24 @@ class SourceRecoveryTaskServiceTest {
                 IngestionTelemetry.NOOP
         );
 
-        RecoveryClaim first = firstInstance.startAttempt(source(), SourceOperationType.PROCESS);
+        RecoveryClaim first = firstInstance.startAttempt(createSource(), SourceOperationType.PROCESS);
         currentTime.set(NOW.plus(Duration.ofMinutes(31)));
-        RecoveryClaim second = secondInstance.startAttempt(source(), SourceOperationType.PROCESS);
+        RecoveryClaim second = secondInstance.startAttempt(createSource(), SourceOperationType.PROCESS);
 
         assertEquals(2, second.attempt());
         assertThrows(WorkspaceSourceConflictException.class,
-                () -> firstInstance.complete(source(), SourceOperationType.PROCESS, first));
+                () -> firstInstance.complete(createSource(), SourceOperationType.PROCESS, first));
         assertThrows(WorkspaceSourceConflictException.class,
-                () -> firstInstance.fail(source(), SourceOperationType.PROCESS, first, new IOException("late failure")));
+                () -> firstInstance.fail(createSource(), SourceOperationType.PROCESS, first, new IOException("late failure")));
         assertThrows(WorkspaceSourceConflictException.class,
-                () -> firstInstance.renewLease(source(), SourceOperationType.PROCESS, first));
-        secondInstance.renewLease(source(), SourceOperationType.PROCESS, second);
+                () -> firstInstance.renewLease(createSource(), SourceOperationType.PROCESS, first));
+        secondInstance.renewLease(createSource(), SourceOperationType.PROCESS, second);
         assertEquals(currentTime.get().plus(Duration.ofMinutes(30)), saved.get().getLeaseExpiresAt());
-        secondInstance.complete(source(), SourceOperationType.PROCESS, second);
+        secondInstance.complete(createSource(), SourceOperationType.PROCESS, second);
         assertEquals(SourceRecoveryStatus.COMPLETED, saved.get().getStatus());
     }
 
-    private SourceRecoveryTaskTestContext context(boolean enabled) {
+    private SourceRecoveryTaskTestContext createContext(boolean enabled) {
         SourceRecoveryTaskRepository repository = mock(SourceRecoveryTaskRepository.class);
         AtomicReference<SourceRecoveryTaskEntity> saved = new AtomicReference<>();
         when(repository.findForUpdate("source-1")).thenAnswer(invocation -> Optional.ofNullable(saved.get()));
@@ -175,7 +175,7 @@ class SourceRecoveryTaskServiceTest {
         return new SourceRecoveryTaskTestContext(new SourceRecoveryTaskService(repository, retryPolicy, properties, clock, IngestionTelemetry.NOOP), saved);
     }
 
-    private WorkspaceFile source() {
+    private WorkspaceFile createSource() {
         return WorkspaceFile.builder()
                 .id("source-1")
                 .workspaceId("workspace-1")

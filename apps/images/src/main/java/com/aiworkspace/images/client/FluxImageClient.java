@@ -49,10 +49,10 @@ public class FluxImageClient implements ImageGenerationProvider {
         ResponseEntity<byte[]> response;
         try {
             response = restClient.post()
-                    .uri(generationUri())
+                    .uri(buildGenerationUri())
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiToken)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(requestBody(description))
+                    .body(buildRequestBody(description))
                     .retrieve()
                     .toEntity(byte[].class);
         } catch (RestClientResponseException exception) {
@@ -77,14 +77,14 @@ public class FluxImageClient implements ImageGenerationProvider {
             throw new UpstreamServiceException("FLUX", "FLUX did not return image content");
         }
 
-        return new GeneratedImage(filename(mediaType), mediaType, body);
+        return new GeneratedImage(resolveImageFilename(mediaType), mediaType, body);
     }
 
-    private URI generationUri() {
+    private URI buildGenerationUri() {
         return URI.create(baseUri + "/" + model);
     }
 
-    private String requestBody(String description) throws IOException {
+    private String buildRequestBody(String description) throws IOException {
         Map<String, Object> options = Map.of("wait_for_model", true);
 
         Map<String, Object> body = new LinkedHashMap<>();
@@ -94,7 +94,7 @@ public class FluxImageClient implements ImageGenerationProvider {
         return objectMapper.writeValueAsString(body);
     }
 
-    private String filename(String mediaType) {
+    private String resolveImageFilename(String mediaType) {
         if ("image/jpeg".equals(mediaType)) {
             return "generated-image.jpg";
         }

@@ -37,7 +37,7 @@ public class AudioController {
     ) throws IOException, InterruptedException {
         return ResponseEntity.ok(
                 orchestratorService.ingestAudio(
-                    userAccountService.currentUserId(authentication),
+                    userAccountService.getCurrentUserId(authentication),
                     workspaceId,
                     file.getOriginalFilename(),
                     file.getContentType(),

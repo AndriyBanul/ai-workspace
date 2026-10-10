@@ -34,7 +34,7 @@ class KnowledgeServiceTest {
     @Test
     void storesOneVersionedEmbeddingForEachDocumentChunk() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        KnowledgeService service = embeddingService(repository);
+        KnowledgeService service = createEmbeddingService(repository);
 
         service.recordDocumentsInfo(
                 "workspace-1",
@@ -433,7 +433,7 @@ class KnowledgeServiceTest {
                 .content("Semantic result")
                 .createdAt(Instant.now())
                 .build());
-        KnowledgeService service = embeddingService(repository);
+        KnowledgeService service = createEmbeddingService(repository);
 
         service.answerWorkspaceQuestion("workspace-1", "What grew?");
 
@@ -472,8 +472,8 @@ class KnowledgeServiceTest {
     void retrievesOneHundredCandidatesAndReranksToTwelve() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
         repository.searchResults = List.of(
-                item("first", "First candidate"),
-                item("second", "Second candidate")
+                createItem("first", "First candidate"),
+                createItem("second", "Second candidate")
         );
         CapturingTextReranker reranker = new CapturingTextReranker();
         KnowledgeService service = KnowledgeServiceTestFactory.create(
@@ -485,9 +485,9 @@ class KnowledgeServiceTest {
                 new KnowledgeEmbeddingProperties(true, "test-embedding-model", 3, 32, 32, 60),
                 new KnowledgeSearchProperties(KnowledgeSearchProperties.VECTOR),
                 reranker,
-                rerankingProperties(),
+                createRerankingProperties(),
                 SearchQueryProvider.NONE,
-                KnowledgeQueryExpansionProperties.disabled()
+                KnowledgeQueryExpansionProperties.createDisabled()
         );
 
         var answer = service.answerWorkspaceQuestion("workspace-1", "Which candidate is relevant?");
@@ -502,8 +502,8 @@ class KnowledgeServiceTest {
     @Test
     void fusesOriginalAndExpandedHybridQueries() throws IOException {
         CapturingKnowledgeRepository repository = new CapturingKnowledgeRepository();
-        repository.searchResults = List.of(item("original", "Original candidate"));
-        repository.expandedSearchResults = List.of(item("expanded", "Expanded lexical candidate"));
+        repository.searchResults = List.of(createItem("original", "Original candidate"));
+        repository.expandedSearchResults = List.of(createItem("expanded", "Expanded lexical candidate"));
         SearchQueryProvider queryProvider = new SearchQueryProvider() {
             @Override
             public boolean isConfigured() {
@@ -524,7 +524,7 @@ class KnowledgeServiceTest {
                 new KnowledgeEmbeddingProperties(true, "test-embedding-model", 3, 32, 32, 60),
                 new KnowledgeSearchProperties(KnowledgeSearchProperties.HYBRID),
                 TextReranker.NONE,
-                KnowledgeRerankingProperties.disabled(),
+                KnowledgeRerankingProperties.createDisabled(),
                 queryProvider,
                 new KnowledgeQueryExpansionProperties(true, 2)
         );
@@ -539,12 +539,12 @@ class KnowledgeServiceTest {
     @Test
     void expandedQueriesRetainEvidenceBelowTwelveWithoutReranking() throws IOException {
         var repository = new CapturingKnowledgeRepository();
-        var evidence = item("evidence", "The requested fact is explicitly documented here.");
-        repository.searchResults = candidatesWithEvidence("original-lexical", evidence);
-        repository.expandedSearchResults = candidatesWithEvidence("expanded-lexical", evidence);
+        var evidence = createItem("evidence", "The requested fact is explicitly documented here.");
+        repository.searchResults = createCandidatesWithEvidence("original-lexical", evidence);
+        repository.expandedSearchResults = createCandidatesWithEvidence("expanded-lexical", evidence);
         repository.vectorRankings = List.of(
-                candidatesWithEvidence("original-vector", evidence),
-                candidatesWithEvidence("expanded-vector", evidence));
+                createCandidatesWithEvidence("original-vector", evidence),
+                createCandidatesWithEvidence("expanded-vector", evidence));
         SearchQueryProvider queries = new SearchQueryProvider() {
             @Override public boolean isConfigured() { return true; }
             @Override public List<String> expand(String question, int limit) { return List.of("expanded query"); }
@@ -553,7 +553,7 @@ class KnowledgeServiceTest {
                 new KnowledgeValidator(), new FixedTextEmbeddingProvider(),
                 new KnowledgeEmbeddingProperties(true, "test-model", 3, 32, null, 60),
                 new KnowledgeSearchProperties(KnowledgeSearchProperties.HYBRID),
-                TextReranker.NONE, KnowledgeRerankingProperties.disabled(), queries,
+                TextReranker.NONE, KnowledgeRerankingProperties.createDisabled(), queries,
                 new KnowledgeQueryExpansionProperties(true, 2));
 
         var answer = service.answerWorkspaceQuestion("workspace-1", "Original question");
@@ -569,7 +569,7 @@ class KnowledgeServiceTest {
     @Test
     void widerSingleQueryRetrievalKeepsTheFinalContextBounded() throws IOException {
         var repository = new CapturingKnowledgeRepository();
-        repository.searchResults = candidatesWithEvidence("candidate", item("evidence", "Fact"));
+        repository.searchResults = createCandidatesWithEvidence("candidate", createItem("evidence", "Fact"));
         var service = KnowledgeServiceTestFactory.create(repository, new CapturingKnowledgeAnswerProvider(), null,
                 new KnowledgeValidator(), new FixedTextEmbeddingProvider(),
                 new KnowledgeEmbeddingProperties(true, "test-model", 3, 32, 75, 60),
@@ -582,16 +582,16 @@ class KnowledgeServiceTest {
         assertEquals(12, answer.sources().size());
     }
 
-    private List<KnowledgeItem> candidatesWithEvidence(String prefix, KnowledgeItem evidence) {
+    private List<KnowledgeItem> createCandidatesWithEvidence(String prefix, KnowledgeItem evidence) {
         var candidates = new ArrayList<KnowledgeItem>();
         for (int index = 0; index < 15; index++) {
-            candidates.add(item(prefix + index, "Topically related passage " + index));
+            candidates.add(createItem(prefix + index, "Topically related passage " + index));
         }
         candidates.add(evidence);
         return List.copyOf(candidates);
     }
 
-    private KnowledgeItem item(String id, String content) {
+    private KnowledgeItem createItem(String id, String content) {
         return KnowledgeItem.builder()
                 .id(id)
                 .workspaceId("workspace-1")
@@ -601,7 +601,7 @@ class KnowledgeServiceTest {
                 .build();
     }
 
-    private KnowledgeRerankingProperties rerankingProperties() {
+    private KnowledgeRerankingProperties createRerankingProperties() {
         return new KnowledgeRerankingProperties(
                 true,
                 "test-reranker",
@@ -615,7 +615,7 @@ class KnowledgeServiceTest {
         );
     }
 
-    private KnowledgeService embeddingService(CapturingKnowledgeRepository repository) {
+    private KnowledgeService createEmbeddingService(CapturingKnowledgeRepository repository) {
         return KnowledgeServiceTestFactory.create(
                 repository,
                 new CapturingKnowledgeAnswerProvider(),

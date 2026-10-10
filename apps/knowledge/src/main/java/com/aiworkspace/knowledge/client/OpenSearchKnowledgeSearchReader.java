@@ -33,8 +33,8 @@ final class OpenSearchKnowledgeSearchReader {
         List<KnowledgeItem> items = findByWorkspaceIdItems(workspaceId);
         if (items.isEmpty()) return Optional.empty();
         return Optional.of(new WorkspaceKnowledge(workspaceId,
-                joinedContent(items, KnowledgeSourceType.DOCUMENT), joinedContent(items, KnowledgeSourceType.AUDIO),
-                joinedContent(items, KnowledgeSourceType.VIDEO), joinedContent(items, KnowledgeSourceType.IMAGE)));
+                joinContent(items, KnowledgeSourceType.DOCUMENT), joinContent(items, KnowledgeSourceType.AUDIO),
+                joinContent(items, KnowledgeSourceType.VIDEO), joinContent(items, KnowledgeSourceType.IMAGE)));
     }
 
     List<KnowledgeItem> findByWorkspaceIdItems(String workspaceId) throws IOException {
@@ -42,7 +42,7 @@ final class OpenSearchKnowledgeSearchReader {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("size", 1000);
         request.put("_source", Map.of("excludes", List.of("embedding")));
-        request.put("query", Map.of("bool", Map.of("filter", sourceFilters(workspaceId))));
+        request.put("query", Map.of("bool", Map.of("filter", buildSourceFilters(workspaceId))));
         request.put("sort", List.of(
                 Map.of("createdAt", Map.of("order", "asc")),
                 Map.of("sourceId", Map.of("order", "asc", "missing", "_last")),
@@ -54,7 +54,7 @@ final class OpenSearchKnowledgeSearchReader {
     List<KnowledgeItem> search(String workspaceId, String query, int limit) throws IOException {
         store.ensureIndex();
         Map<String, Object> bool = new LinkedHashMap<>();
-        bool.put("filter", sourceFilters(workspaceId));
+        bool.put("filter", buildSourceFilters(workspaceId));
         bool.put("must", List.of(Map.of("multi_match", Map.of(
                 "query", query, "fields", List.of("content", "heading^" + headingWeight, "speaker^2")))));
         Map<String, Object> request = new LinkedHashMap<>();
@@ -65,20 +65,20 @@ final class OpenSearchKnowledgeSearchReader {
                 () -> store.searchItems(request, "Failed to search workspace knowledge items"));
     }
 
-    List<KnowledgeItem> hybridSearch(String workspaceId, String query, List<Float> embedding, int limit,
+    List<KnowledgeItem> searchHybrid(String workspaceId, String query, List<Float> embedding, int limit,
             int candidateLimit, int rrfRankConstant) throws IOException {
         store.ensureIndex();
         store.validateQueryEmbedding(embedding);
         int effectiveLimit = Math.max(limit, candidateLimit);
         return ReciprocalRankFusion.fuse(List.of(
                 search(workspaceId, query, effectiveLimit),
-                vectorCandidates(workspaceId, embedding, effectiveLimit, effectiveLimit)), limit, rrfRankConstant);
+                findVectorCandidates(workspaceId, embedding, effectiveLimit, effectiveLimit)), limit, rrfRankConstant);
     }
 
-    List<KnowledgeItem> vectorSearch(String workspaceId, List<Float> embedding, int limit, int candidateLimit)
+    List<KnowledgeItem> searchByVector(String workspaceId, List<Float> embedding, int limit, int candidateLimit)
             throws IOException {
         int effectiveLimit = Math.max(limit, candidateLimit);
-        return vectorCandidates(workspaceId, embedding, effectiveLimit, limit);
+        return findVectorCandidates(workspaceId, embedding, effectiveLimit, limit);
     }
 
     List<KnowledgeItem> expandNeighbors(String workspaceId, List<KnowledgeItem> matches) throws IOException {
@@ -102,19 +102,19 @@ final class OpenSearchKnowledgeSearchReader {
             request.put("size", 24);
             request.put("_source", Map.of("excludes", List.of("embedding")));
             request.put("query", Map.of("bool", Map.of(
-                    "filter", sourceFilters(workspaceId),
+                    "filter", buildSourceFilters(workspaceId),
                     "should", clauses, "minimum_should_match", 1)));
             var neighbors = new LinkedHashMap<String, KnowledgeItem>();
             for (var item : store.searchItems(request, "Failed to fetch neighboring chunks")) {
                 if (item.sourceId() != null && item.sectionId() != null && item.chunkSequence() != null) {
-                    neighbors.put(neighborKey(item.sourceId(), item.sectionId(), item.chunkSequence()), item);
+                    neighbors.put(buildNeighborKey(item.sourceId(), item.sectionId(), item.chunkSequence()), item);
                 }
             }
             result.clear();
             for (var match : matches) {
                 result.put(match.id(), match);
                 if (match.sourceId() != null && match.sectionId() != null && match.chunkSequence() != null) {
-                    var following = neighbors.get(neighborKey(
+                    var following = neighbors.get(buildNeighborKey(
                             match.sourceId(), match.sectionId(), match.chunkSequence() + 1));
                     if (following != null) result.put(following.id(), following);
                 }
@@ -123,28 +123,28 @@ final class OpenSearchKnowledgeSearchReader {
         return List.copyOf(result.values());
     }
 
-    private List<KnowledgeItem> vectorCandidates(String workspaceId, List<Float> embedding, int candidateLimit,
+    private List<KnowledgeItem> findVectorCandidates(String workspaceId, List<Float> embedding, int candidateLimit,
             int resultLimit) throws IOException {
         store.ensureIndex();
         store.validateQueryEmbedding(embedding);
         Map<String, Object> knn = new LinkedHashMap<>();
         knn.put("vector", embedding);
         knn.put("k", candidateLimit);
-        knn.put("filter", Map.of("bool", Map.of("filter", sourceFilters(workspaceId))));
+        knn.put("filter", Map.of("bool", Map.of("filter", buildSourceFilters(workspaceId))));
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("size", candidateLimit);
         request.put("_source", Map.of("excludes", List.of("embedding")));
         request.put("query", Map.of("knn", Map.of("embedding", knn)));
         return telemetry.measure("search.vector",
-                () -> store.searchItems(request, store.searchUri(), "Failed to run vector search"))
+                () -> store.searchItems(request, store.buildSearchUri(), "Failed to run vector search"))
                 .stream().limit(resultLimit).toList();
     }
 
-    private String neighborKey(String sourceId, String sectionId, int sequence) {
+    private String buildNeighborKey(String sourceId, String sectionId, int sequence) {
         return sourceId + "\u0000" + sectionId + "\u0000" + sequence;
     }
 
-    private List<Map<String, Object>> sourceFilters(String workspaceId) {
+    private List<Map<String, Object>> buildSourceFilters(String workspaceId) {
         Map<String, Object> workspaceFilter = Map.of("term", Map.of("workspaceId", workspaceId));
         if (manifests == null) return List.of(workspaceFilter);
         var active = manifests.findByWorkspaceId(workspaceId);
@@ -161,7 +161,7 @@ final class OpenSearchKnowledgeSearchReader {
                 "should", List.of(published, legacy), "minimum_should_match", 1)));
     }
 
-    private String joinedContent(List<KnowledgeItem> items, KnowledgeSourceType type) {
+    private String joinContent(List<KnowledgeItem> items, KnowledgeSourceType type) {
         return items.stream().filter(item -> item.sourceType() == type).map(KnowledgeItem::content)
                 .filter(value -> value != null && !value.isBlank())
                 .reduce((left, right) -> left + "\n\n" + right).orElse(null);

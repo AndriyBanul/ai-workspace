@@ -17,7 +17,7 @@ class SourceRetryPolicyTest {
 
     private static final Instant NOW = Instant.parse("2026-09-16T10:00:00Z");
 
-    private final SourceRetryPolicy policy = new SourceRetryPolicy(properties());
+    private final SourceRetryPolicy policy = new SourceRetryPolicy(createProperties());
 
     @Test
     void retriesTransientFailuresWithExponentialBackoff() {
@@ -48,7 +48,7 @@ class SourceRetryPolicyTest {
         assertFalse(decision.retryable());
     }
 
-    private SourceRecoveryProperties properties() {
+    private SourceRecoveryProperties createProperties() {
         return new SourceRecoveryProperties(
                 true, 5, Duration.ofSeconds(30), Duration.ofMinutes(15),
                 Duration.ofMinutes(30), Duration.ofHours(6), Duration.ofSeconds(30), 50);

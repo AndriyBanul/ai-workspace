@@ -18,7 +18,7 @@ class WhisperClientTest {
 
     @Test
     void parsesTimedSegmentsFromWhisperJson() throws Exception {
-        var response = client.transcriptionFrom(objectMapper.readTree("""
+        var response = client.parseTranscription(objectMapper.readTree("""
                 {
                   "text": "Hello world",
                   "language": "en",

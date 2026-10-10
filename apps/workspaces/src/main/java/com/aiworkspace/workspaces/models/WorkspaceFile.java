@@ -20,7 +20,7 @@ public record WorkspaceFile(
         Instant deletedAt
 ) {
 
-    public boolean urlBacked() {
+    public boolean hasSourceUrl() {
         return sourceUrl != null && !sourceUrl.isBlank();
     }
 }

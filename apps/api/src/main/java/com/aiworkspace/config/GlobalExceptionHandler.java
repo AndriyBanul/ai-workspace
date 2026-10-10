@@ -33,7 +33,7 @@ public class GlobalExceptionHandler {
             case PASSWORD_PROTECTED_DOCUMENT, CORRUPT_DOCUMENT, EXTRACTION_LIMIT_EXCEEDED,
                     NO_EXTRACTABLE_TEXT -> HttpStatus.valueOf(422);
         };
-        return error(status, exception.getMessage(), request, exception.code().name());
+        return buildErrorResponse(status, exception.getMessage(), request, exception.code().name());
     }
 
     @ExceptionHandler(ResponseStatusException.class)
@@ -42,7 +42,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         HttpStatus status = HttpStatus.valueOf(exception.getStatusCode().value());
-        return error(status, detail(exception), request);
+        return buildErrorResponse(status, resolveErrorDetail(exception), request);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -50,7 +50,7 @@ public class GlobalExceptionHandler {
             IllegalArgumentException exception,
             HttpServletRequest request
     ) {
-        return error(HttpStatus.BAD_REQUEST, detail(exception), request);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, resolveErrorDetail(exception), request);
     }
 
     @ExceptionHandler(NoSuchElementException.class)
@@ -58,12 +58,12 @@ public class GlobalExceptionHandler {
             NoSuchElementException exception,
             HttpServletRequest request
     ) {
-        return error(HttpStatus.NOT_FOUND, detail(exception), request);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, resolveErrorDetail(exception), request);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleMissingResource(HttpServletRequest request) {
-        return error(HttpStatus.NOT_FOUND, "Resource was not found", request);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Resource was not found", request);
     }
 
     @ExceptionHandler(WorkspaceSourceConflictException.class)
@@ -71,13 +71,13 @@ public class GlobalExceptionHandler {
             WorkspaceSourceConflictException exception,
             HttpServletRequest request
     ) {
-        return error(HttpStatus.CONFLICT, detail(exception), request);
+        return buildErrorResponse(HttpStatus.CONFLICT, resolveErrorDetail(exception), request);
     }
 
     @ExceptionHandler(IOException.class)
     public ResponseEntity<ApiErrorResponse> handleIo(IOException exception, HttpServletRequest request) {
         log.warn("I/O failure while handling {}", request.getRequestURI(), exception);
-        return error(HttpStatus.BAD_GATEWAY, detail(exception), request);
+        return buildErrorResponse(HttpStatus.BAD_GATEWAY, resolveErrorDetail(exception), request);
     }
 
     @ExceptionHandler(UpstreamServiceException.class)
@@ -91,7 +91,7 @@ public class GlobalExceptionHandler {
                 request.getRequestURI(),
                 exception
         );
-        return error(HttpStatus.BAD_GATEWAY, detail(exception), request);
+        return buildErrorResponse(HttpStatus.BAD_GATEWAY, resolveErrorDetail(exception), request);
     }
 
     @ExceptionHandler(InterruptedException.class)
@@ -101,20 +101,20 @@ public class GlobalExceptionHandler {
     ) {
         Thread.currentThread().interrupt();
         log.warn("Interrupted while handling {}", request.getRequestURI(), exception);
-        return error(HttpStatus.BAD_GATEWAY, "Request was interrupted", request);
+        return buildErrorResponse(HttpStatus.BAD_GATEWAY, "Request was interrupted", request);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception exception, HttpServletRequest request) {
         log.error("Unexpected failure while handling {}", request.getRequestURI(), exception);
-        return error(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error", request);
+        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error", request);
     }
 
-    private ResponseEntity<ApiErrorResponse> error(HttpStatus status, String detail, HttpServletRequest request) {
-        return error(status, detail, request, null);
+    private ResponseEntity<ApiErrorResponse> buildErrorResponse(HttpStatus status, String detail, HttpServletRequest request) {
+        return buildErrorResponse(status, detail, request, null);
     }
 
-    private ResponseEntity<ApiErrorResponse> error(
+    private ResponseEntity<ApiErrorResponse> buildErrorResponse(
             HttpStatus status,
             String detail,
             HttpServletRequest request,
@@ -130,7 +130,7 @@ public class GlobalExceptionHandler {
         ));
     }
 
-    private String detail(Exception exception) {
+    private String resolveErrorDetail(Exception exception) {
         String message = exception.getMessage();
         if (message == null || message.isBlank()) {
             return exception.getClass().getSimpleName();
@@ -139,7 +139,7 @@ public class GlobalExceptionHandler {
         return message;
     }
 
-    private String detail(ResponseStatusException exception) {
+    private String resolveErrorDetail(ResponseStatusException exception) {
         String reason = exception.getReason();
         if (reason == null || reason.isBlank()) {
             return exception.getStatusCode().toString();

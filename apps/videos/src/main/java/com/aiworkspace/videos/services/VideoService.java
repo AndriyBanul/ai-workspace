@@ -28,7 +28,7 @@ public class VideoService {
             throws IOException, InterruptedException {
         videoValidator.validateVideo(filename, videoContent);
 
-        String mimeType = videoValidator.mimeType(filename, contentType);
+        String mimeType = videoValidator.resolveMimeType(filename, contentType);
         VideoAnalysis analysis = videoUnderstandingProvider.analyze(videoContent, mimeType, descriptionPrompt);
 
         return new VideoDescription(
@@ -58,9 +58,9 @@ public class VideoService {
         if (youTubeVideoUnderstandingProvider == null) {
             throw new IllegalStateException("YouTube video understanding provider is not configured");
         }
-        String videoId = videoValidator.youtubeVideoId(rawUrl);
+        String videoId = videoValidator.extractYouTubeVideoId(rawUrl);
         VideoAnalysis analysis = youTubeVideoUnderstandingProvider.analyzeYouTube(
-                videoValidator.canonicalYouTubeUrl(rawUrl), descriptionPrompt);
+                videoValidator.canonicalizeYouTubeUrl(rawUrl), descriptionPrompt);
         return new VideoDescription(
                 "YouTube video " + videoId,
                 "video/youtube",
@@ -70,15 +70,15 @@ public class VideoService {
                 analysis.segments());
     }
 
-    public String canonicalYouTubeUrl(String rawUrl) {
-        return videoValidator.canonicalYouTubeUrl(rawUrl);
+    public String canonicalizeYouTubeUrl(String rawUrl) {
+        return videoValidator.canonicalizeYouTubeUrl(rawUrl);
     }
 
-    public String youtubeVideoId(String rawUrl) {
-        return videoValidator.youtubeVideoId(rawUrl);
+    public String extractYouTubeVideoId(String rawUrl) {
+        return videoValidator.extractYouTubeVideoId(rawUrl);
     }
 
-    public String knowledgeText(VideoDescription description) {
+    public String formatVideoForKnowledge(VideoDescription description) {
         StringBuilder value = new StringBuilder("Visual summary:\n")
                 .append(description.description().trim());
         if (description.language() != null && !description.language().isBlank()) {
@@ -90,8 +90,8 @@ public class VideoService {
                 value.append(description.transcript().trim());
             } else {
                 description.segments().forEach(segment -> value
-                        .append('[').append(timestamp(segment.startMilliseconds()))
-                        .append(" - ").append(timestamp(segment.endMilliseconds())).append("] ")
+                        .append('[').append(formatTimestamp(segment.startMilliseconds()))
+                        .append(" - ").append(formatTimestamp(segment.endMilliseconds())).append("] ")
                         .append(segment.speaker() == null || segment.speaker().isBlank()
                                 ? ""
                                 : segment.speaker().trim() + ": ")
@@ -101,7 +101,7 @@ public class VideoService {
         return value.toString().trim();
     }
 
-    private String timestamp(long milliseconds) {
+    private String formatTimestamp(long milliseconds) {
         long totalSeconds = milliseconds / 1000;
         long hours = totalSeconds / 3600;
         long minutes = totalSeconds % 3600 / 60;

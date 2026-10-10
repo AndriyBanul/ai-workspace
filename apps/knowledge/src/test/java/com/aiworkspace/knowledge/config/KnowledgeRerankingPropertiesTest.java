@@ -24,7 +24,7 @@ class KnowledgeRerankingPropertiesTest {
 
     @Test
     void disabledConfigurationDoesNotRequireModelResources() {
-        assertFalse(KnowledgeRerankingProperties.disabled().enabled());
+        assertFalse(KnowledgeRerankingProperties.createDisabled().enabled());
     }
 
     @Test

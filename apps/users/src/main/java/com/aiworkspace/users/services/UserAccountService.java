@@ -48,7 +48,7 @@ public class UserAccountService implements UserDetailsService {
                 .id(UUID.randomUUID().toString())
                 .email(normalizedEmail)
                 .passwordHash(passwordEncoder.encode(password))
-                .displayName(displayName(displayName, normalizedEmail))
+                .displayName(resolveDisplayName(displayName, normalizedEmail))
                 .createdAt(now)
                 .build();
 
@@ -64,14 +64,14 @@ public class UserAccountService implements UserDetailsService {
     }
 
     @Transactional(readOnly = true)
-    public UserAccount currentUser(Authentication authentication) {
+    public UserAccount getCurrentUser(Authentication authentication) {
         userAccountValidator.validateAuthentication(authentication);
         return findByEmail(authentication.getName());
     }
 
     @Transactional(readOnly = true)
-    public String currentUserId(Authentication authentication) {
-        return currentUser(authentication).id();
+    public String getCurrentUserId(Authentication authentication) {
+        return getCurrentUser(authentication).id();
     }
 
     /** Acquires the account row lock for a caller's surrounding transaction. */
@@ -97,7 +97,7 @@ public class UserAccountService implements UserDetailsService {
                 .build();
     }
 
-    private String displayName(String displayName, String email) {
+    private String resolveDisplayName(String displayName, String email) {
         if (displayName == null || displayName.isBlank()) {
             return email;
         }

@@ -43,7 +43,7 @@ public class WorkspaceFileService {
         String fileId = UUID.randomUUID().toString();
         String workspaceId = request.workspaceId().trim();
         String originalFilename = request.originalFilename().trim();
-        String contentType = normalizedOptionalValue(request.contentType());
+        String contentType = normalizeOptionalValue(request.contentType());
         StoredFile storedFile = fileStorage.store(FileStorageRequest.builder()
                 .workspaceId(workspaceId)
                 .fileId(fileId)
@@ -77,7 +77,7 @@ public class WorkspaceFileService {
                 .id(UUID.randomUUID().toString())
                 .workspaceId(request.workspaceId().trim())
                 .originalFilename(request.displayName().trim())
-                .contentType(normalizedOptionalValue(request.contentType()))
+                .contentType(normalizeOptionalValue(request.contentType()))
                 .sizeBytes(0)
                 .sourceUrl(request.sourceUrl().trim())
                 .sourceType(request.sourceType())
@@ -181,7 +181,7 @@ public class WorkspaceFileService {
                 .orElseThrow(() -> new NoSuchElementException("Workspace file was not found"));
     }
 
-    private String normalizedOptionalValue(String value) {
+    private String normalizeOptionalValue(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }

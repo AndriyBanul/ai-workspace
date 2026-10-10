@@ -92,7 +92,7 @@ public class SpringAiTextEmbeddingClient implements TextEmbeddingProvider {
         for (var window : windows) {
             for (int i = 0; i < mean.length; i++) mean[i] += window.get(i) / windows.size();
         }
-        return validatedNormalizedVector(mean);
+        return validateAndNormalizeVector(mean);
     }
 
     private List<List<Float>> embed(List<String> texts) {
@@ -105,10 +105,10 @@ public class SpringAiTextEmbeddingClient implements TextEmbeddingProvider {
         if (embeddings.size() != texts.size()) {
             throw new IllegalStateException("Local embedding model returned an unexpected number of vectors");
         }
-        return embeddings.stream().map(this::validatedNormalizedVector).toList();
+        return embeddings.stream().map(this::validateAndNormalizeVector).toList();
     }
 
-    private List<Float> validatedNormalizedVector(float[] embedding) {
+    private List<Float> validateAndNormalizeVector(float[] embedding) {
         if (embedding == null || embedding.length != properties.dimensions()) {
             throw new IllegalStateException(
                     "Local embedding model must return " + properties.dimensions() + " dimensions"

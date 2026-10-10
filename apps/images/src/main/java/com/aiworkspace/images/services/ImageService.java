@@ -24,7 +24,7 @@ public class ImageService {
             throws IOException, InterruptedException {
         imageValidator.validateImage(filename, imageContent);
 
-        String mimeType = imageValidator.mimeType(filename, contentType);
+        String mimeType = imageValidator.resolveMimeType(filename, contentType);
         String description = imageUnderstandingProvider.describe(imageContent, mimeType, descriptionPrompt);
 
         return new ImageDescription(filename, mimeType, description);

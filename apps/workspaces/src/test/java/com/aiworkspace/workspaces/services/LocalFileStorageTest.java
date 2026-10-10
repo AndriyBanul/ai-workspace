@@ -22,7 +22,7 @@ class LocalFileStorageTest {
 
     @Test
     void storesAndReadsFileByGeneratedStorageKey() throws Exception {
-        LocalFileStorage storage = newStorage();
+        LocalFileStorage storage = createStorage();
         byte[] content = "hello".getBytes(StandardCharsets.UTF_8);
 
         var storedFile = storage.store(FileStorageRequest.builder()
@@ -46,7 +46,7 @@ class LocalFileStorageTest {
 
     @Test
     void deletesStoredFile() throws Exception {
-        LocalFileStorage storage = newStorage();
+        LocalFileStorage storage = createStorage();
         var storedFile = storage.store(FileStorageRequest.builder()
                 .workspaceId("workspace-1")
                 .fileId("file-1")
@@ -61,7 +61,7 @@ class LocalFileStorageTest {
 
     @Test
     void rejectsUnsafeIdentifiers() {
-        LocalFileStorage storage = newStorage();
+        LocalFileStorage storage = createStorage();
 
         assertThrows(IllegalArgumentException.class, () -> storage.store(FileStorageRequest.builder()
                 .workspaceId("../workspace")
@@ -73,12 +73,12 @@ class LocalFileStorageTest {
 
     @Test
     void rejectsStorageKeysOutsideRoot() {
-        LocalFileStorage storage = newStorage();
+        LocalFileStorage storage = createStorage();
 
         assertThrows(IllegalArgumentException.class, () -> storage.exists("../outside"));
     }
 
-    private LocalFileStorage newStorage() {
+    private LocalFileStorage createStorage() {
         return new LocalFileStorage(new LocalStorageProperties(storageRoot), new FileStorageValidator());
     }
 }

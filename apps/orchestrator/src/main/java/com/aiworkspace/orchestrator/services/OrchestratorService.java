@@ -189,11 +189,11 @@ public class OrchestratorService {
             throw new IllegalArgumentException("YouTube ingestion request must not be null");
         }
         String workspaceId = workspaceService.getWorkspace(ownerId, request.workspaceId()).id();
-        String canonicalUrl = videoService.canonicalYouTubeUrl(request.url());
+        String canonicalUrl = videoService.canonicalizeYouTubeUrl(request.url());
         WorkspaceFile source = workspaceFileService.createUrlSource(CreateWorkspaceUrlSourceRequest.builder()
                 .workspaceId(workspaceId)
                 .sourceType(WorkspaceFileSourceType.YOUTUBE)
-                .displayName("YouTube video " + videoService.youtubeVideoId(canonicalUrl))
+                .displayName("YouTube video " + videoService.extractYouTubeVideoId(canonicalUrl))
                 .sourceUrl(canonicalUrl)
                 .contentType("video/youtube")
                 .build());
@@ -204,8 +204,8 @@ public class OrchestratorService {
     public OrchestrationSubmission reprocessSource(String ownerId, String workspaceId, String sourceId)
             throws IOException {
         WorkspaceFile source = workspaceService.getFile(ownerId, workspaceId, sourceId);
-        IngestionContentType contentType = contentType(source.sourceType());
-        OrchestrationContent original = source.urlBacked() ? null : readOriginal(source);
+        IngestionContentType contentType = mapContentType(source.sourceType());
+        OrchestrationContent original = source.hasSourceUrl() ? null : readOriginal(source);
         SubmittedContent submitted = new SubmittedContent(contentType, source, original);
         IngestionJobDetails job = lifecycleCoordinator.queueSubmission(source.workspaceId(), List.of(contentType),
                 java.util.Arrays.stream(IngestionContentType.values()).filter(type -> type != contentType).toList(),
@@ -225,12 +225,12 @@ public class OrchestratorService {
             if (source.status() == WorkspaceFileStatus.PROCESSING) {
                 source = workspaceFileService.markFailed(task.workspaceId(), task.sourceId());
             }
-            IngestionContentType contentType = contentType(source.sourceType());
+            IngestionContentType contentType = mapContentType(source.sourceType());
             SubmittedContent submitted = new SubmittedContent(
-                    contentType, source, source.urlBacked() ? null : readOriginal(source));
-            IngestionJobDetails job = pendingJob(task, contentType);
+                    contentType, source, source.hasSourceUrl() ? null : readOriginal(source));
+            IngestionJobDetails job = findPendingJob(task, contentType);
             if (job == null) {
-                job = singleSourceJob(source.workspaceId(), contentType);
+                job = createSingleSourceJob(source.workspaceId(), contentType);
                 lifecycleCoordinator.assignRecoveryJob(source, job.jobId(), claim);
             }
             submitRecovered(job, submitted, claim, lease);
@@ -245,7 +245,7 @@ public class OrchestratorService {
         }
     }
 
-    private IngestionJobDetails pendingJob(SourceRecoveryTask task, IngestionContentType contentType) {
+    private IngestionJobDetails findPendingJob(SourceRecoveryTask task, IngestionContentType contentType) {
         if (task.jobId() == null) {
             return null;
         }
@@ -271,7 +271,7 @@ public class OrchestratorService {
 
     private SourceProcessingResult processSynchronously(SubmittedContent submitted)
             throws IOException, InterruptedException {
-        IngestionJobDetails job = singleSourceJob(submitted.file().workspaceId(), submitted.contentType());
+        IngestionJobDetails job = createSingleSourceJob(submitted.file().workspaceId(), submitted.contentType());
         try {
             return lifecycleCoordinator.process(
                     job, submitted.contentType(), submitted.file(), () -> processSource(job, submitted));
@@ -301,7 +301,7 @@ public class OrchestratorService {
         return new SubmittedContent(contentType, file, content);
     }
 
-    private IngestionJobDetails singleSourceJob(String workspaceId, IngestionContentType contentType) {
+    private IngestionJobDetails createSingleSourceJob(String workspaceId, IngestionContentType contentType) {
         List<IngestionContentType> skipped = java.util.Arrays.stream(IngestionContentType.values())
                 .filter(type -> type != contentType)
                 .toList();
@@ -332,7 +332,7 @@ public class OrchestratorService {
     }
 
     private void submit(IngestionJobDetails job, SubmittedContent content) {
-        afterCommit(() -> {
+        runAfterCommit(() -> {
             try {
                 CompletableFuture.runAsync(() -> runTask(job.jobId(), content.file().workspaceId(),
                         content.file().id(), content.contentType()), executor);
@@ -344,7 +344,7 @@ public class OrchestratorService {
         });
     }
 
-    private void afterCommit(Runnable task) {
+    private void runAfterCommit(Runnable task) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             task.run();
             return;
@@ -372,7 +372,7 @@ public class OrchestratorService {
             IngestionJobDetails job = ingestionJobService.getJob(jobId);
             WorkspaceFile source = workspaceFileService.getFile(workspaceId, sourceId);
             SubmittedContent content = new SubmittedContent(contentType, source,
-                    source.urlBacked() ? null : readOriginal(source));
+                    source.hasSourceUrl() ? null : readOriginal(source));
             lifecycleCoordinator.process(
                     job, contentType, source, () -> processSource(job, content));
         } catch (InterruptedException exception) {
@@ -393,7 +393,7 @@ public class OrchestratorService {
             IngestionJobDetails job = ingestionJobService.getJob(jobId);
             WorkspaceFile source = workspaceFileService.getFile(workspaceId, sourceId);
             SubmittedContent content = new SubmittedContent(contentType, source,
-                    source.urlBacked() ? null : readOriginal(source));
+                    source.hasSourceUrl() ? null : readOriginal(source));
             lifecycleCoordinator.processClaimedRecovery(
                     job, contentType, source, claim, () -> processSource(job, content));
         } catch (InterruptedException exception) {
@@ -412,7 +412,7 @@ public class OrchestratorService {
         return new OrchestrationContent(source.originalFilename(), source.contentType(), new byte[0]);
     }
 
-    private IngestionContentType contentType(WorkspaceFileSourceType sourceType) {
+    private IngestionContentType mapContentType(WorkspaceFileSourceType sourceType) {
         return switch (sourceType) {
             case DOCUMENT, WEB_PAGE -> IngestionContentType.DOCUMENTS;
             case AUDIO -> IngestionContentType.AUDIO;

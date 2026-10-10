@@ -26,7 +26,7 @@ class OpenSearchKnowledgeSearchReaderTest {
     void searchesOnlyPublishedGenerationForUpgradedSource() throws Exception {
         SourceIndexManifestEntity manifest = new SourceIndexManifestEntity(
                 "source-1", "workspace-1", "generation-2", 1, Instant.now());
-        SearchReaderTestContext context = context(List.of(manifest));
+        SearchReaderTestContext context = createContext(List.of(manifest));
         context.server().expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
                 .andExpect(content().string(containsString("source-1:generation-2")))
                 .andExpect(content().string(not(containsString("source-1:generation-1"))))
@@ -39,7 +39,7 @@ class OpenSearchKnowledgeSearchReaderTest {
 
     @Test
     void hidesUnpublishedGenerationsWhenNoManifestExists() throws Exception {
-        SearchReaderTestContext context = context(List.of());
+        SearchReaderTestContext context = createContext(List.of());
         context.server().expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
                 .andExpect(content().string(containsString("\"must_not\":[{\"exists\":{\"field\":\"sourceGeneration\"}}]")))
                 .andRespond(withSuccess("{\"hits\":{\"hits\":[]}}", MediaType.APPLICATION_JSON));
@@ -48,7 +48,7 @@ class OpenSearchKnowledgeSearchReaderTest {
         context.server().verify();
     }
 
-    private SearchReaderTestContext context(List<SourceIndexManifestEntity> active) {
+    private SearchReaderTestContext createContext(List<SourceIndexManifestEntity> active) {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());

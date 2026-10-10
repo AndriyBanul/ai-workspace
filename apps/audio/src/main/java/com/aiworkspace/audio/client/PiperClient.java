@@ -65,13 +65,13 @@ public class PiperClient implements TextToSpeechProvider {
                 throw new IOException("Piper did not return audio format metadata");
             }
 
-            return new SynthesizedSpeech("speech.wav", wav(audioFormat, pcmAudio.toByteArray()));
+            return new SynthesizedSpeech("speech.wav", encodeWav(audioFormat, pcmAudio.toByteArray()));
         } catch (IOException exception) {
-            throw new UpstreamServiceException("Piper", piperFailureMessage(exception), exception);
+            throw new UpstreamServiceException("Piper", resolvePiperFailureMessage(exception), exception);
         }
     }
 
-    private String piperFailureMessage(IOException exception) {
+    private String resolvePiperFailureMessage(IOException exception) {
         String message = exception.getMessage();
         if (message == null || message.isBlank()) {
             return "Piper is unavailable";
@@ -127,7 +127,7 @@ public class PiperClient implements TextToSpeechProvider {
         }
     }
 
-    private byte[] wav(PcmAudioFormat audioFormat, byte[] pcmAudio) throws IOException {
+    private byte[] encodeWav(PcmAudioFormat audioFormat, byte[] pcmAudio) throws IOException {
         int channels = audioFormat.channels();
         int sampleRate = audioFormat.rate();
         int bytesPerSample = audioFormat.width();

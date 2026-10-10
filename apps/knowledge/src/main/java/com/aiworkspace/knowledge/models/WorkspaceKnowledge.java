@@ -13,18 +13,18 @@ public record WorkspaceKnowledge(
 ) {
 
     public static WorkspaceKnowledge fromSource(String requestedWorkspaceId, JsonNode source) {
-        String sourceWorkspaceId = textOrDefault(source.get("workspaceId"), requestedWorkspaceId);
+        String sourceWorkspaceId = readTextOrDefault(source.get("workspaceId"), requestedWorkspaceId);
 
         return new WorkspaceKnowledge(
                 sourceWorkspaceId,
-                textOrNull(source.get("documentsInfo")),
-                textOrNull(source.get("audioInfo")),
-                textOrNull(source.get("videoInfo")),
-                textOrNull(source.get("imagesInfo"))
+                readTextOrNull(source.get("documentsInfo")),
+                readTextOrNull(source.get("audioInfo")),
+                readTextOrNull(source.get("videoInfo")),
+                readTextOrNull(source.get("imagesInfo"))
         );
     }
 
-    private static String textOrDefault(JsonNode node, String defaultValue) {
+    private static String readTextOrDefault(JsonNode node, String defaultValue) {
         if (node == null || node.isNull() || node.asText().isBlank()) {
             return defaultValue;
         }
@@ -32,7 +32,7 @@ public record WorkspaceKnowledge(
         return node.asText();
     }
 
-    private static String textOrNull(JsonNode node) {
+    private static String readTextOrNull(JsonNode node) {
         if (node == null || node.isNull()) {
             return null;
         }

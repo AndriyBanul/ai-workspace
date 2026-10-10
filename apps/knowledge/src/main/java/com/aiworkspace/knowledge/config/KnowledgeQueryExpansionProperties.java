@@ -13,7 +13,7 @@ public record KnowledgeQueryExpansionProperties(Boolean enabled, Integer queryLi
         }
     }
 
-    public static KnowledgeQueryExpansionProperties disabled() {
+    public static KnowledgeQueryExpansionProperties createDisabled() {
         return new KnowledgeQueryExpansionProperties(false, 1);
     }
 }

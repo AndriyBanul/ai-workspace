@@ -51,13 +51,13 @@ public class GeminiImageClient implements ImageUnderstandingProvider {
 
         try {
             ResponseEntity<String> response = restClient.post()
-                    .uri(generationUri())
+                    .uri(buildGenerationUri())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(requestBody(imageContent, mimeType, prompt))
+                    .body(buildRequestBody(imageContent, mimeType, prompt))
                     .retrieve()
                     .toEntity(String.class);
 
-            return descriptionFrom(response.getBody() == null ? "" : response.getBody());
+            return parseDescription(response.getBody() == null ? "" : response.getBody());
         } catch (RestClientResponseException exception) {
             throw new UpstreamServiceException(
                     "Gemini",
@@ -73,12 +73,12 @@ public class GeminiImageClient implements ImageUnderstandingProvider {
         }
     }
 
-    private URI generationUri() {
+    private URI buildGenerationUri() {
         String encodedApiKey = URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
         return URI.create(baseUri + "/models/" + model + ":generateContent?key=" + encodedApiKey);
     }
 
-    private String requestBody(byte[] imageContent, String mimeType, String prompt) throws IOException {
+    private String buildRequestBody(byte[] imageContent, String mimeType, String prompt) throws IOException {
         Map<String, Object> inlineData = new LinkedHashMap<>();
         inlineData.put("mime_type", mimeType);
         inlineData.put("data", Base64.getEncoder().encodeToString(imageContent));
@@ -95,8 +95,8 @@ public class GeminiImageClient implements ImageUnderstandingProvider {
         return objectMapper.writeValueAsString(body);
     }
 
-    private String descriptionFrom(String responseBody) {
-        JsonNode responseJson = responseJson(responseBody);
+    private String parseDescription(String responseBody) {
+        JsonNode responseJson = parseResponseJson(responseBody);
         JsonNode candidates = responseJson.path("candidates");
         if (!candidates.isArray() || candidates.isEmpty()) {
             throw new UpstreamServiceException("Gemini", "Gemini did not return any candidates");
@@ -123,7 +123,7 @@ public class GeminiImageClient implements ImageUnderstandingProvider {
         return result;
     }
 
-    private JsonNode responseJson(String responseBody) {
+    private JsonNode parseResponseJson(String responseBody) {
         try {
             return objectMapper.readTree(responseBody);
         } catch (IOException exception) {

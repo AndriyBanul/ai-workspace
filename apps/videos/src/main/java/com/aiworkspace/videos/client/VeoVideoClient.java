@@ -59,12 +59,12 @@ public class VeoVideoClient implements VideoGenerationProvider {
         String operationName = startGeneration(description);
         JsonNode operation = waitForOperation(operationName);
 
-        GeneratedVideo inlineVideo = inlineVideo(operation);
+        GeneratedVideo inlineVideo = decodeInlineVideo(operation);
         if (inlineVideo != null) {
             return inlineVideo;
         }
 
-        String videoUri = videoUri(operation);
+        String videoUri = extractVideoUri(operation);
         if (videoUri == null || videoUri.isBlank()) {
             throw new UpstreamServiceException("Veo", "Veo operation completed without a generated video URI");
         }
@@ -76,9 +76,9 @@ public class VeoVideoClient implements VideoGenerationProvider {
         ResponseEntity<String> response;
         try {
             response = restClient.post()
-                    .uri(generationUri())
+                    .uri(buildGenerationUri())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(generationRequestBody(description))
+                    .body(buildGenerationRequestBody(description))
                     .retrieve()
                     .toEntity(String.class);
         } catch (RestClientResponseException exception) {
@@ -95,7 +95,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
             );
         }
 
-        JsonNode responseJson = responseJson(
+        JsonNode responseJson = parseResponseJson(
                 response.getBody(),
                 "Veo returned an invalid generation response"
         );
@@ -112,7 +112,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
             ResponseEntity<String> response;
             try {
                 response = restClient.get()
-                        .uri(operationUri(operationName))
+                        .uri(buildOperationUri(operationName))
                         .retrieve()
                         .toEntity(String.class);
             } catch (RestClientResponseException exception) {
@@ -129,7 +129,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
                 );
             }
 
-            JsonNode operation = responseJson(
+            JsonNode operation = parseResponseJson(
                     response.getBody(),
                     "Veo operation returned an invalid response"
             );
@@ -152,7 +152,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
         ResponseEntity<byte[]> response;
         try {
             response = restClient.get()
-                    .uri(downloadUri(videoUri))
+                    .uri(buildDownloadUri(videoUri))
                     .retrieve()
                     .toEntity(byte[].class);
         } catch (RestClientResponseException exception) {
@@ -178,15 +178,15 @@ public class VeoVideoClient implements VideoGenerationProvider {
             throw new UpstreamServiceException("Veo", "Veo did not return video content");
         }
 
-        return new GeneratedVideo(filename(mediaType), mediaType, body);
+        return new GeneratedVideo(resolveVideoFilename(mediaType), mediaType, body);
     }
 
-    private URI generationUri() {
+    private URI buildGenerationUri() {
         String encodedApiKey = URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
         return URI.create(baseUri + "/models/" + model + ":predictLongRunning?key=" + encodedApiKey);
     }
 
-    private URI operationUri(String operationName) {
+    private URI buildOperationUri(String operationName) {
         if (operationName.startsWith("http://") || operationName.startsWith("https://")) {
             return withApiKey(operationName);
         }
@@ -194,7 +194,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
         return withApiKey(baseUri + "/" + operationName);
     }
 
-    private URI downloadUri(String videoUri) {
+    private URI buildDownloadUri(String videoUri) {
         return withApiKey(videoUri);
     }
 
@@ -208,7 +208,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
         return URI.create(uri + separator + "key=" + encodedApiKey);
     }
 
-    private String generationRequestBody(String description) throws IOException {
+    private String buildGenerationRequestBody(String description) throws IOException {
         Map<String, Object> instance = Map.of("prompt", description);
         Map<String, Object> parameters = Map.of("aspectRatio", aspectRatio);
 
@@ -219,44 +219,44 @@ public class VeoVideoClient implements VideoGenerationProvider {
         return objectMapper.writeValueAsString(body);
     }
 
-    private GeneratedVideo inlineVideo(JsonNode operation) throws IOException {
-        JsonNode video = firstVideo(operation);
+    private GeneratedVideo decodeInlineVideo(JsonNode operation) throws IOException {
+        JsonNode video = findFirstVideo(operation);
         if (video == null) {
             return null;
         }
 
-        JsonNode bytes = firstPresent(video, "bytesBase64Encoded", "bytes_base64_encoded", "data");
+        JsonNode bytes = findFirstPresentField(video, "bytesBase64Encoded", "bytes_base64_encoded", "data");
         if (bytes == null || bytes.asText().isBlank()) {
             return null;
         }
 
-        String mediaType = textValue(video, "mimeType", "mime_type");
+        String mediaType = readTextValue(video, "mimeType", "mime_type");
         if (mediaType == null || mediaType.isBlank()) {
             mediaType = "video/mp4";
         }
 
         try {
-            return new GeneratedVideo(filename(mediaType), mediaType, Base64.getDecoder().decode(bytes.asText()));
+            return new GeneratedVideo(resolveVideoFilename(mediaType), mediaType, Base64.getDecoder().decode(bytes.asText()));
         } catch (IllegalArgumentException exception) {
             throw new UpstreamServiceException("Veo", "Veo returned invalid inline video content", exception);
         }
     }
 
-    private String videoUri(JsonNode operation) {
-        JsonNode video = firstVideo(operation);
+    private String extractVideoUri(JsonNode operation) {
+        JsonNode video = findFirstVideo(operation);
         if (video == null) {
             return "";
         }
 
-        String uri = textValue(video, "uri");
+        String uri = readTextValue(video, "uri");
         if (uri != null && !uri.isBlank()) {
             return uri;
         }
 
-        return textValue(video, "url");
+        return readTextValue(video, "url");
     }
 
-    private JsonNode firstVideo(JsonNode operation) {
+    private JsonNode findFirstVideo(JsonNode operation) {
         List<JsonNode> candidates = List.of(
                 operation.path("response").path("generatedVideos").path(0).path("video"),
                 operation.path("response").path("generatedSamples").path(0).path("video"),
@@ -275,7 +275,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
         return null;
     }
 
-    private JsonNode firstPresent(JsonNode node, String... fieldNames) {
+    private JsonNode findFirstPresentField(JsonNode node, String... fieldNames) {
         for (String fieldName : fieldNames) {
             JsonNode value = node.get(fieldName);
             if (value != null && !value.isNull()) {
@@ -286,12 +286,12 @@ public class VeoVideoClient implements VideoGenerationProvider {
         return null;
     }
 
-    private String textValue(JsonNode node, String... fieldNames) {
-        JsonNode value = firstPresent(node, fieldNames);
+    private String readTextValue(JsonNode node, String... fieldNames) {
+        JsonNode value = findFirstPresentField(node, fieldNames);
         return value == null ? "" : value.asText();
     }
 
-    private JsonNode responseJson(String responseBody, String message) {
+    private JsonNode parseResponseJson(String responseBody, String message) {
         try {
             return objectMapper.readTree(responseBody == null ? "" : responseBody);
         } catch (IOException exception) {
@@ -299,7 +299,7 @@ public class VeoVideoClient implements VideoGenerationProvider {
         }
     }
 
-    private String filename(String mediaType) {
+    private String resolveVideoFilename(String mediaType) {
         if ("video/webm".equals(mediaType)) {
             return "generated-video.webm";
         }

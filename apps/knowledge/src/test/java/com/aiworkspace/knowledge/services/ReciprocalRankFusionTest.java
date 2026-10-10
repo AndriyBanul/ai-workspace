@@ -14,11 +14,11 @@ class ReciprocalRankFusionTest {
 
     @Test
     void promotesEvidenceSupportedBySeveralListsBeforeApplyingLimit() {
-        var evidence = item("evidence");
+        var evidence = createItem("evidence");
         var fused = ReciprocalRankFusion.fuse(List.of(
-                List.of(item("lexical-first"), evidence),
-                List.of(item("vector-first"), evidence),
-                List.of(item("rewrite-first"), evidence)
+                List.of(createItem("lexical-first"), evidence),
+                List.of(createItem("vector-first"), evidence),
+                List.of(createItem("rewrite-first"), evidence)
         ), 1, 60);
 
         assertEquals(List.of(evidence), fused);
@@ -26,8 +26,8 @@ class ReciprocalRankFusionTest {
 
     @Test
     void preservesFirstEncounterOrderForTiedScores() {
-        var first = item("first");
-        var second = item("second");
+        var first = createItem("first");
+        var second = createItem("second");
 
         assertEquals(List.of(first, second), ReciprocalRankFusion.fuse(
                 List.of(List.of(first, second), List.of(second, first)), 12, 60));
@@ -35,8 +35,8 @@ class ReciprocalRankFusionTest {
 
     @Test
     void countsEachDocumentOnlyOncePerList() {
-        var repeated = item("repeated");
-        var supported = item("supported");
+        var repeated = createItem("repeated");
+        var supported = createItem("supported");
 
         assertEquals(List.of(supported, repeated), ReciprocalRankFusion.fuse(
                 List.of(List.of(repeated, repeated, repeated), List.of(supported), List.of(supported)), 12, 60));
@@ -51,15 +51,15 @@ class ReciprocalRankFusionTest {
 
     @Test
     void smallerRankConstantPreservesStrongMatchesAgainstRepeatedModerateMatches() {
-        var evidence = item("evidence");
+        var evidence = createItem("evidence");
         var rankings = new ArrayList<List<KnowledgeItem>>();
         for (int list = 0; list < 6; list++) {
             var ranking = new ArrayList<KnowledgeItem>();
             for (int rank = 0; rank < 35; rank++) {
-                ranking.add(list < 3 && rank == 2 ? evidence : item("list-" + list + "-" + rank));
+                ranking.add(list < 3 && rank == 2 ? evidence : createItem("list-" + list + "-" + rank));
             }
             for (int rank = 0; rank < 20; rank++) {
-                ranking.add(item("moderate-" + rank));
+                ranking.add(createItem("moderate-" + rank));
             }
             rankings.add(ranking);
         }
@@ -68,7 +68,7 @@ class ReciprocalRankFusionTest {
         assertFalse(ReciprocalRankFusion.fuse(rankings, 12, 60).contains(evidence));
     }
 
-    private KnowledgeItem item(String id) {
+    private KnowledgeItem createItem(String id) {
         return KnowledgeItem.builder().id(id).build();
     }
 }

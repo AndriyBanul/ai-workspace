@@ -38,7 +38,7 @@ public class SourceRecoveryTaskService implements SourceRecoveryTracker {
     public void queueSubmission(WorkspaceFile source, String jobId) {
         Instant now = Instant.now(clock);
         Optional<SourceRecoveryTaskEntity> existing = repository.findForUpdate(source.id());
-        SourceRecoveryTaskEntity task = existing.orElseGet(() -> newTask(source, SourceOperationType.PROCESS, now));
+        SourceRecoveryTaskEntity task = existing.orElseGet(() -> createTask(source, SourceOperationType.PROCESS, now));
         if (existing.isPresent() && (task.getStatus() == SourceRecoveryStatus.SCHEDULED
                 || (task.getStatus() == SourceRecoveryStatus.RUNNING && task.getLeaseExpiresAt() != null
                         && task.getLeaseExpiresAt().isAfter(now)))) {
@@ -64,7 +64,7 @@ public class SourceRecoveryTaskService implements SourceRecoveryTracker {
     public RecoveryClaim startAttempt(WorkspaceFile source, SourceOperationType operationType) {
         Instant now = Instant.now(clock);
         SourceRecoveryTaskEntity task = repository.findForUpdate(source.id())
-                .orElseGet(() -> newTask(source, operationType, now));
+                .orElseGet(() -> createTask(source, operationType, now));
         if (task.getStatus() == SourceRecoveryStatus.RUNNING && task.getLeaseExpiresAt() != null
                 && task.getLeaseExpiresAt().isAfter(now)) {
             throw new WorkspaceSourceConflictException("Workspace source operation is already running");
@@ -121,8 +121,8 @@ public class SourceRecoveryTaskService implements SourceRecoveryTracker {
                 .orElseThrow(() -> new WorkspaceSourceConflictException("Source claim no longer exists"));
         requireCurrent(task, operationType, claim, now);
         RetryDecision decision = retryPolicy.decide(exception, task.getAttemptCount(), now);
-        String code = errorCode(exception);
-        String message = errorMessage(exception);
+        String code = resolveErrorCode(exception);
+        String message = formatErrorMessage(exception);
         if (properties.enabled() && decision.retryable()) {
             task.schedule(decision.nextAttemptAt(), code, message, now);
             telemetry.recordRecovery("scheduled");
@@ -154,7 +154,7 @@ public class SourceRecoveryTaskService implements SourceRecoveryTracker {
     public void scheduleRepair(WorkspaceFile source, String errorCode, String errorMessage) {
         Instant now = Instant.now(clock);
         SourceRecoveryTaskEntity task = repository.findForUpdate(source.id())
-                .orElseGet(() -> newTask(source, SourceOperationType.PROCESS, now));
+                .orElseGet(() -> createTask(source, SourceOperationType.PROCESS, now));
         task.prepare(SourceOperationType.PROCESS, now, now);
         task.schedule(now, errorCode, truncate(errorMessage), now);
         repository.save(task);
@@ -177,7 +177,7 @@ public class SourceRecoveryTaskService implements SourceRecoveryTracker {
     public void recordIntegrityFailure(WorkspaceFile source, String errorCode, String errorMessage) {
         Instant now = Instant.now(clock);
         SourceRecoveryTaskEntity task = repository.findForUpdate(source.id())
-                .orElseGet(() -> newTask(source, SourceOperationType.PROCESS, now));
+                .orElseGet(() -> createTask(source, SourceOperationType.PROCESS, now));
         task.deadLetter(errorCode, truncate(errorMessage), now);
         telemetry.recordRecovery("integrity_dead_letter");
         repository.save(task);
@@ -192,7 +192,7 @@ public class SourceRecoveryTaskService implements SourceRecoveryTracker {
         });
     }
 
-    private SourceRecoveryTaskEntity newTask(WorkspaceFile source, SourceOperationType operationType, Instant now) {
+    private SourceRecoveryTaskEntity createTask(WorkspaceFile source, SourceOperationType operationType, Instant now) {
         return SourceRecoveryTaskEntity.builder()
                 .sourceId(source.id())
                 .workspaceId(source.workspaceId())
@@ -221,14 +221,14 @@ public class SourceRecoveryTaskService implements SourceRecoveryTracker {
                 task.getLastErrorMessage(), task.getCreatedAt(), task.getUpdatedAt());
     }
 
-    private String errorCode(Exception exception) {
+    private String resolveErrorCode(Exception exception) {
         if (exception instanceof DocumentProcessingException documentException) {
             return documentException.code().name();
         }
         return exception == null ? "UNKNOWN" : exception.getClass().getSimpleName();
     }
 
-    private String errorMessage(Exception exception) {
+    private String formatErrorMessage(Exception exception) {
         if (exception == null || exception.getMessage() == null || exception.getMessage().isBlank()) {
             return exception == null ? "Unknown error" : exception.getClass().getSimpleName();
         }
