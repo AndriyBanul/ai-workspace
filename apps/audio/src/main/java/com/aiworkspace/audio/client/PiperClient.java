@@ -3,9 +3,10 @@ package com.aiworkspace.audio.client;
 import com.aiworkspace.audio.interfaces.TextToSpeechProvider;
 import com.aiworkspace.audio.models.PcmAudioFormat;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
+import com.aiworkspace.audio.models.WyomingErrorResponse;
 import com.aiworkspace.audio.models.WyomingEvent;
+import com.aiworkspace.audio.models.WyomingEventHeader;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -51,13 +52,15 @@ public class PiperClient implements TextToSpeechProvider {
                 WyomingEvent event = readEvent(inputStream);
 
                 if ("audio-start".equals(event.type())) {
-                    audioFormat = PcmAudioFormat.from(event.data());
+                    audioFormat = event.audioFormat();
                 } else if ("audio-chunk".equals(event.type())) {
                     pcmAudio.writeBytes(event.payload());
                 } else if ("audio-stop".equals(event.type())) {
                     break;
                 } else if ("error".equals(event.type())) {
-                    throw new IOException("Piper returned an error: " + event.data());
+                    String errorText = event.error() == null ? null : event.error().text();
+                    throw new IOException(errorText == null || errorText.isBlank()
+                            ? "Piper returned an error" : "Piper returned an error: " + errorText);
                 }
             }
 
@@ -94,20 +97,37 @@ public class PiperClient implements TextToSpeechProvider {
         outputStream.flush();
     }
 
-    private WyomingEvent readEvent(InputStream inputStream) throws IOException {
+    WyomingEvent readEvent(InputStream inputStream) throws IOException {
         String headerLine = readHeaderLine(inputStream);
-        JsonNode header = objectMapper.readTree(headerLine);
-
-        int dataLength = header.path("data_length").asInt(0);
-        JsonNode data = objectMapper.createObjectNode();
-        if (dataLength > 0) {
-            data = objectMapper.readTree(inputStream.readNBytes(dataLength));
+        WyomingEventHeader header = objectMapper.readValue(headerLine, WyomingEventHeader.class);
+        if (header == null || header.type() == null || header.type().isBlank()) {
+            throw new IOException("Piper returned an invalid event header");
         }
+        byte[] data = readEventBytes(inputStream, header.dataLength());
+        byte[] payload = readEventBytes(inputStream, header.payloadLength());
 
-        int payloadLength = header.path("payload_length").asInt(0);
-        byte[] payload = payloadLength > 0 ? inputStream.readNBytes(payloadLength) : new byte[0];
+        PcmAudioFormat audioFormat = null;
+        WyomingErrorResponse error = null;
+        if ("audio-start".equals(header.type())) {
+            audioFormat = objectMapper.readValue(data, PcmAudioFormat.class);
+            if (audioFormat == null) {
+                throw new IOException("Piper returned invalid audio format metadata");
+            }
+        } else if ("error".equals(header.type()) && data.length > 0) {
+            error = objectMapper.readValue(data, WyomingErrorResponse.class);
+        }
+        return new WyomingEvent(header.type(), audioFormat, error, payload);
+    }
 
-        return new WyomingEvent(header.path("type").asText(), data, payload);
+    private byte[] readEventBytes(InputStream inputStream, int length) throws IOException {
+        if (length < 0) {
+            throw new IOException("Piper returned a negative event length");
+        }
+        byte[] bytes = inputStream.readNBytes(length);
+        if (bytes.length != length) {
+            throw new IOException("Piper closed the connection before sending a complete event");
+        }
+        return bytes;
     }
 
     private String readHeaderLine(InputStream inputStream) throws IOException {
