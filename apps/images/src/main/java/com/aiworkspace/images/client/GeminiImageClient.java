@@ -2,7 +2,9 @@ package com.aiworkspace.images.client;
 
 import com.aiworkspace.images.interfaces.ImageUnderstandingProvider;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.aiworkspace.shared.models.GeminiCandidateResponse;
+import com.aiworkspace.shared.models.GeminiPartResponse;
+import com.aiworkspace.shared.models.GeminiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -95,23 +97,21 @@ public class GeminiImageClient implements ImageUnderstandingProvider {
         return objectMapper.writeValueAsString(body);
     }
 
-    private String parseDescription(String responseBody) {
-        JsonNode responseJson = parseResponseJson(responseBody);
-        JsonNode candidates = responseJson.path("candidates");
-        if (!candidates.isArray() || candidates.isEmpty()) {
+    String parseDescription(String responseBody) {
+        GeminiResponse response = parseResponse(responseBody);
+        if (response == null || response.candidates() == null || response.candidates().isEmpty()) {
             throw new UpstreamServiceException("Gemini", "Gemini did not return any candidates");
         }
 
-        JsonNode parts = candidates.get(0).path("content").path("parts");
-        if (!parts.isArray()) {
+        GeminiCandidateResponse candidate = response.candidates().getFirst();
+        if (candidate == null || candidate.content() == null || candidate.content().parts() == null) {
             throw new UpstreamServiceException("Gemini", "Gemini did not return response content");
         }
 
         StringBuilder description = new StringBuilder();
-        for (JsonNode part : parts) {
-            JsonNode text = part.get("text");
-            if (text != null && !text.isNull()) {
-                description.append(text.asText());
+        for (GeminiPartResponse part : candidate.content().parts()) {
+            if (part != null && part.text() != null) {
+                description.append(part.text());
             }
         }
 
@@ -123,9 +123,9 @@ public class GeminiImageClient implements ImageUnderstandingProvider {
         return result;
     }
 
-    private JsonNode parseResponseJson(String responseBody) {
+    private GeminiResponse parseResponse(String responseBody) {
         try {
-            return objectMapper.readTree(responseBody);
+            return objectMapper.readValue(responseBody == null ? "" : responseBody, GeminiResponse.class);
         } catch (IOException exception) {
             throw new UpstreamServiceException("Gemini", "Gemini returned an invalid response", exception);
         }
