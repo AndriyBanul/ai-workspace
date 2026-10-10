@@ -16,7 +16,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -28,7 +27,6 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
     private final OpenSearchKnowledgeSearchReader reader;
     private final OpenSearchKnowledgeIndexWriter writer;
 
-    @Autowired
     public OpenSearchKnowledgeClient(
             @Value("${ai-workspace.opensearch.base-url:http://localhost:9200}") String baseUrl,
             RestClient restClient,
@@ -38,30 +36,8 @@ public class OpenSearchKnowledgeClient implements KnowledgeRepository {
             SearchTelemetry telemetry,
             SourceIndexManifestService manifestService
     ) {
-        this(normalizedBaseUri(baseUrl), restClient, objectMapper, embeddingProperties, headingWeight, telemetry,
-                manifestService);
-    }
-
-    OpenSearchKnowledgeClient(URI baseUri, RestClient restClient, ObjectMapper objectMapper) {
-        this(baseUri, restClient, objectMapper,
-                new KnowledgeEmbeddingProperties(null, null, null, null, null, null));
-    }
-
-    OpenSearchKnowledgeClient(URI baseUri, RestClient restClient, ObjectMapper objectMapper,
-            KnowledgeEmbeddingProperties embeddingProperties) {
-        this(baseUri, restClient, objectMapper, embeddingProperties, 2);
-    }
-
-    OpenSearchKnowledgeClient(URI baseUri, RestClient restClient, ObjectMapper objectMapper,
-            KnowledgeEmbeddingProperties embeddingProperties, int headingWeight) {
-        this(baseUri, restClient, objectMapper, embeddingProperties, headingWeight, SearchTelemetry.NOOP, null);
-    }
-
-    private OpenSearchKnowledgeClient(URI baseUri, RestClient restClient, ObjectMapper objectMapper,
-            KnowledgeEmbeddingProperties embeddingProperties, int headingWeight, SearchTelemetry telemetry,
-            SourceIndexManifestService manifestService) {
         OpenSearchKnowledgeStore store = new OpenSearchKnowledgeStore(
-                baseUri, restClient, objectMapper, embeddingProperties);
+                normalizedBaseUri(baseUrl), restClient, objectMapper, embeddingProperties);
         this.reader = new OpenSearchKnowledgeSearchReader(store, headingWeight, telemetry, manifestService);
         this.writer = new OpenSearchKnowledgeIndexWriter(store);
     }

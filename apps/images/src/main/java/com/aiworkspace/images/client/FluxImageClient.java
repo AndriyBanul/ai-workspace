@@ -8,9 +8,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -21,7 +18,6 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class FluxImageClient implements ImageGenerationProvider {
 
     private final URI baseUri;
@@ -30,7 +26,6 @@ public class FluxImageClient implements ImageGenerationProvider {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
-    @Autowired
     public FluxImageClient(
             @Value("${ai-workspace.flux.base-url:https://api-inference.huggingface.co/models}") String baseUrl,
             @Value("${ai-workspace.flux.api-token:}") String apiToken,
@@ -38,13 +33,11 @@ public class FluxImageClient implements ImageGenerationProvider {
             RestClient restClient,
             ObjectMapper objectMapper
     ) {
-        this(
-                URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
-                apiToken,
-                model,
-                restClient,
-                objectMapper
-        );
+        this.baseUri = URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
+        this.apiToken = apiToken;
+        this.model = model;
+        this.restClient = restClient;
+        this.objectMapper = objectMapper;
     }
 
     @Override

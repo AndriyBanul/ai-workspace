@@ -12,9 +12,6 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -24,7 +21,6 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class GeminiImageClient implements ImageUnderstandingProvider {
 
     private final URI baseUri;
@@ -33,7 +29,6 @@ public class GeminiImageClient implements ImageUnderstandingProvider {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
-    @Autowired
     public GeminiImageClient(
             @Value("${ai-workspace.gemini.base-url:https://generativelanguage.googleapis.com/v1beta}") String baseUrl,
             @Value("${ai-workspace.gemini.api-key:}") String apiKey,
@@ -41,13 +36,11 @@ public class GeminiImageClient implements ImageUnderstandingProvider {
             RestClient restClient,
             ObjectMapper objectMapper
     ) {
-        this(
-                URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl),
-                apiKey,
-                model,
-                restClient,
-                objectMapper
-        );
+        this.baseUri = URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
+        this.apiKey = apiKey;
+        this.model = model;
+        this.restClient = restClient;
+        this.objectMapper = objectMapper;
     }
 
     @Override

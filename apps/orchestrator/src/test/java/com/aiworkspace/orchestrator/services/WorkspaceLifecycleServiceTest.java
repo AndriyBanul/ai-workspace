@@ -1,14 +1,13 @@
 package com.aiworkspace.orchestrator.services;
 
-import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
-import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.knowledge.services.KnowledgeService;
 import com.aiworkspace.workspaces.exceptions.WorkspaceSourceConflictException;
-import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.models.Workspace;
+import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
 import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
 import com.aiworkspace.workspaces.services.WorkspaceService;
+import com.aiworkspace.workspaces.services.WorkspaceValidator;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,7 +24,10 @@ class WorkspaceLifecycleServiceTest {
         List<String> events = new ArrayList<>();
         WorkspaceLifecycleService service = new WorkspaceLifecycleService(
                 new TestWorkspaceService(events),
-                new TestKnowledgeService(events, false)
+                new TestKnowledgeService(events, false),
+                null,
+                SourceRecoveryTracker.noop(),
+                null
         );
 
         service.deleteFile("owner-1", "workspace-1", "file-1");
@@ -38,7 +40,10 @@ class WorkspaceLifecycleServiceTest {
         List<String> events = new ArrayList<>();
         WorkspaceLifecycleService service = new WorkspaceLifecycleService(
                 new TestWorkspaceService(events),
-                new TestKnowledgeService(events, true)
+                new TestKnowledgeService(events, true),
+                null,
+                SourceRecoveryTracker.noop(),
+                null
         );
 
         assertThrows(
@@ -54,7 +59,10 @@ class WorkspaceLifecycleServiceTest {
         List<String> events = new ArrayList<>();
         WorkspaceLifecycleService service = new WorkspaceLifecycleService(
                 new TestWorkspaceService(events, WorkspaceFileStatus.PROCESSING),
-                new TestKnowledgeService(events, false)
+                new TestKnowledgeService(events, false),
+                null,
+                SourceRecoveryTracker.noop(),
+                null
         );
 
         assertThrows(
@@ -70,7 +78,10 @@ class WorkspaceLifecycleServiceTest {
         List<String> events = new ArrayList<>();
         WorkspaceLifecycleService service = new WorkspaceLifecycleService(
                 new TestWorkspaceService(events),
-                new TestKnowledgeService(events, false)
+                new TestKnowledgeService(events, false),
+                null,
+                SourceRecoveryTracker.noop(),
+                null
         );
 
         service.deleteWorkspace("owner-1", "workspace-1");
@@ -88,7 +99,7 @@ class WorkspaceLifecycleServiceTest {
         }
 
         TestWorkspaceService(List<String> events, WorkspaceFileStatus fileStatus) {
-            super(null, null);
+            super(null, null, null, new WorkspaceValidator());
             this.events = events;
             this.fileStatus = fileStatus;
         }
@@ -136,7 +147,7 @@ class WorkspaceLifecycleServiceTest {
         private final boolean fail;
 
         TestKnowledgeService(List<String> events, boolean fail) {
-            super((KnowledgeRepository) null, (KnowledgeAnswerProvider) null);
+            super(null, null, null, null, null, null, null);
             this.events = events;
             this.fail = fail;
         }

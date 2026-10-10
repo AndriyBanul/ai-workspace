@@ -36,7 +36,7 @@ class OpenSearchIntegrationTest {
                 "Refusing to reset a cluster that is not the isolated test cluster");
         http.delete().uri(INDEX).retrieve().onStatus(status -> status.value() == 404,
                 (request, response) -> {}).toBodilessEntity();
-        client = new OpenSearchKnowledgeClient(URI.create(URL), RestClient.create(), json,
+        client = OpenSearchKnowledgeClientTestFactory.create(URI.create(URL), RestClient.create(), json,
                 new KnowledgeEmbeddingProperties(true, "test", 3, 32, 32, 60));
     }
 

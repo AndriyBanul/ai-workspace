@@ -13,9 +13,9 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.inOrder;
 
 class WorkspaceServiceTest {
 
@@ -108,6 +108,6 @@ class WorkspaceServiceTest {
     }
 
     private static WorkspaceService newService(WorkspaceRepository repository) {
-        return new WorkspaceService(repository, new WorkspaceMapperImpl());
+        return new WorkspaceService(repository, new WorkspaceMapperImpl(), null, new WorkspaceValidator());
     }
 }

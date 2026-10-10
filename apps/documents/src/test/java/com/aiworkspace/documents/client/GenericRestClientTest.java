@@ -15,7 +15,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 class GenericRestClientTest {
 
-    private final GenericRestClient client = new GenericRestClient(RestClient.builder().build());
+    private final GenericRestClient client = new GenericRestClient(RestClient.builder().build(), new WebPageFetchProperties(null, null));
 
     @Test
     void rejectsLocalhostUrls() {

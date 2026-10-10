@@ -4,17 +4,19 @@ import com.aiworkspace.workspaces.entities.WorkspaceFileEntity;
 import com.aiworkspace.workspaces.exceptions.WorkspaceSourceConflictException;
 import com.aiworkspace.workspaces.interfaces.FileStorage;
 import com.aiworkspace.workspaces.mappers.WorkspaceFileMapperImpl;
+import com.aiworkspace.workspaces.models.CreateWorkspaceUrlSourceRequest;
 import com.aiworkspace.workspaces.models.WorkspaceFileSourceType;
 import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
-import com.aiworkspace.workspaces.models.CreateWorkspaceUrlSourceRequest;
 import com.aiworkspace.workspaces.repositories.WorkspaceFileRepository;
-import java.time.Instant;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -22,9 +24,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class WorkspaceFileServiceTest {
 
@@ -34,7 +33,11 @@ class WorkspaceFileServiceTest {
         FileStorage storage = mock(FileStorage.class);
         when(repository.save(any(WorkspaceFileEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         WorkspaceFileService service = new WorkspaceFileService(
-                repository, new WorkspaceFileMapperImpl(), storage);
+                repository,
+                new WorkspaceFileMapperImpl(),
+                storage,
+                new WorkspaceFileValidator()
+        );
 
         var source = service.createUrlSource(CreateWorkspaceUrlSourceRequest.builder()
                 .workspaceId(" workspace-1 ")
@@ -60,7 +63,8 @@ class WorkspaceFileServiceTest {
         WorkspaceFileService service = new WorkspaceFileService(
                 repository,
                 new WorkspaceFileMapperImpl(),
-                mock(FileStorage.class)
+                mock(FileStorage.class),
+                new WorkspaceFileValidator()
         );
 
         var file = service.markProcessed("workspace-1", "file-1");
@@ -76,7 +80,11 @@ class WorkspaceFileServiceTest {
                 eq("file-1"), eq("workspace-1"), eq(WorkspaceFileStatus.PROCESSING),
                 any(Instant.class), anyList())).thenReturn(0);
         WorkspaceFileService service = new WorkspaceFileService(
-                repository, new WorkspaceFileMapperImpl(), mock(FileStorage.class));
+                repository,
+                new WorkspaceFileMapperImpl(),
+                mock(FileStorage.class),
+                new WorkspaceFileValidator()
+        );
 
         WorkspaceSourceConflictException exception = assertThrows(
                 WorkspaceSourceConflictException.class,
@@ -100,7 +108,8 @@ class WorkspaceFileServiceTest {
         WorkspaceFileService service = new WorkspaceFileService(
                 repository,
                 new WorkspaceFileMapperImpl(),
-                mock(FileStorage.class)
+                mock(FileStorage.class),
+                new WorkspaceFileValidator()
         );
 
         var file = service.markProcessed("workspace-1", "file-1");
@@ -120,7 +129,8 @@ class WorkspaceFileServiceTest {
         WorkspaceFileService service = new WorkspaceFileService(
                 repository,
                 new WorkspaceFileMapperImpl(),
-                storage
+                storage,
+                new WorkspaceFileValidator()
         );
 
         service.deleteStoredFilesByWorkspaceId("workspace-1");

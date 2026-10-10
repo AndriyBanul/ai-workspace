@@ -1,6 +1,8 @@
 package com.aiworkspace.knowledge.client;
 
 import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
+import com.aiworkspace.knowledge.interfaces.EmbeddingTextSplitter;
+import com.aiworkspace.knowledge.observability.SearchTelemetry;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -22,7 +24,9 @@ class SpringAiTextEmbeddingClientTest {
         beans.addBean("embeddingModel", model);
         SpringAiTextEmbeddingClient client = new SpringAiTextEmbeddingClient(
                 beans.getBeanProvider(EmbeddingModel.class),
-                new KnowledgeEmbeddingProperties(true, "local-model", 3, 2, 32, 60)
+                new KnowledgeEmbeddingProperties(true, "local-model", 3, 2, 32, 60),
+                SearchTelemetry.NOOP,
+                beans.getBeanProvider(EmbeddingTextSplitter.class)
         );
 
         List<List<Float>> embeddings = client.embedDocuments(List.of("first", "second", "third"));
@@ -41,7 +45,9 @@ class SpringAiTextEmbeddingClientTest {
         beans.addBean("embeddingModel", model);
         SpringAiTextEmbeddingClient client = new SpringAiTextEmbeddingClient(
                 beans.getBeanProvider(EmbeddingModel.class),
-                new KnowledgeEmbeddingProperties(true, "local-model", 3, 2, 32, 60)
+                new KnowledgeEmbeddingProperties(true, "local-model", 3, 2, 32, 60),
+                SearchTelemetry.NOOP,
+                beans.getBeanProvider(EmbeddingTextSplitter.class)
         );
 
         client.embedQuery("What grew?");
@@ -54,7 +60,9 @@ class SpringAiTextEmbeddingClientTest {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         SpringAiTextEmbeddingClient client = new SpringAiTextEmbeddingClient(
                 beans.getBeanProvider(EmbeddingModel.class),
-                new KnowledgeEmbeddingProperties(true, "local-model", 3, 2, 32, 60)
+                new KnowledgeEmbeddingProperties(true, "local-model", 3, 2, 32, 60),
+                SearchTelemetry.NOOP,
+                beans.getBeanProvider(EmbeddingTextSplitter.class)
         );
 
         assertFalse(client.isConfigured());

@@ -91,7 +91,7 @@ class UserAccountServiceTest {
                 .displayName("User")
                 .createdAt(java.time.Instant.parse("2026-07-03T00:00:00Z"))
                 .build()));
-        UserAccountService service = new UserAccountService(repository, new UserAccountMapperImpl(), passwordEncoder);
+        UserAccountService service = new UserAccountService(repository, new UserAccountMapperImpl(), passwordEncoder, new UserAccountValidator());
 
         var userDetails = service.loadUserByUsername(" User@Example.COM ");
 
@@ -137,6 +137,6 @@ class UserAccountServiceTest {
     }
 
     private static UserAccountService newService(UserAccountRepository repository) {
-        return new UserAccountService(repository, new UserAccountMapperImpl(), new BCryptPasswordEncoder());
+        return new UserAccountService(repository, new UserAccountMapperImpl(), new BCryptPasswordEncoder(), new UserAccountValidator());
     }
 }

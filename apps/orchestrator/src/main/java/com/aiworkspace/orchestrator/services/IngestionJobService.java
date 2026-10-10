@@ -18,12 +18,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@RequiredArgsConstructor
 public class IngestionJobService {
 
     private static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
@@ -31,10 +30,6 @@ public class IngestionJobService {
     private final IngestionJobRepository ingestionJobRepository;
     private final IngestionJobDetailsMapper detailsMapper;
     private final IngestionJobValidator ingestionJobValidator;
-
-    public IngestionJobService(IngestionJobRepository ingestionJobRepository, IngestionJobDetailsMapper detailsMapper) {
-        this(ingestionJobRepository, detailsMapper, new IngestionJobValidator());
-    }
 
     @Transactional
     public IngestionJobDetails createJob(

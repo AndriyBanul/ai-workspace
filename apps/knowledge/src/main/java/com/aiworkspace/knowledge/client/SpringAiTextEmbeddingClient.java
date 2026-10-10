@@ -7,30 +7,28 @@ import com.aiworkspace.knowledge.observability.SearchTelemetry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 @Component
-@RequiredArgsConstructor
 public class SpringAiTextEmbeddingClient implements TextEmbeddingProvider {
 
     private static final String PASSAGE_PREFIX = "passage: ";
     private static final String QUERY_PREFIX = "query: ";
 
-    private EmbeddingTextSplitter splitter = (prefix, text) -> List.of(prefix + text);
+    private final EmbeddingTextSplitter splitter;
     private final ObjectProvider<EmbeddingModel> embeddingModelProvider;
-    private SearchTelemetry telemetry = SearchTelemetry.NOOP;
+    private final SearchTelemetry telemetry;
     private final KnowledgeEmbeddingProperties properties;
 
-    @org.springframework.beans.factory.annotation.Autowired
     public SpringAiTextEmbeddingClient(ObjectProvider<EmbeddingModel> modelProvider,
             KnowledgeEmbeddingProperties properties, SearchTelemetry telemetry,
             ObjectProvider<EmbeddingTextSplitter> splitterProvider) {
-        this(modelProvider, properties);
+        this.embeddingModelProvider = modelProvider;
+        this.properties = properties;
         this.telemetry = telemetry;
-        this.splitter = splitterProvider.getIfAvailable(() -> splitter);
+        this.splitter = splitterProvider.getIfAvailable(() -> (prefix, text) -> List.of(prefix + text));
     }
 
     @Override

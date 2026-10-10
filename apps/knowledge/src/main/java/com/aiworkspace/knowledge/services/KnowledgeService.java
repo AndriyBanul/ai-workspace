@@ -1,13 +1,5 @@
 package com.aiworkspace.knowledge.services;
 
-import com.aiworkspace.knowledge.config.KnowledgeEmbeddingProperties;
-import com.aiworkspace.knowledge.config.KnowledgeQueryExpansionProperties;
-import com.aiworkspace.knowledge.config.KnowledgeRerankingProperties;
-import com.aiworkspace.knowledge.config.KnowledgeSearchProperties;
-import com.aiworkspace.knowledge.interfaces.KnowledgeAnswerProvider;
-import com.aiworkspace.knowledge.interfaces.SearchQueryProvider;
-import com.aiworkspace.knowledge.interfaces.TextEmbeddingProvider;
-import com.aiworkspace.knowledge.interfaces.TextReranker;
 import com.aiworkspace.knowledge.models.KnowledgeChunk;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeSourceMetadata;
@@ -17,7 +9,6 @@ import com.aiworkspace.knowledge.models.WorkspaceKnowledge;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeAnswer;
 import com.aiworkspace.knowledge.models.WorkspaceKnowledgeField;
 import com.aiworkspace.knowledge.models.WorkspaceQuestionRequest;
-import com.aiworkspace.knowledge.observability.SearchTelemetry;
 import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
@@ -25,12 +16,11 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Stable facade for knowledge workflows used by API and media modules. */
 @Service
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@RequiredArgsConstructor
 public class KnowledgeService {
 
     private final KnowledgeRepository knowledgeRepository;
@@ -40,64 +30,6 @@ public class KnowledgeService {
     private final KnowledgeRetrievalService retrievalService;
     private final KnowledgeAnswerService answerService;
     private final SourceIndexManifestService manifestService;
-
-    public KnowledgeService(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider) {
-        this(knowledgeRepository, knowledgeAnswerProvider, null, new KnowledgeValidator(), null,
-                new KnowledgeEmbeddingProperties(false, null, null, null, null, null),
-                new KnowledgeSearchProperties(KnowledgeSearchProperties.HYBRID), TextReranker.NONE,
-                KnowledgeRerankingProperties.disabled(), SearchQueryProvider.NONE,
-                KnowledgeQueryExpansionProperties.disabled());
-    }
-
-    public KnowledgeService(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider,
-            WorkspaceService workspaceService, KnowledgeValidator knowledgeValidator,
-            TextEmbeddingProvider textEmbeddingProvider, KnowledgeEmbeddingProperties embeddingProperties) {
-        this(knowledgeRepository, knowledgeAnswerProvider, workspaceService, knowledgeValidator,
-                textEmbeddingProvider, embeddingProperties,
-                new KnowledgeSearchProperties(KnowledgeSearchProperties.HYBRID), TextReranker.NONE,
-                KnowledgeRerankingProperties.disabled(), SearchQueryProvider.NONE,
-                KnowledgeQueryExpansionProperties.disabled());
-    }
-
-    public KnowledgeService(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider,
-            WorkspaceService workspaceService, KnowledgeValidator knowledgeValidator,
-            TextEmbeddingProvider textEmbeddingProvider, KnowledgeEmbeddingProperties embeddingProperties,
-            KnowledgeSearchProperties searchProperties) {
-        this(knowledgeRepository, knowledgeAnswerProvider, workspaceService, knowledgeValidator,
-                textEmbeddingProvider, embeddingProperties, searchProperties, TextReranker.NONE,
-                KnowledgeRerankingProperties.disabled(), SearchQueryProvider.NONE,
-                KnowledgeQueryExpansionProperties.disabled());
-    }
-
-    public KnowledgeService(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider,
-            WorkspaceService workspaceService, KnowledgeValidator knowledgeValidator,
-            TextEmbeddingProvider textEmbeddingProvider, KnowledgeEmbeddingProperties embeddingProperties,
-            KnowledgeSearchProperties searchProperties, TextReranker textReranker,
-            KnowledgeRerankingProperties rerankingProperties, SearchQueryProvider searchQueryProvider,
-            KnowledgeQueryExpansionProperties queryExpansionProperties) {
-        this(knowledgeRepository, knowledgeAnswerProvider, workspaceService, knowledgeValidator,
-                textEmbeddingProvider, embeddingProperties, searchProperties, textReranker, rerankingProperties,
-                searchQueryProvider, queryExpansionProperties, SearchTelemetry.NOOP);
-    }
-
-    public KnowledgeService(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider,
-            WorkspaceService workspaceService, KnowledgeValidator knowledgeValidator,
-            TextEmbeddingProvider textEmbeddingProvider, KnowledgeEmbeddingProperties embeddingProperties,
-            KnowledgeSearchProperties searchProperties, TextReranker textReranker,
-            KnowledgeRerankingProperties rerankingProperties, SearchQueryProvider searchQueryProvider,
-            KnowledgeQueryExpansionProperties queryExpansionProperties, SearchTelemetry telemetry) {
-        KnowledgeCitationService citationService = new KnowledgeCitationService();
-        this.knowledgeRepository = knowledgeRepository;
-        this.workspaceService = workspaceService;
-        this.knowledgeValidator = knowledgeValidator;
-        this.indexingService = new KnowledgeIndexingService(
-                knowledgeRepository, knowledgeValidator, textEmbeddingProvider);
-        this.retrievalService = new KnowledgeRetrievalService(
-                knowledgeRepository, textEmbeddingProvider, embeddingProperties, searchProperties, textReranker,
-                rerankingProperties, searchQueryProvider, queryExpansionProperties, telemetry);
-        this.answerService = new KnowledgeAnswerService(knowledgeAnswerProvider, citationService);
-        this.manifestService = null;
-    }
 
     public Optional<WorkspaceKnowledge> findWorkspaceKnowledge(String workspaceId) throws IOException {
         knowledgeValidator.validateWorkspaceId(workspaceId);

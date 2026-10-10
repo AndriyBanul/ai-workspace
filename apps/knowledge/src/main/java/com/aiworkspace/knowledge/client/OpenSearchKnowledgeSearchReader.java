@@ -20,10 +20,6 @@ final class OpenSearchKnowledgeSearchReader {
     private final SearchTelemetry telemetry;
     private final SourceIndexManifestService manifests;
 
-    OpenSearchKnowledgeSearchReader(OpenSearchKnowledgeStore store, int headingWeight, SearchTelemetry telemetry) {
-        this(store, headingWeight, telemetry, null);
-    }
-
     OpenSearchKnowledgeSearchReader(OpenSearchKnowledgeStore store, int headingWeight, SearchTelemetry telemetry,
             SourceIndexManifestService manifests) {
         if (headingWeight <= 0) throw new IllegalArgumentException("Heading weight must be positive");

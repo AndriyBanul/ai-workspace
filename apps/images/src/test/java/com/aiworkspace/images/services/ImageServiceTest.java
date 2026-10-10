@@ -29,7 +29,8 @@ class ImageServiceTest {
                     return new GeneratedImage("generated-image.png", "image/png", new byte[] {1, 2, 3});
                 }
             },
-            "Describe this image."
+            "Describe this image.",
+            new ImageValidator()
     );
 
     @Test

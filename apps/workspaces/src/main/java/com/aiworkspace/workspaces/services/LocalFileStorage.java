@@ -15,7 +15,6 @@ import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,11 +23,6 @@ public class LocalFileStorage implements FileStorage {
     private final Path root;
     private final FileStorageValidator fileStorageValidator;
 
-    public LocalFileStorage(LocalStorageProperties properties) {
-        this(properties, new FileStorageValidator());
-    }
-
-    @Autowired
     public LocalFileStorage(LocalStorageProperties properties, FileStorageValidator fileStorageValidator) {
         this.root = properties.root().toAbsolutePath().normalize();
         this.fileStorageValidator = fileStorageValidator;

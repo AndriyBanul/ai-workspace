@@ -1,10 +1,13 @@
 package com.aiworkspace.videos.services;
 
+import com.aiworkspace.shared.media.TranscriptSegment;
 import com.aiworkspace.videos.client.GeminiVideoClient;
 import com.aiworkspace.videos.client.VeoVideoClient;
+import com.aiworkspace.videos.interfaces.VideoGenerationProvider;
+import com.aiworkspace.videos.interfaces.VideoUnderstandingProvider;
+import com.aiworkspace.videos.interfaces.YouTubeVideoUnderstandingProvider;
 import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.models.VideoAnalysis;
-import com.aiworkspace.shared.media.TranscriptSegment;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.List;
@@ -19,7 +22,7 @@ class VideoServiceTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final VideoService service = new VideoService(
+    private final VideoService service = createService(
             new GeminiVideoClient("http://localhost", "test-key", "test-model", RestClient.builder().build(), OBJECT_MAPPER) {
                 @Override
                 public VideoAnalysis analyze(byte[] videoContent, String mimeType, String prompt) {
@@ -142,5 +145,12 @@ class VideoServiceTest {
                         () -> validator.canonicalYouTubeUrl("https://www.youtube.com/playlist?list=PL123")
                 ).getMessage()
         );
+    }
+
+    private static VideoService createService(VideoUnderstandingProvider understanding,
+            VideoGenerationProvider generation, String prompt) {
+        YouTubeVideoUnderstandingProvider youtube = understanding instanceof YouTubeVideoUnderstandingProvider provider
+                ? provider : null;
+        return new VideoService(understanding, youtube, generation, prompt, new VideoValidator());
     }
 }

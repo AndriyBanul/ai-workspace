@@ -10,12 +10,11 @@ import com.aiworkspace.videos.models.VideoGenerationRequest;
 import java.io.IOException;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@RequiredArgsConstructor
 public class VideoService {
 
     private final VideoUnderstandingProvider videoUnderstandingProvider;
@@ -24,20 +23,6 @@ public class VideoService {
     @Value("${ai-workspace.gemini.video-description-prompt:Describe what is happening in this video clearly and concisely.}")
     private final String descriptionPrompt;
     private final VideoValidator videoValidator;
-
-    public VideoService(
-            VideoUnderstandingProvider videoUnderstandingProvider,
-            VideoGenerationProvider videoGenerationProvider,
-            @Value("${ai-workspace.gemini.video-description-prompt:Describe what is happening in this video clearly and concisely.}") String descriptionPrompt
-    ) {
-        this(
-                videoUnderstandingProvider,
-                videoUnderstandingProvider instanceof YouTubeVideoUnderstandingProvider provider ? provider : null,
-                videoGenerationProvider,
-                descriptionPrompt,
-                new VideoValidator()
-        );
-    }
 
     public VideoDescription describe(String filename, String contentType, byte[] videoContent)
             throws IOException, InterruptedException {

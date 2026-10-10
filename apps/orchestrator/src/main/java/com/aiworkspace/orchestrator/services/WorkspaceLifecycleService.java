@@ -10,11 +10,10 @@ import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@RequiredArgsConstructor
 public class WorkspaceLifecycleService {
 
     private final WorkspaceService workspaceService;
@@ -22,15 +21,6 @@ public class WorkspaceLifecycleService {
     private final WorkspaceFileService workspaceFileService;
     private final SourceRecoveryTracker recoveryTracker;
     private final SourceLeaseKeeper leaseKeeper;
-
-    public WorkspaceLifecycleService(WorkspaceService workspaceService, KnowledgeService knowledgeService) {
-        this(workspaceService, knowledgeService, null, SourceRecoveryTracker.noop());
-    }
-
-    public WorkspaceLifecycleService(WorkspaceService workspaceService, KnowledgeService knowledgeService,
-            WorkspaceFileService workspaceFileService, SourceRecoveryTracker recoveryTracker) {
-        this(workspaceService, knowledgeService, workspaceFileService, recoveryTracker, null);
-    }
 
     public void deleteFile(String ownerId, String workspaceId, String fileId) throws IOException {
         WorkspaceFile file = workspaceService.getFile(ownerId, workspaceId, fileId);

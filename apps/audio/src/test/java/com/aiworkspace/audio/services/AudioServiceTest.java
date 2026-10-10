@@ -36,7 +36,8 @@ class AudioServiceTest {
                 public SynthesizedSpeech synthesize(String text) {
                     return new SynthesizedSpeech("speech.wav", new byte[] {1, 2, 3});
                 }
-            }
+            },
+            new AudioValidator()
     );
 
     @Test
