@@ -1,11 +1,16 @@
 package com.aiworkspace.images.client;
 
 import com.aiworkspace.images.interfaces.ImageOcrProvider;
+import com.aiworkspace.images.models.GeminiOcrRegionResponse;
+import com.aiworkspace.images.models.GeminiOcrResponse;
 import com.aiworkspace.images.models.OcrRegion;
 import com.aiworkspace.images.models.OcrResult;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.aiworkspace.shared.models.GeminiCandidateResponse;
+import com.aiworkspace.shared.models.GeminiPartResponse;
+import com.aiworkspace.shared.models.GeminiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -55,25 +60,46 @@ public class GeminiOcrClient implements ImageOcrProvider {
             String response = restClient.post().uri(baseUrl + "/models/" + model + ":generateContent")
                     .header("x-goog-api-key", apiKey).contentType(MediaType.APPLICATION_JSON)
                     .body(mapper.writeValueAsString(body)).retrieve().body(String.class);
-            JsonNode candidate = mapper.readTree(response).path("candidates").path(0);
-            if (!"STOP".equals(candidate.path("finishReason").asText())) {
-                throw new IllegalStateException("Incomplete OCR response");
-            }
-            StringBuilder text = new StringBuilder();
-            for (JsonNode part : candidate.path("content").path("parts")) {
-                if (!part.path("thought").asBoolean(false)) text.append(part.path("text").asText(""));
-            }
-            JsonNode regions = mapper.readTree(text.toString()).path("regions");
-            if (!regions.isArray()) throw new IllegalStateException("Missing OCR regions");
-            var result = new ArrayList<OcrRegion>();
-            for (JsonNode region : regions) {
-                if (!region.path("text").isTextual()) throw new IllegalStateException("Invalid OCR region");
-                String value = region.path("text").asText().trim();
-                if (!value.isBlank()) result.add(new OcrRegion(value, null, null));
-            }
-            return new OcrResult(result);
+            return parseOcrResult(response);
         } catch (Exception exception) {
             throw new UpstreamServiceException("OCR", "OCR provider failed or returned an invalid response", exception);
         }
+    }
+
+    private OcrResult parseOcrResult(String responseBody) throws IOException {
+        GeminiResponse response = mapper.readValue(responseBody == null ? "" : responseBody, GeminiResponse.class);
+        if (response == null || response.candidates() == null || response.candidates().isEmpty()) {
+            throw new IllegalStateException("Missing OCR candidates");
+        }
+        GeminiCandidateResponse candidate = response.candidates().getFirst();
+        if (candidate == null || !"STOP".equals(candidate.finishReason())) {
+            throw new IllegalStateException("Incomplete OCR response");
+        }
+        if (candidate.content() == null || candidate.content().parts() == null) {
+            throw new IllegalStateException("Missing OCR content");
+        }
+
+        StringBuilder text = new StringBuilder();
+        for (GeminiPartResponse part : candidate.content().parts()) {
+            if (part != null && !part.thought() && part.text() != null) {
+                text.append(part.text());
+            }
+        }
+        GeminiOcrResponse ocr = mapper.readValue(text.toString(), GeminiOcrResponse.class);
+        if (ocr == null || ocr.regions() == null) {
+            throw new IllegalStateException("Missing OCR regions");
+        }
+
+        List<OcrRegion> regions = new ArrayList<>();
+        for (GeminiOcrRegionResponse region : ocr.regions()) {
+            if (region == null || region.text() == null) {
+                throw new IllegalStateException("Invalid OCR region");
+            }
+            String value = region.text().trim();
+            if (!value.isBlank()) {
+                regions.add(new OcrRegion(value, null, null));
+            }
+        }
+        return new OcrResult(regions);
     }
 }
