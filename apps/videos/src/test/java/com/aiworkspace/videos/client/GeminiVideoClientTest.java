@@ -1,10 +1,16 @@
 package com.aiworkspace.videos.client;
 
+import com.aiworkspace.shared.exceptions.UpstreamServiceException;
+import com.aiworkspace.shared.media.TranscriptSegment;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GeminiVideoClientTest {
@@ -70,5 +76,63 @@ class GeminiVideoClientTest {
                         .path("file_data").path("file_uri").asText()
         );
         assertEquals("application/json", json.path("generationConfig").path("responseMimeType").asText());
+    }
+
+    @Test
+    void normalizesAnalysisAndIgnoresAdditionalProviderFields() throws Exception {
+        var result = client.parseAnalysis(buildResponse("""
+                {"summary":" Summary ","transcript":" Hello ","language":" en ","extra":true,
+                 "segments":[
+                   {"startMilliseconds":-100,"endMilliseconds":200,"text":" Hello ","speaker":" S1 ","id":1},
+                   {"startMilliseconds":900,"endMilliseconds":100,"text":"world","speaker":" "},
+                   {"text":" "},null
+                 ]}
+                """));
+
+        assertEquals("Summary", result.summary());
+        assertEquals("Hello", result.transcript());
+        assertEquals("en", result.language());
+        assertEquals(List.of(
+                new TranscriptSegment(0, 200, "S1", "Hello"),
+                new TranscriptSegment(900, 900, null, "world")
+        ), result.segments());
+    }
+
+    @Test
+    void defaultsMissingOptionalAnalysisFields() throws Exception {
+        var result = client.parseAnalysis(buildResponse("{\"summary\":\"No speech\"}"));
+
+        assertEquals("", result.transcript());
+        assertNull(result.language());
+        assertEquals(List.of(), result.segments());
+    }
+
+    @Test
+    void rejectsInvalidAnalysisAndMissingSummary() throws Exception {
+        for (String analysis : List.of("null", "{}", "{invalid", "{\"summary\":\" \"}")) {
+            String response = buildResponse(analysis);
+            assertThrows(UpstreamServiceException.class, () -> client.parseAnalysis(response));
+        }
+    }
+
+    @Test
+    void rejectsInvalidOrIncompleteResponseEnvelopes() {
+        for (String body : List.of(
+                "", "null", "{invalid", "{}", "{\"candidates\":[]}",
+                "{\"candidates\":[{\"content\":{}}]}"
+        )) {
+            assertThrows(UpstreamServiceException.class, () -> client.parseAnalysis(body));
+        }
+    }
+
+    private String buildResponse(String analysis) throws Exception {
+        return objectMapper.writeValueAsString(Map.of(
+                "usageMetadata", Map.of("totalTokenCount", 10),
+                "candidates", List.of(Map.of(
+                        "finishReason", "STOP", "content", Map.of(
+                                "role", "model", "parts", List.of(Map.of("text", analysis))
+                        )
+                ))
+        ));
     }
 }

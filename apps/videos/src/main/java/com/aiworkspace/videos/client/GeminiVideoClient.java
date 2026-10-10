@@ -2,10 +2,14 @@ package com.aiworkspace.videos.client;
 
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.aiworkspace.shared.media.TranscriptSegment;
+import com.aiworkspace.shared.models.GeminiCandidateResponse;
+import com.aiworkspace.shared.models.GeminiPartResponse;
+import com.aiworkspace.shared.models.GeminiResponse;
 import com.aiworkspace.videos.interfaces.VideoUnderstandingProvider;
 import com.aiworkspace.videos.interfaces.YouTubeVideoUnderstandingProvider;
+import com.aiworkspace.videos.models.GeminiVideoAnalysisResponse;
+import com.aiworkspace.videos.models.GeminiVideoSegmentResponse;
 import com.aiworkspace.videos.models.VideoAnalysis;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -132,22 +136,20 @@ public class GeminiVideoClient implements VideoUnderstandingProvider, YouTubeVid
     }
 
     VideoAnalysis parseAnalysis(String responseBody) {
-        JsonNode responseJson = parseResponseJson(responseBody);
-        JsonNode candidates = responseJson.path("candidates");
-        if (!candidates.isArray() || candidates.isEmpty()) {
+        GeminiResponse response = parseResponse(responseBody, GeminiResponse.class);
+        if (response == null || response.candidates() == null || response.candidates().isEmpty()) {
             throw new UpstreamServiceException("Gemini", "Gemini did not return any candidates");
         }
 
-        JsonNode parts = candidates.get(0).path("content").path("parts");
-        if (!parts.isArray()) {
+        GeminiCandidateResponse candidate = response.candidates().getFirst();
+        if (candidate == null || candidate.content() == null || candidate.content().parts() == null) {
             throw new UpstreamServiceException("Gemini", "Gemini did not return response content");
         }
 
         StringBuilder content = new StringBuilder();
-        for (JsonNode part : parts) {
-            JsonNode text = part.get("text");
-            if (text != null && !text.isNull()) {
-                content.append(text.asText());
+        for (GeminiPartResponse part : candidate.content().parts()) {
+            if (part != null && part.text() != null) {
+                content.append(part.text());
             }
         }
 
@@ -155,16 +157,19 @@ public class GeminiVideoClient implements VideoUnderstandingProvider, YouTubeVid
         if (result.isEmpty()) {
             throw new UpstreamServiceException("Gemini", "Gemini returned an empty video description");
         }
-        JsonNode analysisJson = parseResponseJson(result);
-        String summary = readTextValue(analysisJson, "summary").trim();
+        GeminiVideoAnalysisResponse analysis = parseResponse(result, GeminiVideoAnalysisResponse.class);
+        if (analysis == null) {
+            throw new UpstreamServiceException("Gemini", "Gemini returned an invalid response");
+        }
+        String summary = analysis.summary() == null ? "" : analysis.summary().trim();
         if (summary.isEmpty()) {
             throw new UpstreamServiceException("Gemini", "Gemini returned an empty video summary");
         }
         return new VideoAnalysis(
                 summary,
-                readTextValue(analysisJson, "transcript").trim(),
-                readNormalizedOptionalText(analysisJson, "language"),
-                parseSegments(analysisJson.path("segments"))
+                analysis.transcript() == null ? "" : analysis.transcript().trim(),
+                readNormalizedOptionalText(analysis.language()),
+                parseSegments(analysis.segments())
         );
     }
 
@@ -191,36 +196,33 @@ public class GeminiVideoClient implements VideoUnderstandingProvider, YouTubeVid
         );
     }
 
-    private List<TranscriptSegment> parseSegments(JsonNode segmentsJson) {
-        if (!segmentsJson.isArray()) {
+    private List<TranscriptSegment> parseSegments(List<GeminiVideoSegmentResponse> responseSegments) {
+        if (responseSegments == null) {
             return List.of();
         }
         List<TranscriptSegment> segments = new ArrayList<>();
-        for (JsonNode segment : segmentsJson) {
-            String text = readTextValue(segment, "text").trim();
+        for (GeminiVideoSegmentResponse segment : responseSegments) {
+            if (segment == null) {
+                continue;
+            }
+            String text = segment.text() == null ? "" : segment.text().trim();
             if (text.isEmpty()) {
                 continue;
             }
-            long start = Math.max(0L, segment.path("startMilliseconds").asLong());
-            long end = Math.max(start, segment.path("endMilliseconds").asLong());
-            segments.add(new TranscriptSegment(start, end, readNormalizedOptionalText(segment, "speaker"), text));
+            long start = Math.max(0L, segment.startMilliseconds());
+            long end = Math.max(start, segment.endMilliseconds());
+            segments.add(new TranscriptSegment(start, end, readNormalizedOptionalText(segment.speaker()), text));
         }
         return List.copyOf(segments);
     }
 
-    private String readTextValue(JsonNode json, String fieldName) {
-        JsonNode value = json.get(fieldName);
-        return value == null || value.isNull() ? "" : value.asText();
+    private String readNormalizedOptionalText(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private String readNormalizedOptionalText(JsonNode json, String fieldName) {
-        String value = readTextValue(json, fieldName);
-        return value.isBlank() ? null : value.trim();
-    }
-
-    private JsonNode parseResponseJson(String responseBody) {
+    private <T> T parseResponse(String responseBody, Class<T> responseType) {
         try {
-            return objectMapper.readTree(responseBody);
+            return objectMapper.readValue(responseBody == null ? "" : responseBody, responseType);
         } catch (IOException exception) {
             throw new UpstreamServiceException("Gemini", "Gemini returned an invalid response", exception);
         }
