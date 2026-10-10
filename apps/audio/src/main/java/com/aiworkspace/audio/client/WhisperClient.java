@@ -2,9 +2,11 @@ package com.aiworkspace.audio.client;
 
 import com.aiworkspace.audio.interfaces.SpeechToTextProvider;
 import com.aiworkspace.audio.models.TranscriptionResponse;
+import com.aiworkspace.audio.models.WhisperResponse;
+import com.aiworkspace.audio.models.WhisperSegmentResponse;
+import com.aiworkspace.audio.models.WhisperTimestampsResponse;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.aiworkspace.shared.media.TranscriptSegment;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -64,14 +66,7 @@ public class WhisperClient implements SpeechToTextProvider {
             throw new UpstreamServiceException("Whisper", "Whisper returned HTTP " + response.statusCode());
         }
 
-        JsonNode responseJson;
-        try {
-            responseJson = objectMapper.readTree(response.body() == null ? "" : response.body());
-        } catch (IOException exception) {
-            throw new UpstreamServiceException("Whisper", "Whisper returned an invalid response", exception);
-        }
-
-        return parseTranscription(responseJson);
+        return parseTranscription(response.body());
     }
 
     private URI buildTranscriptionUri() {
@@ -101,53 +96,60 @@ public class WhisperClient implements SpeechToTextProvider {
         return filename.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    private String readTextValue(JsonNode json, String fieldName) {
-        JsonNode value = json.get(fieldName);
-        return value == null || value.isNull() ? "" : value.asText();
-    }
+    TranscriptionResponse parseTranscription(String responseBody) {
+        WhisperResponse whisperResponse;
+        try {
+            whisperResponse = objectMapper.readValue(
+                    responseBody == null ? "" : responseBody,
+                    WhisperResponse.class
+            );
+        } catch (IOException exception) {
+            throw new UpstreamServiceException("Whisper", "Whisper returned an invalid response", exception);
+        }
+        if (whisperResponse == null) {
+            throw new UpstreamServiceException("Whisper", "Whisper returned an invalid response");
+        }
 
-    TranscriptionResponse parseTranscription(JsonNode responseJson) {
         return new TranscriptionResponse(
-                readTextValue(responseJson, "text"),
-                readTextValue(responseJson, "language"),
-                parseSegments(responseJson.path("segments"))
+                whisperResponse.text() == null ? "" : whisperResponse.text(),
+                whisperResponse.language() == null ? "" : whisperResponse.language(),
+                parseSegments(whisperResponse.segments())
         );
     }
 
-    private List<TranscriptSegment> parseSegments(JsonNode segmentsJson) {
-        if (!segmentsJson.isArray()) {
+    private List<TranscriptSegment> parseSegments(List<WhisperSegmentResponse> whisperSegments) {
+        if (whisperSegments == null) {
             return List.of();
         }
 
         List<TranscriptSegment> segments = new ArrayList<>();
-        for (JsonNode segmentJson : segmentsJson) {
-            String text = readFirstNonBlankText(segmentJson, "text", "transcript").trim();
+        for (WhisperSegmentResponse segment : whisperSegments) {
+            if (segment == null) {
+                continue;
+            }
+            String text = readFirstNonBlankText(segment.text(), segment.transcript()).trim();
             if (text.isEmpty()) {
                 continue;
             }
-            long start = readTimestampMilliseconds(segmentJson, "start", "from");
-            long end = Math.max(start, readTimestampMilliseconds(segmentJson, "end", "to"));
-            String speaker = readNormalizedOptionalText(segmentJson, "speaker");
+            WhisperTimestampsResponse timestamps = segment.timestamps();
+            long start = readTimestampMilliseconds(segment.start(), timestamps == null ? null : timestamps.from());
+            long end = Math.max(start, readTimestampMilliseconds(
+                    segment.end(), timestamps == null ? null : timestamps.to()
+            ));
+            String speaker = readNormalizedOptionalText(segment.speaker());
             segments.add(new TranscriptSegment(start, end, speaker, text));
         }
         return List.copyOf(segments);
     }
 
-    private long readTimestampMilliseconds(JsonNode segmentJson, String directField, String nestedField) {
-        JsonNode value = segmentJson.get(directField);
-        if (value == null || value.isNull()) {
-            value = segmentJson.path("timestamps").get(nestedField);
-        }
-        if (value == null || value.isNull()) {
-            return 0L;
-        }
-        if (value.isNumber()) {
-            return Math.max(0L, Math.round(value.asDouble() * 1000));
-        }
-        return parseTimestamp(value.asText());
+    private long readTimestampMilliseconds(String directTimestamp, String nestedTimestamp) {
+        return parseTimestamp(directTimestamp == null ? nestedTimestamp : directTimestamp);
     }
 
     private long parseTimestamp(String value) {
+        if (value == null) {
+            return 0L;
+        }
         String[] parts = value.trim().split(":");
         try {
             double seconds = 0;
@@ -160,13 +162,14 @@ public class WhisperClient implements SpeechToTextProvider {
         }
     }
 
-    private String readFirstNonBlankText(JsonNode json, String firstField, String secondField) {
-        String first = readTextValue(json, firstField);
-        return first.isBlank() ? readTextValue(json, secondField) : first;
+    private String readFirstNonBlankText(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        return second == null ? "" : second;
     }
 
-    private String readNormalizedOptionalText(JsonNode json, String fieldName) {
-        String value = readTextValue(json, fieldName);
-        return value.isBlank() ? null : value.trim();
+    private String readNormalizedOptionalText(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }
