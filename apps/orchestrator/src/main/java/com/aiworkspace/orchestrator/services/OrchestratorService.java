@@ -1,22 +1,26 @@
 package com.aiworkspace.orchestrator.services;
 
 import com.aiworkspace.audio.models.AudioTranscriptionResponse;
-import com.aiworkspace.audio.services.AudioService;
 import com.aiworkspace.documents.models.TextDocumentUploadResponse;
 import com.aiworkspace.documents.models.WebPageExtractRequest;
 import com.aiworkspace.documents.models.WebPageExtractResponse;
 import com.aiworkspace.documents.services.DocumentService;
 import com.aiworkspace.images.models.ImageDescriptionResponse;
-import com.aiworkspace.images.services.ImageService;
-import com.aiworkspace.knowledge.services.KnowledgeService;
+import com.aiworkspace.orchestrator.models.AudioSourceProcessingResult;
+import com.aiworkspace.orchestrator.models.DocumentSourceProcessingResult;
+import com.aiworkspace.orchestrator.models.ImageSourceProcessingResult;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
 import com.aiworkspace.orchestrator.models.IngestionStepStatus;
 import com.aiworkspace.orchestrator.models.OrchestrationContent;
 import com.aiworkspace.orchestrator.models.OrchestrationSubmission;
 import com.aiworkspace.orchestrator.models.RecoveryClaim;
-import com.aiworkspace.orchestrator.models.SourceRecoveryTask;
 import com.aiworkspace.orchestrator.models.SourceProcessingResult;
+import com.aiworkspace.orchestrator.models.SourceRecoveryTask;
+import com.aiworkspace.orchestrator.models.SubmittedContent;
+import com.aiworkspace.orchestrator.models.VideoSourceProcessingResult;
+import com.aiworkspace.orchestrator.models.WebPageSourceProcessingResult;
+import com.aiworkspace.orchestrator.models.YouTubeSourceProcessingResult;
 import com.aiworkspace.videos.models.VideoDescriptionResponse;
 import com.aiworkspace.videos.models.YouTubeVideoIngestionRequest;
 import com.aiworkspace.videos.models.YouTubeVideoIngestionResponse;
@@ -38,15 +42,16 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
+@RequiredArgsConstructor
 public class OrchestratorService {
 
     private static final Logger log = LoggerFactory.getLogger(OrchestratorService.class);
@@ -56,92 +61,11 @@ public class OrchestratorService {
     private final WorkspaceFileService workspaceFileService;
     private final IngestionJobService ingestionJobService;
     private final WorkspaceService workspaceService;
+    @Qualifier("orchestratorTaskExecutor")
     private final Executor executor;
     private final OrchestratorValidator orchestratorValidator;
     private final SourceLifecycleCoordinator lifecycleCoordinator;
     private final WorkspaceSourceProcessingService sourceProcessingService;
-
-    public OrchestratorService(
-            DocumentService documentService,
-            AudioService audioService,
-            ImageService imageService,
-            VideoService videoService,
-            WorkspaceFileService workspaceFileService,
-            KnowledgeService knowledgeService,
-            IngestionJobService ingestionJobService,
-            WorkspaceService workspaceService,
-            @Qualifier("orchestratorTaskExecutor") Executor executor
-    ) {
-        this(
-                documentService,
-                audioService,
-                imageService,
-                videoService,
-                workspaceFileService,
-                knowledgeService,
-                ingestionJobService,
-                workspaceService,
-                executor,
-                new OrchestratorValidator(),
-                new SourceLifecycleCoordinator(ingestionJobService, workspaceFileService),
-                new WorkspaceSourceProcessingService(documentService, audioService, imageService, videoService,
-                        workspaceFileService, knowledgeService)
-        );
-    }
-
-    public OrchestratorService(
-            DocumentService documentService,
-            AudioService audioService,
-            ImageService imageService,
-            VideoService videoService,
-            WorkspaceFileService workspaceFileService,
-            KnowledgeService knowledgeService,
-            IngestionJobService ingestionJobService,
-            WorkspaceService workspaceService,
-            Executor executor,
-            OrchestratorValidator orchestratorValidator
-    ) {
-        this(documentService, audioService, imageService, videoService, workspaceFileService, knowledgeService,
-                ingestionJobService, workspaceService, executor, orchestratorValidator,
-                new SourceLifecycleCoordinator(ingestionJobService, workspaceFileService),
-                new WorkspaceSourceProcessingService(documentService, audioService, imageService, videoService,
-                        workspaceFileService, knowledgeService));
-    }
-
-    public OrchestratorService(
-            DocumentService documentService,
-            AudioService audioService,
-            ImageService imageService,
-            VideoService videoService,
-            WorkspaceFileService workspaceFileService,
-            KnowledgeService knowledgeService,
-            IngestionJobService ingestionJobService,
-            WorkspaceService workspaceService,
-            @Qualifier("orchestratorTaskExecutor") Executor executor,
-            OrchestratorValidator orchestratorValidator,
-            SourceLifecycleCoordinator lifecycleCoordinator,
-            WorkspaceSourceProcessingService sourceProcessingService
-    ) {
-        this(documentService, videoService, workspaceFileService, ingestionJobService, workspaceService,
-                executor, orchestratorValidator, lifecycleCoordinator, sourceProcessingService);
-    }
-
-    @Autowired
-    public OrchestratorService(DocumentService documentService, VideoService videoService,
-            WorkspaceFileService workspaceFileService, IngestionJobService ingestionJobService,
-            WorkspaceService workspaceService, @Qualifier("orchestratorTaskExecutor") Executor executor,
-            OrchestratorValidator orchestratorValidator, SourceLifecycleCoordinator lifecycleCoordinator,
-            WorkspaceSourceProcessingService sourceProcessingService) {
-        this.documentService = documentService;
-        this.videoService = videoService;
-        this.workspaceFileService = workspaceFileService;
-        this.ingestionJobService = ingestionJobService;
-        this.workspaceService = workspaceService;
-        this.executor = executor;
-        this.orchestratorValidator = orchestratorValidator;
-        this.lifecycleCoordinator = lifecycleCoordinator;
-        this.sourceProcessingService = sourceProcessingService;
-    }
 
     public OrchestrationSubmission process(
             String ownerId,
@@ -209,7 +133,7 @@ public class OrchestratorService {
                 ownerId, workspaceId, IngestionContentType.DOCUMENTS, WorkspaceFileSourceType.DOCUMENT,
                 new OrchestrationContent(filename, contentType, content));
         try {
-            return ((SourceProcessingResult.Document) processSynchronously(submitted)).response();
+            return ((DocumentSourceProcessingResult) processSynchronously(submitted)).response();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IOException("Document ingestion was interrupted", exception);
@@ -221,7 +145,7 @@ public class OrchestratorService {
         SubmittedContent submitted = createUploadedSource(
                 ownerId, workspaceId, IngestionContentType.AUDIO, WorkspaceFileSourceType.AUDIO,
                 new OrchestrationContent(filename, contentType, content));
-        return ((SourceProcessingResult.Audio) processSynchronously(submitted)).response();
+        return ((AudioSourceProcessingResult) processSynchronously(submitted)).response();
     }
 
     public ImageDescriptionResponse ingestImage(String ownerId, String workspaceId, String filename,
@@ -229,7 +153,7 @@ public class OrchestratorService {
         SubmittedContent submitted = createUploadedSource(
                 ownerId, workspaceId, IngestionContentType.IMAGES, WorkspaceFileSourceType.IMAGE,
                 new OrchestrationContent(filename, contentType, content));
-        return ((SourceProcessingResult.Image) processSynchronously(submitted)).response();
+        return ((ImageSourceProcessingResult) processSynchronously(submitted)).response();
     }
 
     public VideoDescriptionResponse ingestVideo(String ownerId, String workspaceId, String filename,
@@ -237,7 +161,7 @@ public class OrchestratorService {
         SubmittedContent submitted = createUploadedSource(
                 ownerId, workspaceId, IngestionContentType.VIDEOS, WorkspaceFileSourceType.VIDEO,
                 new OrchestrationContent(filename, contentType, content));
-        return ((SourceProcessingResult.Video) processSynchronously(submitted)).response();
+        return ((VideoSourceProcessingResult) processSynchronously(submitted)).response();
     }
 
     public WebPageExtractResponse ingestWebPage(String ownerId, WebPageExtractRequest request) throws IOException {
@@ -252,7 +176,7 @@ public class OrchestratorService {
                 .build());
         SubmittedContent submitted = new SubmittedContent(IngestionContentType.DOCUMENTS, source, null);
         try {
-            return ((SourceProcessingResult.WebPage) processSynchronously(submitted)).response();
+            return ((WebPageSourceProcessingResult) processSynchronously(submitted)).response();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IOException("Web page ingestion was interrupted", exception);
@@ -273,7 +197,7 @@ public class OrchestratorService {
                 .sourceUrl(canonicalUrl)
                 .contentType("video/youtube")
                 .build());
-        return ((SourceProcessingResult.YouTube) processSynchronously(
+        return ((YouTubeSourceProcessingResult) processSynchronously(
                 new SubmittedContent(IngestionContentType.VIDEOS, source, null))).response();
     }
 
@@ -495,12 +419,5 @@ public class OrchestratorService {
             case IMAGE -> IngestionContentType.IMAGES;
             case VIDEO, YOUTUBE -> IngestionContentType.VIDEOS;
         };
-    }
-
-    private record SubmittedContent(
-            IngestionContentType contentType,
-            WorkspaceFile file,
-            OrchestrationContent original
-    ) {
     }
 }

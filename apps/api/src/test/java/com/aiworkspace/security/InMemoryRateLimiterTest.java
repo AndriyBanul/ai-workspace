@@ -1,5 +1,6 @@
 package com.aiworkspace.security;
 
+import com.aiworkspace.models.RateLimitDecision;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -18,7 +19,7 @@ class InMemoryRateLimiterTest {
 
         assertTrue(limiter.acquire("api:client-1", 2).allowed());
         assertTrue(limiter.acquire("api:client-1", 2).allowed());
-        InMemoryRateLimiter.RateLimitDecision denied = limiter.acquire("api:client-1", 2);
+        RateLimitDecision denied = limiter.acquire("api:client-1", 2);
 
         assertFalse(denied.allowed());
         assertEquals(50, denied.retryAfterSeconds());

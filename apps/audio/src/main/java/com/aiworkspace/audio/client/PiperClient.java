@@ -1,7 +1,9 @@
 package com.aiworkspace.audio.client;
 
-import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.interfaces.TextToSpeechProvider;
+import com.aiworkspace.audio.models.PcmAudioFormat;
+import com.aiworkspace.audio.models.SynthesizedSpeech;
+import com.aiworkspace.audio.models.WyomingEvent;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,14 +52,14 @@ public class PiperClient implements TextToSpeechProvider {
 
             writeEvent(outputStream, "synthesize", Map.of("text", text));
 
-            AudioFormat audioFormat = null;
+            PcmAudioFormat audioFormat = null;
             ByteArrayOutputStream pcmAudio = new ByteArrayOutputStream();
 
             while (true) {
                 WyomingEvent event = readEvent(inputStream);
 
                 if ("audio-start".equals(event.type())) {
-                    audioFormat = AudioFormat.from(event.data());
+                    audioFormat = PcmAudioFormat.from(event.data());
                 } else if ("audio-chunk".equals(event.type())) {
                     pcmAudio.writeBytes(event.payload());
                 } else if ("audio-stop".equals(event.type())) {
@@ -133,7 +135,7 @@ public class PiperClient implements TextToSpeechProvider {
         }
     }
 
-    private byte[] wav(AudioFormat audioFormat, byte[] pcmAudio) throws IOException {
+    private byte[] wav(PcmAudioFormat audioFormat, byte[] pcmAudio) throws IOException {
         int channels = audioFormat.channels();
         int sampleRate = audioFormat.rate();
         int bytesPerSample = audioFormat.width();
@@ -174,19 +176,5 @@ public class PiperClient implements TextToSpeechProvider {
     private void writeShortLittleEndian(OutputStream outputStream, int value) throws IOException {
         outputStream.write(value & 0xff);
         outputStream.write((value >> 8) & 0xff);
-    }
-
-    private record WyomingEvent(String type, JsonNode data, byte[] payload) {
-    }
-
-    private record AudioFormat(int rate, int width, int channels) {
-
-        static AudioFormat from(JsonNode data) {
-            return new AudioFormat(
-                    data.path("rate").asInt(),
-                    data.path("width").asInt(),
-                    data.path("channels").asInt()
-            );
-        }
     }
 }

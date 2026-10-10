@@ -11,6 +11,8 @@ import ai.onnxruntime.OrtSession;
 import com.aiworkspace.knowledge.config.KnowledgeRerankingProperties;
 import com.aiworkspace.knowledge.interfaces.TextReranker;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
+import com.aiworkspace.knowledge.models.RerankerRuntime;
+import com.aiworkspace.knowledge.models.ScoredKnowledgeCandidate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -28,7 +30,7 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
     private final KnowledgeRerankingProperties properties;
     private final Object initializationLock = new Object();
     private final Object inferenceLock = new Object();
-    private volatile Runtime runtime;
+    private volatile RerankerRuntime runtime;
 
     public OnnxTextReranker(KnowledgeRerankingProperties properties) {
         this.properties = properties;
@@ -51,27 +53,27 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
             throw new IllegalArgumentException("Reranking limit must be positive");
         }
 
-        List<ScoredCandidate> scored = new ArrayList<>(candidates.size());
-        Runtime activeRuntime = runtime();
+        List<ScoredKnowledgeCandidate> scored = new ArrayList<>(candidates.size());
+        RerankerRuntime activeRuntime = runtime();
         synchronized (inferenceLock) {
             for (int from = 0; from < candidates.size(); from += properties.batchSize()) {
                 int to = Math.min(from + properties.batchSize(), candidates.size());
                 List<Double> scores = score(activeRuntime, query, candidates.subList(from, to));
                 for (int index = 0; index < scores.size(); index++) {
-                    scored.add(new ScoredCandidate(candidates.get(from + index), scores.get(index), from + index));
+                    scored.add(new ScoredKnowledgeCandidate(candidates.get(from + index), scores.get(index), from + index));
                 }
             }
         }
 
         return scored.stream()
-                .sorted(Comparator.comparingDouble(ScoredCandidate::score).reversed()
-                        .thenComparingInt(ScoredCandidate::originalRank))
+                .sorted(Comparator.comparingDouble(ScoredKnowledgeCandidate::score).reversed()
+                        .thenComparingInt(ScoredKnowledgeCandidate::originalRank))
                 .limit(Math.min(limit, candidates.size()))
-                .map(ScoredCandidate::item)
+                .map(ScoredKnowledgeCandidate::item)
                 .toList();
     }
 
-    private List<Double> score(Runtime activeRuntime, String query, List<KnowledgeItem> candidates)
+    private List<Double> score(RerankerRuntime activeRuntime, String query, List<KnowledgeItem> candidates)
             throws IOException {
         PairList<String, String> pairs = new PairList<>(candidates.size());
         for (KnowledgeItem candidate : candidates) {
@@ -133,8 +135,8 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
         return List.copyOf(scores);
     }
 
-    private Runtime runtime() throws IOException {
-        Runtime current = runtime;
+    private RerankerRuntime runtime() throws IOException {
+        RerankerRuntime current = runtime;
         if (current != null) {
             return current;
         }
@@ -146,7 +148,7 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
         }
     }
 
-    private Runtime loadRuntime() throws IOException {
+    private RerankerRuntime loadRuntime() throws IOException {
         ResourceCacheService cache = new ResourceCacheService(properties.cacheDirectory());
         try {
             var model = cache.getCachedResource(properties.modelUri());
@@ -161,7 +163,7 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
             }
             try {
                 OrtSession session = OrtEnvironment.getEnvironment().createSession(model.getFile().getAbsolutePath());
-                return new Runtime(tokenizer, session);
+                return new RerankerRuntime(tokenizer, session);
             } catch (IOException | OrtException exception) {
                 tokenizer.close();
                 throw exception;
@@ -180,18 +182,12 @@ public class OnnxTextReranker implements TextReranker, DisposableBean {
 
     @Override
     public void destroy() throws Exception {
-        Runtime current = runtime;
+        RerankerRuntime current = runtime;
         runtime = null;
         if (current != null) {
             current.session().close();
             current.tokenizer().close();
         }
-    }
-
-    private record Runtime(HuggingFaceTokenizer tokenizer, OrtSession session) {
-    }
-
-    private record ScoredCandidate(KnowledgeItem item, double score, int originalRank) {
     }
 
     @FunctionalInterface

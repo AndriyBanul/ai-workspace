@@ -1,5 +1,7 @@
 package com.aiworkspace.security;
 
+import com.aiworkspace.models.RateLimitDecision;
+import com.aiworkspace.models.RateLimitWindow;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
@@ -13,7 +15,7 @@ public class InMemoryRateLimiter {
     private static final long WINDOW_SECONDS = 60;
     private static final long CLEANUP_INTERVAL = 1_000;
 
-    private final Map<String, Window> windows = new ConcurrentHashMap<>();
+    private final Map<String, RateLimitWindow> windows = new ConcurrentHashMap<>();
     private final AtomicLong requestCount = new AtomicLong();
     private final Clock clock;
 
@@ -35,11 +37,11 @@ public class InMemoryRateLimiter {
 
         long epochSecond = Instant.now(clock).getEpochSecond();
         long windowStart = epochSecond - Math.floorMod(epochSecond, WINDOW_SECONDS);
-        Window updated = windows.compute(key, (ignored, current) -> {
+        RateLimitWindow updated = windows.compute(key, (ignored, current) -> {
             if (current == null || current.startedAtEpochSecond() != windowStart) {
-                return new Window(windowStart, 1);
+                return new RateLimitWindow(windowStart, 1);
             }
-            return new Window(windowStart, Math.min(Integer.MAX_VALUE, current.count() + 1));
+            return new RateLimitWindow(windowStart, Math.min(Integer.MAX_VALUE, current.count() + 1));
         });
 
         if (requestCount.incrementAndGet() % CLEANUP_INTERVAL == 0) {
@@ -48,11 +50,5 @@ public class InMemoryRateLimiter {
 
         long retryAfter = Math.max(1, windowStart + WINDOW_SECONDS - epochSecond);
         return new RateLimitDecision(updated.count() <= limit, retryAfter);
-    }
-
-    public record RateLimitDecision(boolean allowed, long retryAfterSeconds) {
-    }
-
-    private record Window(long startedAtEpochSecond, int count) {
     }
 }

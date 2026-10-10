@@ -70,6 +70,9 @@ If this file conflicts with other project guidance, follow this file first unles
 - Services call provider clients, but should not expose provider DTOs.
 - Keep service methods focused and named by product behavior.
 - Prefer constructor injection.
+- Prefer Lombok `@RequiredArgsConstructor` with `final` dependency fields over hand-written constructors that only assign dependencies, including in services, controllers, and clients.
+- Preserve Spring injection annotations such as `@Qualifier` on generated constructor parameters through Lombok configuration when needed.
+- Keep explicit constructors when they perform necessary initialization or validation beyond assigning dependencies; keep test-only convenience construction in test helpers.
 - Keep validation separate from normalization/trimming for required input values:
   - use dedicated validation methods such as `validateName(name)`, `validateWorkspaceId(workspaceId)`, and `validateJobId(jobId)`;
   - call `.trim()` at the point where the value is passed further, such as into an entity, repository query, provider call, or response model.
@@ -88,6 +91,7 @@ If this file conflicts with other project guidance, follow this file first unles
 ## Models And Entities
 
 - Use records for simple immutable DTO/model objects.
+- Keep model records in separate top-level files in the owning module's `models` package, rather than declaring them inside services, controllers, or clients.
 - Add Lombok `@Builder` to model records and entity classes when it improves construction readability in tests and business code.
 - For JPA entities, prefer Lombok boilerplate:
   - `@Getter`
@@ -137,12 +141,13 @@ If this file conflicts with other project guidance, follow this file first unles
 
 ## Testing
 
-- Run `cd apps && ./gradlew test` after code changes.
+- Run tests only when Andrii explicitly asks. This overrides automatic test-execution requirements elsewhere in the project guidance.
+- When tests are requested after code changes, run `cd apps && ./gradlew test`.
 - Add focused unit tests for service validation and business behavior.
 - Add ownership/security tests for workspace-scoped endpoints.
 - Use context tests to catch Spring wiring issues.
 - Test coverage should scale with risk and module impact.
-- Run `cd apps && ./gradlew clean test` after refactors involving annotation processing, MapStruct, Lombok, generated code, or package moves.
+- When tests are requested after refactors involving annotation processing, MapStruct, Lombok, generated code, or package moves, run `cd apps && ./gradlew clean test`.
 - Run `cd apps && ./gradlew :api:bootJar` after runtime wiring, configuration, dependency, or package changes.
 - Keep `git diff --check` clean before committing.
 

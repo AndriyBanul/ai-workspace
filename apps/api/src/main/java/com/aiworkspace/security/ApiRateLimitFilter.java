@@ -1,7 +1,7 @@
 package com.aiworkspace.security;
 
 import com.aiworkspace.config.SecurityProperties;
-import com.aiworkspace.security.InMemoryRateLimiter.RateLimitDecision;
+import com.aiworkspace.models.RateLimitDecision;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

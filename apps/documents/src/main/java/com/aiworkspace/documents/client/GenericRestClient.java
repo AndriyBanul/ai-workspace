@@ -2,6 +2,7 @@ package com.aiworkspace.documents.client;
 
 import com.aiworkspace.documents.config.WebPageFetchProperties;
 import com.aiworkspace.documents.models.FetchedWebPage;
+import com.aiworkspace.documents.models.WebPageHttpResponse;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import java.io.IOException;
 import java.net.Inet4Address;
@@ -42,7 +43,7 @@ public class GenericRestClient {
         URI uri = parseSafeHttpUri(rawUrl);
 
         for (int redirectCount = 0; redirectCount <= properties.maxRedirects(); redirectCount++) {
-            WebResponse response = executeGet(uri);
+            WebPageHttpResponse response = executeGet(uri);
             if (isRedirect(response.statusCode())) {
                 uri = redirectUri(uri, response.headers());
                 continue;
@@ -69,7 +70,7 @@ public class GenericRestClient {
         throw new IllegalArgumentException("URL redirected too many times");
     }
 
-    private WebResponse executeGet(URI uri) throws IOException {
+    private WebPageHttpResponse executeGet(URI uri) throws IOException {
         try {
             return restClient.get()
                     .uri(uri)
@@ -84,7 +85,7 @@ public class GenericRestClient {
                             throw new IllegalArgumentException(maxResponseSizeMessage());
                         }
 
-                        return new WebResponse(
+                        return new WebPageHttpResponse(
                                 response.getStatusCode(),
                                 response.getHeaders(),
                                 body
@@ -235,8 +236,5 @@ public class GenericRestClient {
 
     private String maxResponseSizeMessage() {
         return "Web page response must not be larger than " + properties.maxResponseBytes() + " bytes";
-    }
-
-    private record WebResponse(HttpStatusCode statusCode, HttpHeaders headers, byte[] body) {
     }
 }

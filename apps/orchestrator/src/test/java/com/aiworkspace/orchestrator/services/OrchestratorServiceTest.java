@@ -6,10 +6,6 @@ import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.documents.models.DocumentFailureCode;
 import com.aiworkspace.documents.models.ParsedTextDocument;
 import com.aiworkspace.documents.services.DocumentService;
-import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
-import com.aiworkspace.workspaces.models.WorkspaceFile;
-import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
-import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.services.ImageService;
 import com.aiworkspace.knowledge.models.KnowledgeItem;
@@ -31,7 +27,11 @@ import com.aiworkspace.orchestrator.models.SourceRecoveryTask;
 import com.aiworkspace.orchestrator.repositories.IngestionJobRepository;
 import com.aiworkspace.videos.models.VideoDescription;
 import com.aiworkspace.videos.services.VideoService;
+import com.aiworkspace.workspaces.models.CreateWorkspaceFileRequest;
 import com.aiworkspace.workspaces.models.Workspace;
+import com.aiworkspace.workspaces.models.WorkspaceFile;
+import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
+import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -82,7 +82,7 @@ class OrchestratorServiceTest {
                 new SourceCompletionService(jobs, files, recovery), keeper, IngestionTelemetry.NOOP);
         CapturingExecutor executor = new CapturingExecutor();
         OrchestratorService service = new OrchestratorService(
-                documents, audio, images, videos, files, knowledge, jobs, new TestWorkspaceService(), executor,
+                documents, videos, files, jobs, new TestWorkspaceService(), executor,
                 new OrchestratorValidator(), lifecycle,
                 new WorkspaceSourceProcessingService(documents, audio, images, videos, files, knowledge));
 
@@ -114,7 +114,7 @@ class OrchestratorServiceTest {
         CapturingKnowledgeRepository knowledgeRepository = new CapturingKnowledgeRepository();
         CapturingIngestionJobRepository jobRepository = new CapturingIngestionJobRepository();
         TestWorkspaceFileService workspaceFileService = new TestWorkspaceFileService();
-        OrchestratorService service = new OrchestratorService(
+        OrchestratorService service = createOrchestratorService(
                 new EmptyRejectingDocumentService(),
                 new TestAudioService(),
                 new TestImageService(),
@@ -141,7 +141,7 @@ class OrchestratorServiceTest {
         CapturingKnowledgeRepository knowledgeRepository = new CapturingKnowledgeRepository();
         CapturingIngestionJobRepository jobRepository = new CapturingIngestionJobRepository();
         TestWorkspaceFileService workspaceFileService = new TestWorkspaceFileService();
-        OrchestratorService service = new OrchestratorService(
+        OrchestratorService service = createOrchestratorService(
                 new TestDocumentService(),
                 new TestAudioService(),
                 new TestImageService(),
@@ -189,7 +189,7 @@ class OrchestratorServiceTest {
         CapturingKnowledgeRepository knowledgeRepository = new CapturingKnowledgeRepository();
         CapturingIngestionJobRepository jobRepository = new CapturingIngestionJobRepository();
         TestWorkspaceFileService workspaceFileService = new TestWorkspaceFileService();
-        OrchestratorService service = new OrchestratorService(
+        OrchestratorService service = createOrchestratorService(
                 new TestDocumentService(),
                 new FailingAudioService(),
                 new TestImageService(),
@@ -228,7 +228,7 @@ class OrchestratorServiceTest {
                 new IngestionJobDetailsMapperImpl()
         );
         CapturingExecutor executor = new CapturingExecutor();
-        OrchestratorService service = new OrchestratorService(
+        OrchestratorService service = createOrchestratorService(
                 new TestDocumentService(),
                 new TestAudioService(),
                 new TestImageService(),
@@ -260,6 +260,25 @@ class OrchestratorServiceTest {
         assertEquals(0, knowledgeRepository.items.size());
         assertStepStatus(jobRepository, submission.jobId(), IngestionContentType.DOCUMENTS, IngestionStepStatus.FAILED);
         assertEquals(WorkspaceFileStatus.FAILED, workspaceFileService.files.get("file-1").status());
+    }
+
+    private static OrchestratorService createOrchestratorService(
+            DocumentService documentService,
+            AudioService audioService,
+            ImageService imageService,
+            VideoService videoService,
+            WorkspaceFileService workspaceFileService,
+            KnowledgeService knowledgeService,
+            IngestionJobService ingestionJobService,
+            WorkspaceService workspaceService,
+            Executor executor
+    ) {
+        return new OrchestratorService(
+                documentService, videoService, workspaceFileService, ingestionJobService, workspaceService,
+                executor, new OrchestratorValidator(),
+                new SourceLifecycleCoordinator(ingestionJobService, workspaceFileService),
+                new WorkspaceSourceProcessingService(documentService, audioService, imageService, videoService,
+                        workspaceFileService, knowledgeService));
     }
 
     private static class TestDocumentService extends DocumentService {
