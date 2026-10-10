@@ -20,7 +20,7 @@ public class AudioValidator {
             throw new IllegalArgumentException("File must not be larger than 25MB");
         }
 
-        String extension = extension(filename);
+        String extension = extractExtension(filename);
         if (!SUPPORTED_TRANSCRIPTION_EXTENSIONS.contains(extension)) {
             throw new IllegalArgumentException("Only WAV, MP3, MP4, and AVI files are supported");
         }
@@ -38,7 +38,7 @@ public class AudioValidator {
         }
     }
 
-    private String extension(String filename) {
+    private String extractExtension(String filename) {
         if (filename == null || filename.isBlank()) {
             return "";
         }

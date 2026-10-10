@@ -17,13 +17,13 @@ public record KnowledgeEmbeddingProperties(
     public KnowledgeEmbeddingProperties {
         enabled = enabled == null || enabled;
         model = model == null || model.isBlank() ? DEFAULT_MODEL : model.trim();
-        dimensions = positive(dimensions, 768, "Embedding dimensions");
-        batchSize = positive(batchSize, 32, "Embedding batch size");
-        candidateLimit = positive(candidateLimit, 100, "Search candidate limit");
-        rrfRankConstant = positive(rrfRankConstant, 30, "RRF rank constant");
+        dimensions = resolvePositiveValue(dimensions, 768, "Embedding dimensions");
+        batchSize = resolvePositiveValue(batchSize, 32, "Embedding batch size");
+        candidateLimit = resolvePositiveValue(candidateLimit, 100, "Search candidate limit");
+        rrfRankConstant = resolvePositiveValue(rrfRankConstant, 30, "RRF rank constant");
     }
 
-    private static int positive(Integer value, int defaultValue, String name) {
+    private static int resolvePositiveValue(Integer value, int defaultValue, String name) {
         int resolved = value == null ? defaultValue : value;
         if (resolved <= 0) {
             throw new IllegalArgumentException(name + " must be positive");

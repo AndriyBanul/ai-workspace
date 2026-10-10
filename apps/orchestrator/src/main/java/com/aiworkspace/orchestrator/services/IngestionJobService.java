@@ -59,7 +59,7 @@ public class IngestionJobService {
                         UUID.randomUUID().toString(),
                         jobId,
                         contentType,
-                        stepStatus(contentType, submittedTypes, skippedTypes),
+                        determineStepStatus(contentType, submittedTypes, skippedTypes),
                         null,
                         skippedTypes.contains(contentType) ? now : null,
                         null,
@@ -68,7 +68,7 @@ public class IngestionJobService {
                 .toList();
 
         ingestionJobRepository.create(job, steps);
-        return details(job, steps);
+        return toDetails(job, steps);
     }
 
     @Transactional(readOnly = true)
@@ -76,7 +76,7 @@ public class IngestionJobService {
         ingestionJobValidator.validateJobId(jobId);
         IngestionJob job = ingestionJobRepository.findJob(jobId.trim())
                 .orElseThrow(() -> new NoSuchElementException("Ingestion job was not found"));
-        return details(job, ingestionJobRepository.findSteps(job.id()));
+        return toDetails(job, ingestionJobRepository.findSteps(job.id()));
     }
 
     @Transactional(readOnly = true)
@@ -84,7 +84,7 @@ public class IngestionJobService {
         ingestionJobValidator.validateWorkspaceId(workspaceId);
         int size = Math.max(1, Math.min(limit, 100));
         return ingestionJobRepository.findRecentJobs(workspaceId.trim(), size).stream()
-                .map(job -> details(job, ingestionJobRepository.findSteps(job.id())))
+                .map(job -> toDetails(job, ingestionJobRepository.findSteps(job.id())))
                 .toList();
     }
 
@@ -143,7 +143,7 @@ public class IngestionJobService {
                 IngestionStepStatus.FAILED,
                 null,
                 now,
-                errorMessage(exception),
+                formatErrorMessage(exception),
                 exception instanceof DocumentProcessingException documentException
                         ? documentException.code().name()
                         : null
@@ -182,7 +182,7 @@ public class IngestionJobService {
         ingestionJobRepository.updateJobStatus(jobId.trim(), status, now, completedAt);
     }
 
-    private IngestionStepStatus stepStatus(
+    private IngestionStepStatus determineStepStatus(
             IngestionContentType contentType,
             Set<IngestionContentType> submitted,
             Set<IngestionContentType> skipped
@@ -198,7 +198,7 @@ public class IngestionJobService {
         return IngestionStepStatus.SKIPPED;
     }
 
-    private IngestionJobDetails details(IngestionJob job, List<IngestionJobStep> steps) {
+    private IngestionJobDetails toDetails(IngestionJob job, List<IngestionJobStep> steps) {
         return detailsMapper.toDetails(
                 job,
                 steps.stream()
@@ -218,7 +218,7 @@ public class IngestionJobService {
                 || status == IngestionJobStatus.FAILED;
     }
 
-    private String errorMessage(Exception exception) {
+    private String formatErrorMessage(Exception exception) {
         if (exception == null) {
             return "Unknown error";
         }

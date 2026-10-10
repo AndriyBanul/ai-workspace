@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class WebPageContentExtractor {
 
-    private static final String PARSER_VERSION = parserVersion();
+    private static final String PARSER_VERSION = buildParserVersion();
 
     ExtractedWebPage extract(FetchedWebPage page) throws IOException {
         if (!isHtml(page)) {
@@ -73,12 +73,12 @@ public class WebPageContentExtractor {
 
     private String decodePlainText(FetchedWebPage page) {
         byte[] body = page.body();
-        Charset charset = page.charset() == null ? charsetFromBom(body) : Charset.forName(page.charset());
-        int bomLength = bomLength(body, charset);
+        Charset charset = page.charset() == null ? detectCharsetFromBom(body) : Charset.forName(page.charset());
+        int bomLength = detectBomLength(body, charset);
         return normalizePlainText(new String(body, bomLength, body.length - bomLength, charset));
     }
 
-    private Charset charsetFromBom(byte[] body) {
+    private Charset detectCharsetFromBom(byte[] body) {
         if (body.length >= 2 && body[0] == (byte) 0xff && body[1] == (byte) 0xfe) {
             return StandardCharsets.UTF_16LE;
         }
@@ -88,7 +88,7 @@ public class WebPageContentExtractor {
         return StandardCharsets.UTF_8;
     }
 
-    private int bomLength(byte[] body, Charset charset) {
+    private int detectBomLength(byte[] body, Charset charset) {
         if (StandardCharsets.UTF_8.equals(charset)
                 && body.length >= 3
                 && body[0] == (byte) 0xef
@@ -115,7 +115,7 @@ public class WebPageContentExtractor {
     }
 
     private String extractMainHtmlContent(Document document) {
-        Element contentRoot = mainContentRoot(document);
+        Element contentRoot = findMainContentRoot(document);
         if (contentRoot == null) {
             return document.text().trim();
         }
@@ -128,11 +128,11 @@ public class WebPageContentExtractor {
 
         List<String> blocks = new ArrayList<>();
         for (Element element : cleanRoot.select("h1, h2, h3, h4, h5, h6, p, li, pre, tr")) {
-            if ((inside(element, "table") && !"tr".equals(element.tagName()))
-                    || ("p".equals(element.tagName()) && inside(element, "li"))) {
+            if ((isInside(element, "table") && !"tr".equals(element.tagName()))
+                    || ("p".equals(element.tagName()) && isInside(element, "li"))) {
                 continue;
             }
-            String text = htmlBlockText(element);
+            String text = extractHtmlBlockText(element);
             if (!text.isBlank() && (blocks.isEmpty() || !text.equals(blocks.getLast()))) {
                 blocks.add(text);
             }
@@ -140,7 +140,7 @@ public class WebPageContentExtractor {
         return blocks.isEmpty() ? cleanRoot.text().trim() : String.join("\n\n", blocks);
     }
 
-    private Element mainContentRoot(Document document) {
+    private Element findMainContentRoot(Document document) {
         for (String selector : List.of("main article", "[role=main] article", "article", "main", "[role=main]")) {
             Element root = document.selectFirst(selector);
             if (root != null) {
@@ -150,11 +150,11 @@ public class WebPageContentExtractor {
         return document.body();
     }
 
-    private boolean inside(Element element, String ancestorTag) {
+    private boolean isInside(Element element, String ancestorTag) {
         return element.parents().stream().anyMatch(parent -> ancestorTag.equals(parent.tagName()));
     }
 
-    private String htmlBlockText(Element element) {
+    private String extractHtmlBlockText(Element element) {
         String text;
         if ("tr".equals(element.tagName())) {
             text = element.children().stream()
@@ -179,7 +179,7 @@ public class WebPageContentExtractor {
         return text;
     }
 
-    private static String parserVersion() {
+    private static String buildParserVersion() {
         String jsoupVersion = Jsoup.class.getPackage().getImplementationVersion();
         return "ai-workspace-web-extractor-v2/jsoup-" + (jsoupVersion == null ? "unknown" : jsoupVersion);
     }

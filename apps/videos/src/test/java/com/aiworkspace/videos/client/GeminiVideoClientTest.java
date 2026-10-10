@@ -38,7 +38,7 @@ class GeminiVideoClientTest {
                 ))
         ));
 
-        var result = client.analysisFrom(response);
+        var result = client.parseAnalysis(response);
 
         assertEquals("A presenter addresses the camera.", result.summary());
         assertEquals("Hello.", result.transcript());
@@ -49,7 +49,7 @@ class GeminiVideoClientTest {
 
     @Test
     void requestsJsonSchemaForSummaryAndTranscript() throws Exception {
-        String body = client.requestBody(new byte[] {1, 2}, "video/mp4", "Analyze the video.");
+        String body = client.buildRequestBody(new byte[] {1, 2}, "video/mp4", "Analyze the video.");
 
         assertTrue(body.contains("application/json"));
         assertTrue(body.contains("startMilliseconds"));
@@ -58,7 +58,7 @@ class GeminiVideoClientTest {
 
     @Test
     void sendsYouTubeUrlAsProviderFileData() throws Exception {
-        String body = client.youtubeRequestBody(
+        String body = client.buildYouTubeRequestBody(
                 "https://www.youtube.com/watch?v=9hE5-98ZeCg",
                 "Analyze the video."
         );

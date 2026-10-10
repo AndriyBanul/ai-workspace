@@ -39,7 +39,7 @@ public class VideoController {
     ) throws IOException, InterruptedException {
         return ResponseEntity.ok(
                 orchestratorService.ingestVideo(
-                userAccountService.currentUserId(authentication),
+                userAccountService.getCurrentUserId(authentication),
                 workspaceId,
                 file.getOriginalFilename(),
                 file.getContentType(),
@@ -70,7 +70,7 @@ public class VideoController {
             Authentication authentication
     ) throws IOException, InterruptedException {
         return ResponseEntity.ok(orchestratorService.ingestYouTube(
-                userAccountService.currentUserId(authentication),
+                userAccountService.getCurrentUserId(authentication),
                 request
         ));
     }

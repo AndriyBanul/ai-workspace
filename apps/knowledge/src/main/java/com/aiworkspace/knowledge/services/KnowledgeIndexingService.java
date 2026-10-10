@@ -35,13 +35,13 @@ public class KnowledgeIndexingService {
             String value, KnowledgeSourceMetadata sourceMetadata) throws IOException {
         knowledgeValidator.validateKnowledgeItemContent(value);
         knowledgeValidator.validateWorkspaceId(workspaceId);
-        String sourceId = sourceMetadata == null ? null : normalized(sourceMetadata.sourceId());
+        String sourceId = sourceMetadata == null ? null : normalizeOptionalValue(sourceMetadata.sourceId());
         String generation = manifestService != null && sourceId != null ? UUID.randomUUID().toString() : null;
         KnowledgeItem item = KnowledgeItem.builder()
                 .id(sourceId == null ? UUID.randomUUID().toString()
                         : generation == null ? sourceId + ":0" : sourceId + ":" + generation + ":0")
                 .workspaceId(workspaceId.trim())
-                .source(source(sourceType, sourceName, jobId, sourceMetadata, generation))
+                .source(buildSource(sourceType, sourceName, jobId, sourceMetadata, generation))
                 .content(value.trim())
                 .createdAt(Instant.now())
                 .build();
@@ -58,11 +58,11 @@ public class KnowledgeIndexingService {
             throw new IllegalArgumentException(sourceLabel + " chunks must not be empty");
         }
 
-        String sourceIdentity = sourceMetadata == null ? UUID.randomUUID().toString() : normalized(sourceMetadata.sourceId());
+        String sourceIdentity = sourceMetadata == null ? UUID.randomUUID().toString() : normalizeOptionalValue(sourceMetadata.sourceId());
         if (sourceIdentity == null) {
             sourceIdentity = UUID.randomUUID().toString();
         }
-        String sourceId = sourceMetadata == null ? null : normalized(sourceMetadata.sourceId());
+        String sourceId = sourceMetadata == null ? null : normalizeOptionalValue(sourceMetadata.sourceId());
         String generation = manifestService != null && sourceId != null ? UUID.randomUUID().toString() : null;
 
         Instant createdAt = Instant.now();
@@ -78,19 +78,19 @@ public class KnowledgeIndexingService {
             items.add(KnowledgeItem.builder()
                     .id(chunkId)
                     .workspaceId(workspaceId.trim())
-                    .source(source(sourceType, sourceName, jobId, sourceMetadata, generation))
+                    .source(buildSource(sourceType, sourceName, jobId, sourceMetadata, generation))
                     .content(chunk.content().trim())
                     .chunkMetadata(KnowledgeChunkMetadata.builder()
                             .id(chunkId)
                             .sequence(chunk.sequence())
                             .sectionId(chunk.sectionId())
-                            .heading(normalized(chunk.heading()))
+                            .heading(normalizeOptionalValue(chunk.heading()))
                             .pageNumber(chunk.pageNumber())
                             .slideNumber(chunk.slideNumber())
-                            .sheetName(normalized(chunk.sheetName()))
+                            .sheetName(normalizeOptionalValue(chunk.sheetName()))
                             .startMilliseconds(chunk.startMilliseconds())
                             .endMilliseconds(chunk.endMilliseconds())
-                            .speaker(normalized(chunk.speaker()))
+                            .speaker(normalizeOptionalValue(chunk.speaker()))
                             .build())
                     .createdAt(createdAt)
                     .build());
@@ -145,7 +145,7 @@ public class KnowledgeIndexingService {
             throw new IllegalStateException("Text embedding provider is not configured");
         }
 
-        List<String> inputs = items.stream().map(this::embeddingInput).toList();
+        List<String> inputs = items.stream().map(this::buildEmbeddingInput).toList();
         List<List<Float>> embeddings = textEmbeddingProvider.embedDocuments(inputs);
         if (embeddings.size() != items.size()) {
             throw new IllegalStateException("Embedding provider returned an unexpected number of vectors");
@@ -168,14 +168,14 @@ public class KnowledgeIndexingService {
                             embedding,
                             textEmbeddingProvider.model(),
                             textEmbeddingProvider.dimensions(),
-                            sha256(inputs.get(index))))
+                            computeSha256(inputs.get(index))))
                     .createdAt(item.createdAt())
                     .build());
         }
         return List.copyOf(embeddedItems);
     }
 
-    private String embeddingInput(KnowledgeItem item) {
+    private String buildEmbeddingInput(KnowledgeItem item) {
         StringBuilder input = new StringBuilder();
         if (item.heading() != null && !item.heading().isBlank()) {
             input.append(item.heading()).append("\n\n");
@@ -186,7 +186,7 @@ public class KnowledgeIndexingService {
         return input.append(item.content()).toString();
     }
 
-    private String sha256(String value) {
+    private String computeSha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
@@ -195,20 +195,20 @@ public class KnowledgeIndexingService {
         }
     }
 
-    private String normalized(String value) {
+    private String normalizeOptionalValue(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private KnowledgeItemSource source(KnowledgeSourceType sourceType, String sourceName, String jobId,
+    private KnowledgeItemSource buildSource(KnowledgeSourceType sourceType, String sourceName, String jobId,
             KnowledgeSourceMetadata sourceMetadata, String generation) {
         return KnowledgeItemSource.builder()
                 .type(sourceType)
-                .name(normalized(sourceName))
-                .jobId(normalized(jobId))
-                .id(sourceMetadata == null ? null : normalized(sourceMetadata.sourceId()))
-                .url(sourceMetadata == null ? null : normalized(sourceMetadata.sourceUrl()))
+                .name(normalizeOptionalValue(sourceName))
+                .jobId(normalizeOptionalValue(jobId))
+                .id(sourceMetadata == null ? null : normalizeOptionalValue(sourceMetadata.sourceId()))
+                .url(sourceMetadata == null ? null : normalizeOptionalValue(sourceMetadata.sourceUrl()))
                 .extractedAt(sourceMetadata == null ? null : sourceMetadata.extractedAt())
-                .parserVersion(sourceMetadata == null ? null : normalized(sourceMetadata.parserVersion()))
+                .parserVersion(sourceMetadata == null ? null : normalizeOptionalValue(sourceMetadata.parserVersion()))
                 .generation(generation)
                 .build();
     }

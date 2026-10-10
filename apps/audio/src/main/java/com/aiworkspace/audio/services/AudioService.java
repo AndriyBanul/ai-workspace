@@ -52,7 +52,7 @@ public class AudioService {
         return synthesize(request.text());
     }
 
-    public String knowledgeText(AudioTranscription transcription) {
+    public String formatTranscriptForKnowledge(AudioTranscription transcription) {
         StringBuilder value = new StringBuilder();
         if (transcription.language() != null && !transcription.language().isBlank()) {
             value.append("Language: ").append(transcription.language().trim()).append("\n\n");
@@ -62,8 +62,8 @@ public class AudioService {
             return value.append(transcription.text().trim()).toString();
         }
         transcription.segments().forEach(segment -> value
-                .append('[').append(timestamp(segment.startMilliseconds()))
-                .append(" - ").append(timestamp(segment.endMilliseconds())).append("] ")
+                .append('[').append(formatTimestamp(segment.startMilliseconds()))
+                .append(" - ").append(formatTimestamp(segment.endMilliseconds())).append("] ")
                 .append(segment.speaker() == null || segment.speaker().isBlank()
                         ? ""
                         : segment.speaker().trim() + ": ")
@@ -71,7 +71,7 @@ public class AudioService {
         return value.toString().trim();
     }
 
-    public List<KnowledgeChunk> chunksForKnowledge(AudioTranscription transcription) {
+    public List<KnowledgeChunk> createKnowledgeChunks(AudioTranscription transcription) {
         if (transcription == null) {
             throw new IllegalArgumentException("Audio transcription must not be null");
         }
@@ -88,7 +88,7 @@ public class AudioService {
                     .sectionId(TRANSCRIPT_SECTION_ID)
                     .startMilliseconds(segment.startMilliseconds())
                     .endMilliseconds(segment.endMilliseconds())
-                    .speaker(normalizedSpeaker(segment.speaker()))
+                    .speaker(normalizeSpeaker(segment.speaker()))
                     .build());
         }
 
@@ -106,15 +106,15 @@ public class AudioService {
                 .build());
     }
 
-    public KnowledgeSourceMetadata knowledgeSourceMetadata(String sourceId) {
+    public KnowledgeSourceMetadata createKnowledgeSourceMetadata(String sourceId) {
         return new KnowledgeSourceMetadata(sourceId, null, Instant.now(), TRANSCRIPT_PARSER_VERSION);
     }
 
-    private String normalizedSpeaker(String speaker) {
+    private String normalizeSpeaker(String speaker) {
         return speaker == null || speaker.isBlank() ? null : speaker.trim();
     }
 
-    private String timestamp(long milliseconds) {
+    private String formatTimestamp(long milliseconds) {
         long totalSeconds = milliseconds / 1000;
         long hours = totalSeconds / 3600;
         long minutes = totalSeconds % 3600 / 60;

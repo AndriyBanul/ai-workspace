@@ -50,12 +50,12 @@ public class GeminiVideoClient implements VideoUnderstandingProvider, YouTubeVid
     @Override
     public VideoAnalysis analyze(byte[] videoContent, String mimeType, String prompt)
             throws IOException, InterruptedException {
-        return analyzeRequest(requestBody(videoContent, mimeType, prompt));
+        return analyzeRequest(buildRequestBody(videoContent, mimeType, prompt));
     }
 
     @Override
     public VideoAnalysis analyzeYouTube(String youtubeUrl, String prompt) throws IOException, InterruptedException {
-        return analyzeRequest(youtubeRequestBody(youtubeUrl, prompt));
+        return analyzeRequest(buildYouTubeRequestBody(youtubeUrl, prompt));
     }
 
     private VideoAnalysis analyzeRequest(String requestBody) {
@@ -65,13 +65,13 @@ public class GeminiVideoClient implements VideoUnderstandingProvider, YouTubeVid
 
         try {
             ResponseEntity<String> response = restClient.post()
-                    .uri(generationUri())
+                    .uri(buildGenerationUri())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)
                     .retrieve()
                     .toEntity(String.class);
 
-            return analysisFrom(response.getBody() == null ? "" : response.getBody());
+            return parseAnalysis(response.getBody() == null ? "" : response.getBody());
         } catch (RestClientResponseException exception) {
             throw new UpstreamServiceException(
                     "Gemini",
@@ -87,34 +87,34 @@ public class GeminiVideoClient implements VideoUnderstandingProvider, YouTubeVid
         }
     }
 
-    private URI generationUri() {
+    private URI buildGenerationUri() {
         String encodedApiKey = URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
         return URI.create(baseUri + "/models/" + model + ":generateContent?key=" + encodedApiKey);
     }
 
-    String requestBody(byte[] videoContent, String mimeType, String prompt) throws IOException {
+    String buildRequestBody(byte[] videoContent, String mimeType, String prompt) throws IOException {
         Map<String, Object> inlineData = new LinkedHashMap<>();
         inlineData.put("mime_type", mimeType);
         inlineData.put("data", Base64.getEncoder().encodeToString(videoContent));
 
-        Map<String, Object> textPart = Map.of("text", structuredPrompt(prompt));
+        Map<String, Object> textPart = Map.of("text", buildStructuredPrompt(prompt));
         Map<String, Object> videoPart = Map.of("inline_data", inlineData);
-        return requestBody(List.of(textPart, videoPart));
+        return buildRequestBody(List.of(textPart, videoPart));
     }
 
-    String youtubeRequestBody(String youtubeUrl, String prompt) throws IOException {
+    String buildYouTubeRequestBody(String youtubeUrl, String prompt) throws IOException {
         Map<String, Object> fileData = Map.of("file_uri", youtubeUrl);
         Map<String, Object> videoPart = Map.of("file_data", fileData);
-        Map<String, Object> textPart = Map.of("text", structuredPrompt(prompt));
-        return requestBody(List.of(videoPart, textPart));
+        Map<String, Object> textPart = Map.of("text", buildStructuredPrompt(prompt));
+        return buildRequestBody(List.of(videoPart, textPart));
     }
 
-    private String requestBody(List<Map<String, Object>> parts) throws IOException {
+    private String buildRequestBody(List<Map<String, Object>> parts) throws IOException {
         Map<String, Object> content = Map.of("parts", parts);
         Map<String, Object> generationConfig = Map.of(
                 "temperature", 0.1,
                 "responseMimeType", "application/json",
-                "responseSchema", responseSchema()
+                "responseSchema", buildResponseSchema()
         );
 
         Map<String, Object> body = new LinkedHashMap<>();
@@ -124,15 +124,15 @@ public class GeminiVideoClient implements VideoUnderstandingProvider, YouTubeVid
         return objectMapper.writeValueAsString(body);
     }
 
-    private String structuredPrompt(String prompt) {
+    private String buildStructuredPrompt(String prompt) {
         return prompt + "\n\n"
                 + "Return a visual summary and a verbatim spoken transcript. Include timed transcript segments "
                 + "in milliseconds. Use an empty transcript and empty segments when there is no speech. "
                 + "Do not infer words that are not audible. Speaker labels are optional.";
     }
 
-    VideoAnalysis analysisFrom(String responseBody) {
-        JsonNode responseJson = responseJson(responseBody);
+    VideoAnalysis parseAnalysis(String responseBody) {
+        JsonNode responseJson = parseResponseJson(responseBody);
         JsonNode candidates = responseJson.path("candidates");
         if (!candidates.isArray() || candidates.isEmpty()) {
             throw new UpstreamServiceException("Gemini", "Gemini did not return any candidates");
@@ -155,20 +155,20 @@ public class GeminiVideoClient implements VideoUnderstandingProvider, YouTubeVid
         if (result.isEmpty()) {
             throw new UpstreamServiceException("Gemini", "Gemini returned an empty video description");
         }
-        JsonNode analysisJson = responseJson(result);
-        String summary = textValue(analysisJson, "summary").trim();
+        JsonNode analysisJson = parseResponseJson(result);
+        String summary = readTextValue(analysisJson, "summary").trim();
         if (summary.isEmpty()) {
             throw new UpstreamServiceException("Gemini", "Gemini returned an empty video summary");
         }
         return new VideoAnalysis(
                 summary,
-                textValue(analysisJson, "transcript").trim(),
-                normalizedOptionalText(analysisJson, "language"),
-                segmentsFrom(analysisJson.path("segments"))
+                readTextValue(analysisJson, "transcript").trim(),
+                readNormalizedOptionalText(analysisJson, "language"),
+                parseSegments(analysisJson.path("segments"))
         );
     }
 
-    private Map<String, Object> responseSchema() {
+    private Map<String, Object> buildResponseSchema() {
         Map<String, Object> segment = Map.of(
                 "type", "OBJECT",
                 "properties", Map.of(
@@ -191,34 +191,34 @@ public class GeminiVideoClient implements VideoUnderstandingProvider, YouTubeVid
         );
     }
 
-    private List<TranscriptSegment> segmentsFrom(JsonNode segmentsJson) {
+    private List<TranscriptSegment> parseSegments(JsonNode segmentsJson) {
         if (!segmentsJson.isArray()) {
             return List.of();
         }
         List<TranscriptSegment> segments = new ArrayList<>();
         for (JsonNode segment : segmentsJson) {
-            String text = textValue(segment, "text").trim();
+            String text = readTextValue(segment, "text").trim();
             if (text.isEmpty()) {
                 continue;
             }
             long start = Math.max(0L, segment.path("startMilliseconds").asLong());
             long end = Math.max(start, segment.path("endMilliseconds").asLong());
-            segments.add(new TranscriptSegment(start, end, normalizedOptionalText(segment, "speaker"), text));
+            segments.add(new TranscriptSegment(start, end, readNormalizedOptionalText(segment, "speaker"), text));
         }
         return List.copyOf(segments);
     }
 
-    private String textValue(JsonNode json, String fieldName) {
+    private String readTextValue(JsonNode json, String fieldName) {
         JsonNode value = json.get(fieldName);
         return value == null || value.isNull() ? "" : value.asText();
     }
 
-    private String normalizedOptionalText(JsonNode json, String fieldName) {
-        String value = textValue(json, fieldName);
+    private String readNormalizedOptionalText(JsonNode json, String fieldName) {
+        String value = readTextValue(json, fieldName);
         return value.isBlank() ? null : value.trim();
     }
 
-    private JsonNode responseJson(String responseBody) {
+    private JsonNode parseResponseJson(String responseBody) {
         try {
             return objectMapper.readTree(responseBody);
         } catch (IOException exception) {

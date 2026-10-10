@@ -45,6 +45,8 @@ If this file conflicts with other project guidance, follow this file first unles
 
 ## Naming
 
+- Name methods that perform behavior with verbs or verb phrases that describe the actual operation, rather than nouns describing the result. For example, use `formatTranscriptForKnowledge` instead of `knowledgeText`.
+- Choose precise verbs such as `format`, `create`, `validate`, or `extract`; use `get` for retrieval and `is` / `has` for predicates. Preserve conventional record accessors and generated getters.
 - Prefer general module-level controller and service names:
   - `AudioController` / `AudioService`
   - `DocumentController` / `DocumentService`

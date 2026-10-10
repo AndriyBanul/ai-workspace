@@ -45,7 +45,7 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
     @Override
     public String answer(String question, String context) throws IOException {
         requireConfigured();
-        return generate(requestBody(question, context));
+        return generate(buildRequestBody(question, context));
     }
 
     @Override
@@ -62,7 +62,7 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
         if (limit < 1 || limit > 4) {
             throw new IllegalArgumentException("Search query limit must be between 1 and 4");
         }
-        String response = generate(queryExpansionRequestBody(question.trim(), limit));
+        String response = generate(buildQueryExpansionRequestBody(question.trim(), limit));
         try {
             JsonNode queries = objectMapper.readTree(response).path("queries");
             if (!queries.isArray()) {
@@ -93,13 +93,13 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
     private String generate(String body) {
         try {
             ResponseEntity<String> response = restClient.post()
-                    .uri(generationUri())
+                    .uri(buildGenerationUri())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
                     .toEntity(String.class);
 
-            return answerFrom(response.getBody() == null ? "" : response.getBody());
+            return parseAnswer(response.getBody() == null ? "" : response.getBody());
         } catch (RestClientResponseException exception) {
             throw new UpstreamServiceException(
                     "Gemini",
@@ -115,13 +115,13 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
         }
     }
 
-    private URI generationUri() {
+    private URI buildGenerationUri() {
         String encodedApiKey = URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
         return URI.create(baseUri + "/models/" + model + ":generateContent?key=" + encodedApiKey);
     }
 
-    private String requestBody(String question, String context) throws IOException {
-        Map<String, Object> textPart = Map.of("text", prompt(question, context));
+    private String buildRequestBody(String question, String context) throws IOException {
+        Map<String, Object> textPart = Map.of("text", buildAnswerPrompt(question, context));
         Map<String, Object> content = Map.of("parts", List.of(textPart));
         Map<String, Object> generationConfig = Map.of("temperature", 0.2);
 
@@ -131,7 +131,7 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
         ));
     }
 
-    private String queryExpansionRequestBody(String question, int limit) throws IOException {
+    private String buildQueryExpansionRequestBody(String question, int limit) throws IOException {
         String expansionPrompt = """
                 Search query rewrite policy v2.
                 Create up to %d optimized search queries for retrieving evidence that answers the user question.
@@ -170,7 +170,7 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
         ));
     }
 
-    private String prompt(String question, String context) {
+    private String buildAnswerPrompt(String question, String context) {
         return """
                 You answer questions using only the workspace context below.
                 Review every context chunk before deciding on the answer. Do not answer from the first relevant chunk alone.
@@ -188,8 +188,8 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
                 """.formatted(context, question);
     }
 
-    private String answerFrom(String responseBody) {
-        JsonNode responseJson = responseJson(responseBody);
+    private String parseAnswer(String responseBody) {
+        JsonNode responseJson = parseResponseJson(responseBody);
         JsonNode candidates = responseJson.path("candidates");
         if (!candidates.isArray() || candidates.isEmpty()) {
             throw new UpstreamServiceException("Gemini", "Gemini did not return any candidates");
@@ -216,7 +216,7 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
         return result;
     }
 
-    private JsonNode responseJson(String responseBody) {
+    private JsonNode parseResponseJson(String responseBody) {
         try {
             return objectMapper.readTree(responseBody);
         } catch (IOException exception) {

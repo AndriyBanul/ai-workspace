@@ -289,8 +289,8 @@ class OrchestratorServiceTest {
                 new SourceLifecycleCoordinator(
                         ingestionJobService,
                         workspaceFileService,
-                        SourceRecoveryTracker.noop(),
-                        new SourceCompletionService(ingestionJobService, workspaceFileService, SourceRecoveryTracker.noop(), null, null),
+                        SourceRecoveryTracker.createNoop(),
+                        new SourceCompletionService(ingestionJobService, workspaceFileService, SourceRecoveryTracker.createNoop(), null, null),
                         null,
                         IngestionTelemetry.NOOP),
                 new WorkspaceSourceProcessingService(documentService, audioService, imageService, videoService,

@@ -7,7 +7,7 @@ public record OcrResult(List<OcrRegion> regions) {
         regions = List.copyOf(regions);
     }
 
-    public String text() {
+    public String joinRegionText() {
         return regions.stream().map(OcrRegion::text).collect(java.util.stream.Collectors.joining("\n\n"));
     }
 }

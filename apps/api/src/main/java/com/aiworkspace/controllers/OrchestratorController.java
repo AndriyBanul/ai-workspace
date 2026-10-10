@@ -43,13 +43,13 @@ public class OrchestratorController {
             Authentication authentication
     ) throws IOException {
         OrchestrationSubmission submission = submissionService.submitUploads(
-                userAccountService.currentUserId(authentication),
+                userAccountService.getCurrentUserId(authentication),
                 workspaceId,
                 idempotencyKey,
-                contentFrom(document),
-                contentFrom(audio),
-                contentFrom(image),
-                contentFrom(video)
+                toOrchestrationContent(document),
+                toOrchestrationContent(audio),
+                toOrchestrationContent(image),
+                toOrchestrationContent(video)
         );
 
         return ResponseEntity.status(ACCEPTED).body(submission);
@@ -57,17 +57,17 @@ public class OrchestratorController {
 
     @GetMapping("/jobs/{jobId}")
     public ResponseEntity<IngestionJobDetails> getJob(@PathVariable String jobId, Authentication authentication) {
-        return ResponseEntity.ok(orchestratorService.findJob(userAccountService.currentUserId(authentication), jobId));
+        return ResponseEntity.ok(orchestratorService.findJob(userAccountService.getCurrentUserId(authentication), jobId));
     }
 
     @GetMapping("/jobs")
     public ResponseEntity<List<IngestionJobDetails>> listJobs(@RequestParam String workspaceId,
             @RequestParam(defaultValue = "50") int limit, Authentication authentication) {
         return ResponseEntity.ok(orchestratorService.listJobs(
-                userAccountService.currentUserId(authentication), workspaceId, limit));
+                userAccountService.getCurrentUserId(authentication), workspaceId, limit));
     }
 
-    private OrchestrationContent contentFrom(MultipartFile file) throws IOException {
+    private OrchestrationContent toOrchestrationContent(MultipartFile file) throws IOException {
         if (file == null) return null;
         String filename = file.getOriginalFilename();
         if (file.isEmpty() && (filename == null || filename.isBlank())) return null;

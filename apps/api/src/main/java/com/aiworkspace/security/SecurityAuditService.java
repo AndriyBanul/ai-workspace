@@ -17,12 +17,12 @@ public class SecurityAuditService {
             HttpServletRequest request, int status) {
         audit.info(
                 "security_event eventId={} type={} outcome={} actor={} method={} path={} status={} client={}",
-                UUID.randomUUID(), safeToken(eventType), safeToken(outcome), actorFingerprint(authentication),
-                safeToken(request.getMethod()), safePath(request.getRequestURI()), status,
+                UUID.randomUUID(), sanitizeToken(eventType), sanitizeToken(outcome), computeActorFingerprint(authentication),
+                sanitizeToken(request.getMethod()), sanitizePath(request.getRequestURI()), status,
                 SecurityFingerprint.of(request.getRemoteAddr()));
     }
 
-    private String actorFingerprint(Authentication authentication) {
+    private String computeActorFingerprint(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()
                 || authentication.getName() == null || authentication.getName().isBlank()) {
             return "anonymous";
@@ -33,14 +33,14 @@ public class SecurityAuditService {
         return SecurityFingerprint.of(authentication.getName().trim().toLowerCase());
     }
 
-    private String safeToken(String value) {
+    private String sanitizeToken(String value) {
         if (value == null || value.isBlank()) {
             return "unknown";
         }
         return value.replaceAll("[^A-Za-z0-9_.-]", "_");
     }
 
-    private String safePath(String path) {
+    private String sanitizePath(String path) {
         if (path == null || path.isBlank()) {
             return "/";
         }

@@ -32,7 +32,7 @@ final class DocumentStructureContentHandler extends DefaultHandler {
     private int pageCount;
     private int slideCount;
 
-    void detectedContentType(String contentType) {
+    void setDetectedContentType(String contentType) {
         spreadsheet = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".equals(contentType)
                 || "application/vnd.ms-excel".equals(contentType);
     }
@@ -40,8 +40,8 @@ final class DocumentStructureContentHandler extends DefaultHandler {
     @Override
     public void startElement(String uri, String localName, String qualifiedName, Attributes attributes) {
         locations.push(new DocumentLocation(pageNumber, slideNumber, sheetName));
-        String element = elementName(localName, qualifiedName);
-        String className = normalizedAttribute(attributes, "class");
+        String element = normalizeElementName(localName, qualifiedName);
+        String className = readNormalizedAttribute(attributes, "class");
 
         if (!spreadsheet && hasClass(className, "page")) {
             pageNumber = ++pageCount;
@@ -50,9 +50,9 @@ final class DocumentStructureContentHandler extends DefaultHandler {
             slideNumber = ++slideCount;
         }
         if ("table".equals(element)) {
-            String candidateSheetName = firstNonBlank(
-                    attribute(attributes, "name"),
-                    attribute(attributes, "title")
+            String candidateSheetName = resolveFirstNonBlank(
+                    readAttribute(attributes, "name"),
+                    readAttribute(attributes, "title")
             );
             if (candidateSheetName != null) {
                 sheetName = candidateSheetName;
@@ -62,7 +62,7 @@ final class DocumentStructureContentHandler extends DefaultHandler {
         }
 
         if (activeBlock == null) {
-            DocumentBlockType blockType = blockType(element);
+            DocumentBlockType blockType = resolveBlockType(element);
             if (blockType != null) {
                 activeBlock = new ActiveBlock(element, blockType, pageNumber, slideNumber, sheetName);
             }
@@ -82,7 +82,7 @@ final class DocumentStructureContentHandler extends DefaultHandler {
 
     @Override
     public void endElement(String uri, String localName, String qualifiedName) throws SAXException {
-        String element = elementName(localName, qualifiedName);
+        String element = normalizeElementName(localName, qualifiedName);
         if (activeBlock != null && activeBlock.element().equals(element)) {
             addBlock(activeBlock);
             activeBlock = null;
@@ -94,7 +94,7 @@ final class DocumentStructureContentHandler extends DefaultHandler {
         sheetName = previous.sheetName();
     }
 
-    List<DocumentTextBlock> blocks() {
+    List<DocumentTextBlock> collectBlocks() {
         if (blocks.isEmpty()) {
             String fallback = normalizeText(rawText.toString());
             if (!fallback.isBlank()) {
@@ -104,8 +104,8 @@ final class DocumentStructureContentHandler extends DefaultHandler {
         return List.copyOf(blocks);
     }
 
-    String structuredText(int maxCharacters) {
-        List<DocumentTextBlock> extractedBlocks = blocks();
+    String renderStructuredText(int maxCharacters) {
+        List<DocumentTextBlock> extractedBlocks = collectBlocks();
         if (extractedBlocks.isEmpty()) {
             return normalizeText(rawText.toString());
         }
@@ -134,7 +134,7 @@ final class DocumentStructureContentHandler extends DefaultHandler {
         }
     }
 
-    private DocumentBlockType blockType(String element) {
+    private DocumentBlockType resolveBlockType(String element) {
         if (element.matches("h[1-6]")) {
             return DocumentBlockType.HEADING;
         }
@@ -156,7 +156,7 @@ final class DocumentStructureContentHandler extends DefaultHandler {
                 .trim();
     }
 
-    private String elementName(String localName, String qualifiedName) {
+    private String normalizeElementName(String localName, String qualifiedName) {
         String value = localName == null || localName.isBlank() ? qualifiedName : localName;
         int prefixSeparator = value.indexOf(':');
         if (prefixSeparator >= 0) {
@@ -165,18 +165,18 @@ final class DocumentStructureContentHandler extends DefaultHandler {
         return value.toLowerCase(Locale.ROOT);
     }
 
-    private String normalizedAttribute(Attributes attributes, String name) {
-        String value = attribute(attributes, name);
+    private String readNormalizedAttribute(Attributes attributes, String name) {
+        String value = readAttribute(attributes, name);
         return value == null ? "" : value.toLowerCase(Locale.ROOT);
     }
 
-    private String attribute(Attributes attributes, String name) {
+    private String readAttribute(Attributes attributes, String name) {
         String value = attributes.getValue(name);
         if (value != null) {
             return value;
         }
         for (int index = 0; index < attributes.getLength(); index++) {
-            if (name.equalsIgnoreCase(elementName(attributes.getLocalName(index), attributes.getQName(index)))) {
+            if (name.equalsIgnoreCase(normalizeElementName(attributes.getLocalName(index), attributes.getQName(index)))) {
                 return attributes.getValue(index);
             }
         }
@@ -192,7 +192,7 @@ final class DocumentStructureContentHandler extends DefaultHandler {
         return false;
     }
 
-    private String firstNonBlank(String first, String second) {
+    private String resolveFirstNonBlank(String first, String second) {
         if (first != null && !first.isBlank()) {
             return first.trim();
         }

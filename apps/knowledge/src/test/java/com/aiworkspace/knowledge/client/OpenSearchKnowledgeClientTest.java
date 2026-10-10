@@ -257,12 +257,12 @@ class OpenSearchKnowledgeClientTest {
         server.expect(requestTo("http://localhost:9200/knowledge-items-v3")).andRespond(withSuccess());
         server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_mapping")).andRespond(withSuccess());
         server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
-                .andRespond(withSuccess(searchResponse("lexical", "Lexical only"), MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(buildSearchResponse("lexical", "Lexical only"), MediaType.APPLICATION_JSON));
         server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
                 .andExpect(content().string(containsString("\"knn\"")))
                 .andExpect(content().string(containsString("\"vector\":[1.0,0.0,0.0]")))
                 .andExpect(content().string(containsString("\"workspaceId\":\"workspace-1\"")))
-                .andRespond(withSuccess(searchResponse("vector", "Semantic match"), MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(buildSearchResponse("vector", "Semantic match"), MediaType.APPLICATION_JSON));
         OpenSearchKnowledgeClient client = OpenSearchKnowledgeClientTestFactory.create(
                 URI.create("http://localhost:9200"),
                 builder.build(),
@@ -289,7 +289,7 @@ class OpenSearchKnowledgeClientTest {
         server.expect(requestTo("http://localhost:9200/knowledge-items-v3/_search"))
                 .andExpect(content().string(containsString("\"knn\"")))
                 .andExpect(content().string(containsString("\"vector\":[1.0,0.0,0.0]")))
-                .andRespond(withSuccess(searchResponse("vector", "Semantic match"), MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(buildSearchResponse("vector", "Semantic match"), MediaType.APPLICATION_JSON));
         OpenSearchKnowledgeClient client = OpenSearchKnowledgeClientTestFactory.create(
                 URI.create("http://localhost:9200"),
                 builder.build(),
@@ -305,7 +305,7 @@ class OpenSearchKnowledgeClientTest {
         server.verify();
     }
 
-    private String searchResponse(String id, String content) {
+    private String buildSearchResponse(String id, String content) {
         return """
                 {"hits":{"hits":[{"_id":"%s","_source":{
                   "id":"%s","workspaceId":"workspace-1","sourceType":"documents",

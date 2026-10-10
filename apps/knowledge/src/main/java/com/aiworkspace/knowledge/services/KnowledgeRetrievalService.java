@@ -55,21 +55,21 @@ public class KnowledgeRetrievalService {
 
     private List<KnowledgeItem> retrieve(String workspaceId, String question) throws IOException {
         if (textEmbeddingProvider == null || !textEmbeddingProvider.isConfigured()) {
-            telemetry.fallback("unconfigured");
+            telemetry.recordFallback("unconfigured");
             return knowledgeRepository.searchKnowledgeItems(workspaceId, question, RETRIEVAL_LIMIT);
         }
 
-        List<String> queries = searchQueries(question);
+        List<String> queries = buildSearchQueries(question);
         if (queries.size() > 1) {
             return retrieveExpanded(workspaceId, question, queries);
         }
 
-        int candidateLimit = retrievalCandidateLimit();
+        int candidateLimit = calculateRetrievalCandidateLimit();
         List<KnowledgeItem> candidates;
         String stage = "embedding";
         try {
             List<Float> queryEmbedding = textEmbeddingProvider.embedQuery(question);
-            if (searchProperties.vectorOnly()) {
+            if (searchProperties.isVectorOnly()) {
                 stage = "vector_search";
                 candidates = knowledgeRepository.searchKnowledgeItemsByVector(
                         workspaceId, queryEmbedding, candidateLimit, candidateLimit);
@@ -80,7 +80,7 @@ public class KnowledgeRetrievalService {
                         embeddingProperties.rrfRankConstant());
             }
         } catch (IOException | RuntimeException exception) {
-            telemetry.fallback(stage);
+            telemetry.recordFallback(stage);
             LOGGER.warn("Retrieval fallback stage={} workspaceId={} exception={}",
                     stage, workspaceId, exception.getClass().getSimpleName());
             return knowledgeRepository.searchKnowledgeItems(workspaceId, question, RETRIEVAL_LIMIT);
@@ -89,7 +89,7 @@ public class KnowledgeRetrievalService {
         return rerank(question, candidates);
     }
 
-    private List<String> searchQueries(String question) {
+    private List<String> buildSearchQueries(String question) {
         List<String> queries = new ArrayList<>();
         queries.add(question);
         if (searchQueryProvider == null || !searchQueryProvider.isConfigured() || !queryExpansionProperties.enabled()) {
@@ -103,7 +103,7 @@ public class KnowledgeRetrievalService {
                 }
             }
         } catch (IOException | RuntimeException exception) {
-            telemetry.fallback("query_expansion");
+            telemetry.recordFallback("query_expansion");
             LOGGER.warn("Query expansion fallback exception={}", exception.getClass().getSimpleName());
         }
         return List.copyOf(queries);
@@ -111,20 +111,20 @@ public class KnowledgeRetrievalService {
 
     private List<KnowledgeItem> retrieveExpanded(String workspaceId, String question, List<String> queries)
             throws IOException {
-        int perQueryLimit = retrievalCandidateLimit();
-        int mergedLimit = rerankingEnabled() ? rerankingProperties.candidateLimit() : RETRIEVAL_LIMIT;
+        int perQueryLimit = calculateRetrievalCandidateLimit();
+        int mergedLimit = isRerankingEnabled() ? rerankingProperties.candidateLimit() : RETRIEVAL_LIMIT;
         List<List<KnowledgeItem>> rankings = new ArrayList<>();
         try {
             for (String query : queries) {
                 List<Float> embedding = textEmbeddingProvider.embedQuery(query);
                 rankings.add(knowledgeRepository.searchKnowledgeItemsByVector(
                         workspaceId, embedding, perQueryLimit, perQueryLimit));
-                if (!searchProperties.vectorOnly()) {
+                if (!searchProperties.isVectorOnly()) {
                     rankings.add(knowledgeRepository.searchKnowledgeItems(workspaceId, query, perQueryLimit));
                 }
             }
         } catch (IOException | RuntimeException exception) {
-            telemetry.fallback("expanded_search");
+            telemetry.recordFallback("expanded_search");
             LOGGER.warn("Expanded retrieval fallback workspaceId={} exception={}",
                     workspaceId, exception.getClass().getSimpleName());
             return knowledgeRepository.searchKnowledgeItems(workspaceId, question, RETRIEVAL_LIMIT);
@@ -133,13 +133,13 @@ public class KnowledgeRetrievalService {
                 rankings, mergedLimit, embeddingProperties.rrfRankConstant()));
     }
 
-    private int retrievalCandidateLimit() {
+    private int calculateRetrievalCandidateLimit() {
         int limit = Math.max(RETRIEVAL_LIMIT, embeddingProperties.candidateLimit());
-        return rerankingEnabled() ? Math.max(limit, rerankingProperties.candidateLimit()) : limit;
+        return isRerankingEnabled() ? Math.max(limit, rerankingProperties.candidateLimit()) : limit;
     }
 
     private List<KnowledgeItem> rerank(String question, List<KnowledgeItem> candidates) {
-        if (!rerankingEnabled()) {
+        if (!isRerankingEnabled()) {
             return candidates.stream().limit(RETRIEVAL_LIMIT).toList();
         }
         try {
@@ -147,14 +147,14 @@ public class KnowledgeRetrievalService {
                     question, candidates.stream().limit(rerankingProperties.candidateLimit()).toList(),
                     rerankingProperties.resultLimit()));
         } catch (IOException | RuntimeException exception) {
-            telemetry.fallback("reranking");
+            telemetry.recordFallback("reranking");
             LOGGER.warn("Reranking fallback model={} exception={}",
                     rerankingProperties.model(), exception.getClass().getSimpleName());
             return candidates.stream().limit(RETRIEVAL_LIMIT).toList();
         }
     }
 
-    private boolean rerankingEnabled() {
+    private boolean isRerankingEnabled() {
         return textReranker != null && textReranker.isConfigured() && rerankingProperties.enabled();
     }
 }

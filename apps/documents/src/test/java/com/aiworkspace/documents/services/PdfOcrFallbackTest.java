@@ -28,7 +28,7 @@ class PdfOcrFallbackTest {
             return new OcrResult(List.of(new OcrRegion("Scanned page " + calls.incrementAndGet(), null, null)));
         }, new PdfOcrProperties(true, 5, 72, 1_000_000L), limits);
         var original = List.of(new DocumentTextBlock(1, DocumentBlockType.PARAGRAPH, "Existing text", 2, null, null));
-        var result = fallback.apply(pdf(3), original);
+        var result = fallback.apply(createPdf(3), original);
         assertEquals(2, calls.get());
         assertEquals(List.of("Scanned page 1", "Existing text", "Scanned page 2"), result.stream().map(DocumentTextBlock::text).toList());
         assertEquals(List.of(1, 2, 3), result.stream().map(DocumentTextBlock::pageNumber).toList());
@@ -40,23 +40,23 @@ class PdfOcrFallbackTest {
         var original = List.of(new DocumentTextBlock(1, DocumentBlockType.PARAGRAPH, "Text", 1, null, null));
         var fallback = new PdfOcrFallback((image, mime) -> { fail("Must not call OCR"); return null; },
                 new PdfOcrProperties(true, null, null, null), limits);
-        assertSame(original, fallback.apply(pdf(1), original));
+        assertSame(original, fallback.apply(createPdf(1), original));
         var disabled = new PdfOcrFallback((image, mime) -> { fail("Must not call OCR"); return null; },
                 new PdfOcrProperties(false, null, null, null), limits);
-        assertSame(original, disabled.apply(pdf(2), original));
+        assertSame(original, disabled.apply(createPdf(2), original));
     }
 
     @Test
     void rejectsPageLimitBeforeCallingProvider() throws Exception {
         var fallback = new PdfOcrFallback((image, mime) -> { fail("Must not call OCR"); return null; },
                 new PdfOcrProperties(true, 1, null, null), limits);
-        var bytes = pdf(2);
+        var bytes = createPdf(2);
         assertThrows(DocumentProcessingException.class, () -> fallback.apply(bytes, List.of()));
     }
 
     @Test
     void rejectsOversizedTextAndPropagatesProviderFailure() throws Exception {
-        var bytes = pdf(1);
+        var bytes = createPdf(1);
         var fallback = new PdfOcrFallback((image, mime) -> new OcrResult(List.of(new OcrRegion("X".repeat(100), null, null))),
                 new PdfOcrProperties(true, null, null, null), new DocumentExtractionProperties(32, null, null, null, null));
         assertThrows(DocumentProcessingException.class, () -> fallback.apply(bytes, List.of()));
@@ -65,7 +65,7 @@ class PdfOcrFallbackTest {
         assertThrows(UpstreamServiceException.class, () -> failed.apply(bytes, List.of()));
     }
 
-    private byte[] pdf(int pages) throws Exception {
+    private byte[] createPdf(int pages) throws Exception {
         try (var pdf = new PDDocument(); var output = new ByteArrayOutputStream()) {
             for (int i = 0; i < pages; i++) pdf.addPage(new PDPage());
             pdf.save(output);

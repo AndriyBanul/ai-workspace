@@ -37,7 +37,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
                 ? properties.rateLimit().registrationRequestsPerMinute()
                 : properties.rateLimit().requestsPerMinute();
         String scope = registration ? "registration" : "api";
-        RateLimitDecision decision = rateLimiter.acquire(scope + ':' + clientFingerprint(request), limit);
+        RateLimitDecision decision = rateLimiter.acquire(scope + ':' + computeClientFingerprint(request), limit);
         if (decision.allowed()) {
             filterChain.doFilter(request, response);
             return;
@@ -49,7 +49,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
                 "Too many requests", "RATE_LIMIT_EXCEEDED");
     }
 
-    private String clientFingerprint(HttpServletRequest request) {
+    private String computeClientFingerprint(HttpServletRequest request) {
         String address = request.getRemoteAddr();
         if (address == null || address.isBlank()) {
             address = "unknown";

@@ -1,5 +1,17 @@
 # Active Handoff
 
+## Verb-based method names (2026-10-10)
+
+- Added the behavior-method naming preference to `JAVA_DEVELOPER_CODE_PREFERENCES.md`.
+- Renamed 242 audited declarations and their references across 90 Java files,
+  including private helpers, predicates, test factories, and a JUnit method-source string.
+- Preserved conventional accessors, framework overrides, Spring bean names, and HTTP paths.
+  `WorkspaceFile.urlBacked()` became `hasSourceUrl()` to avoid adding a JSON getter property.
+- Production, test, and test-fixture compilation, `verifyModuleBoundaries`, and
+  `git diff --check` passed. Tests were not run, per Andrii's preferences.
+- The detailed applied-name list is in `docs/agent-context/method-naming-audit-2026-10-10.md`.
+  Unrelated pre-existing documentation changes and local artifacts are outside this delivery.
+
 ## Architecture improvement sequence (2026-09-23)
 
 - Step 1: Spring Security now permits the Vite `/assets/**` bundle and no longer

@@ -26,7 +26,7 @@ class WorkspaceLifecycleServiceTest {
                 new TestWorkspaceService(events),
                 new TestKnowledgeService(events, false),
                 null,
-                SourceRecoveryTracker.noop(),
+                SourceRecoveryTracker.createNoop(),
                 null
         );
 
@@ -42,7 +42,7 @@ class WorkspaceLifecycleServiceTest {
                 new TestWorkspaceService(events),
                 new TestKnowledgeService(events, true),
                 null,
-                SourceRecoveryTracker.noop(),
+                SourceRecoveryTracker.createNoop(),
                 null
         );
 
@@ -61,7 +61,7 @@ class WorkspaceLifecycleServiceTest {
                 new TestWorkspaceService(events, WorkspaceFileStatus.PROCESSING),
                 new TestKnowledgeService(events, false),
                 null,
-                SourceRecoveryTracker.noop(),
+                SourceRecoveryTracker.createNoop(),
                 null
         );
 
@@ -80,7 +80,7 @@ class WorkspaceLifecycleServiceTest {
                 new TestWorkspaceService(events),
                 new TestKnowledgeService(events, false),
                 null,
-                SourceRecoveryTracker.noop(),
+                SourceRecoveryTracker.createNoop(),
                 null
         );
 

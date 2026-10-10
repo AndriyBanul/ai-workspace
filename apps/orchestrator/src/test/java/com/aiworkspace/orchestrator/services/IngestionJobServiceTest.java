@@ -32,7 +32,7 @@ class IngestionJobServiceTest {
     @Test
     void createsJobWithSubmittedAndSkippedSteps() {
         CapturingRepository repository = new CapturingRepository();
-        IngestionJobService service = newService(repository);
+        IngestionJobService service = createService(repository);
 
         var job = service.createJob(
                 " workspace-1 ",
@@ -43,14 +43,14 @@ class IngestionJobServiceTest {
         assertNotNull(job.jobId());
         assertEquals("workspace-1", job.workspaceId());
         assertEquals(IngestionJobStatus.RUNNING, job.status());
-        assertEquals(IngestionStepStatus.PENDING, repository.step(job.jobId(), IngestionContentType.DOCUMENTS).status());
-        assertEquals(IngestionStepStatus.SKIPPED, repository.step(job.jobId(), IngestionContentType.IMAGES).status());
+        assertEquals(IngestionStepStatus.PENDING, repository.createStep(job.jobId(), IngestionContentType.DOCUMENTS).status());
+        assertEquals(IngestionStepStatus.SKIPPED, repository.createStep(job.jobId(), IngestionContentType.IMAGES).status());
     }
 
     @Test
     void marksCompletedJobWhenAllSubmittedStepsComplete() {
         CapturingRepository repository = new CapturingRepository();
-        IngestionJobService service = newService(repository);
+        IngestionJobService service = createService(repository);
         var job = service.createJob(
                 "workspace-1",
                 List.of(IngestionContentType.DOCUMENTS),
@@ -61,14 +61,14 @@ class IngestionJobServiceTest {
         service.markStepCompleted(job.jobId(), IngestionContentType.DOCUMENTS);
 
         assertEquals(IngestionJobStatus.COMPLETED, repository.jobs.get(job.jobId()).status());
-        assertEquals(IngestionStepStatus.COMPLETED, repository.step(job.jobId(), IngestionContentType.DOCUMENTS).status());
+        assertEquals(IngestionStepStatus.COMPLETED, repository.createStep(job.jobId(), IngestionContentType.DOCUMENTS).status());
         assertNotNull(repository.jobs.get(job.jobId()).completedAt());
     }
 
     @Test
     void marksPartiallyFailedJobWhenACompletedStepAndAFailedStepFinish() {
         CapturingRepository repository = new CapturingRepository();
-        IngestionJobService service = newService(repository);
+        IngestionJobService service = createService(repository);
         var job = service.createJob(
                 "workspace-1",
                 List.of(IngestionContentType.DOCUMENTS, IngestionContentType.AUDIO),
@@ -79,15 +79,15 @@ class IngestionJobServiceTest {
         service.markStepFailed(job.jobId(), IngestionContentType.AUDIO, new RuntimeException("Audio failed"));
 
         assertEquals(IngestionJobStatus.PARTIALLY_FAILED, repository.jobs.get(job.jobId()).status());
-        assertEquals("Audio failed", repository.step(job.jobId(), IngestionContentType.AUDIO).errorMessage());
-        assertNull(repository.step(job.jobId(), IngestionContentType.AUDIO).errorCode());
+        assertEquals("Audio failed", repository.createStep(job.jobId(), IngestionContentType.AUDIO).errorMessage());
+        assertNull(repository.createStep(job.jobId(), IngestionContentType.AUDIO).errorCode());
     }
 
     @ParameterizedTest
     @EnumSource(DocumentFailureCode.class)
     void exposesDocumentFailureCodeAndSafeMessage(DocumentFailureCode failureCode) {
         CapturingRepository repository = new CapturingRepository();
-        IngestionJobService service = newService(repository);
+        IngestionJobService service = createService(repository);
         var job = service.createJob(
                 "workspace-1",
                 List.of(IngestionContentType.DOCUMENTS),
@@ -114,7 +114,7 @@ class IngestionJobServiceTest {
     @Test
     void doesNotOverwriteTerminalStepStatusOrDocumentFailure() {
         CapturingRepository repository = new CapturingRepository();
-        IngestionJobService service = newService(repository);
+        IngestionJobService service = createService(repository);
         var job = service.createJob(
                 "workspace-1",
                 List.of(IngestionContentType.DOCUMENTS),
@@ -134,7 +134,7 @@ class IngestionJobServiceTest {
                 new DocumentProcessingException(DocumentFailureCode.CORRUPT_DOCUMENT)
         );
 
-        IngestionJobStep step = repository.step(job.jobId(), IngestionContentType.DOCUMENTS);
+        IngestionJobStep step = repository.createStep(job.jobId(), IngestionContentType.DOCUMENTS);
         assertFalse(completed);
         assertFalse(running);
         assertFalse(failedAgain);
@@ -146,7 +146,7 @@ class IngestionJobServiceTest {
     @Test
     void truncatesLongErrorMessages() {
         CapturingRepository repository = new CapturingRepository();
-        IngestionJobService service = newService(repository);
+        IngestionJobService service = createService(repository);
         var job = service.createJob(
                 "workspace-1",
                 List.of(IngestionContentType.DOCUMENTS),
@@ -155,13 +155,13 @@ class IngestionJobServiceTest {
 
         service.markStepFailed(job.jobId(), IngestionContentType.DOCUMENTS, new RuntimeException("x".repeat(1_200)));
 
-        assertEquals(1_000, repository.step(job.jobId(), IngestionContentType.DOCUMENTS).errorMessage().length());
-        assertNull(repository.step(job.jobId(), IngestionContentType.DOCUMENTS).errorCode());
+        assertEquals(1_000, repository.createStep(job.jobId(), IngestionContentType.DOCUMENTS).errorMessage().length());
+        assertNull(repository.createStep(job.jobId(), IngestionContentType.DOCUMENTS).errorCode());
     }
 
     @Test
     void rejectsBlankJobId() {
-        IngestionJobService service = newService(new CapturingRepository());
+        IngestionJobService service = createService(new CapturingRepository());
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -173,7 +173,7 @@ class IngestionJobServiceTest {
 
     @Test
     void failsWhenJobIsMissing() {
-        IngestionJobService service = newService(new CapturingRepository());
+        IngestionJobService service = createService(new CapturingRepository());
 
         assertThrows(NoSuchElementException.class, () -> service.getJob("missing"));
     }
@@ -227,7 +227,7 @@ class IngestionJobServiceTest {
                 String errorMessage,
                 String errorCode
         ) {
-            IngestionJobStep existing = step(jobId, contentType);
+            IngestionJobStep existing = createStep(jobId, contentType);
             if (existing.status() == IngestionStepStatus.COMPLETED
                     || existing.status() == IngestionStepStatus.FAILED
                     || existing.status() == IngestionStepStatus.SKIPPED) {
@@ -247,14 +247,14 @@ class IngestionJobServiceTest {
             return true;
         }
 
-        private IngestionJobStep step(String jobId, IngestionContentType contentType) {
+        private IngestionJobStep createStep(String jobId, IngestionContentType contentType) {
             IngestionJobStep step = steps.get(jobId).get(contentType);
             assertTrue(step != null);
             return step;
         }
     }
 
-    private static IngestionJobService newService(CapturingRepository repository) {
+    private static IngestionJobService createService(CapturingRepository repository) {
         return new IngestionJobService(repository, new IngestionJobDetailsMapperImpl(), new IngestionJobValidator());
     }
 }

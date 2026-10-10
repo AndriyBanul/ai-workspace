@@ -23,7 +23,7 @@ class WorkspaceServiceTest {
     void createsWorkspaceWithTrimmedName() {
         WorkspaceRepository repository = mock(WorkspaceRepository.class);
         when(repository.save(any(WorkspaceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        WorkspaceService service = newService(repository);
+        WorkspaceService service = createService(repository);
 
         var workspace = service.createWorkspace("owner-1", " Investor demo ");
 
@@ -40,7 +40,7 @@ class WorkspaceServiceTest {
                 new WorkspaceEntity("old", "owner-1", "Old", older, older),
                 new WorkspaceEntity("new", "owner-1", "New", newer, newer)
         ));
-        WorkspaceService service = newService(repository);
+        WorkspaceService service = createService(repository);
 
         var workspaces = service.listWorkspaces("owner-1");
 
@@ -53,7 +53,7 @@ class WorkspaceServiceTest {
         Instant now = Instant.parse("2026-07-02T00:00:00Z");
         when(repository.findByIdAndOwnerId("workspace-1", "owner-1"))
                 .thenReturn(Optional.of(new WorkspaceEntity("workspace-1", "owner-1", "Demo", now, now)));
-        WorkspaceService service = newService(repository);
+        WorkspaceService service = createService(repository);
 
         var workspace = service.getWorkspace(" owner-1 ", " workspace-1 ");
 
@@ -62,7 +62,7 @@ class WorkspaceServiceTest {
 
     @Test
     void rejectsBlankWorkspaceName() {
-        WorkspaceService service = newService(mock(WorkspaceRepository.class));
+        WorkspaceService service = createService(mock(WorkspaceRepository.class));
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -76,7 +76,7 @@ class WorkspaceServiceTest {
     void failsWhenWorkspaceIsMissing() {
         WorkspaceRepository repository = mock(WorkspaceRepository.class);
         when(repository.findByIdAndOwnerId("missing", "owner-1")).thenReturn(Optional.empty());
-        WorkspaceService service = newService(repository);
+        WorkspaceService service = createService(repository);
 
         NoSuchElementException exception = assertThrows(
                 NoSuchElementException.class,
@@ -107,7 +107,7 @@ class WorkspaceServiceTest {
         ordered.verify(repository).delete(entity);
     }
 
-    private static WorkspaceService newService(WorkspaceRepository repository) {
+    private static WorkspaceService createService(WorkspaceRepository repository) {
         return new WorkspaceService(repository, new WorkspaceMapperImpl(), null, new WorkspaceValidator());
     }
 }

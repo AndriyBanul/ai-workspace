@@ -46,7 +46,7 @@ public class KnowledgeService {
             throws IOException {
         knowledgeValidator.validateKnowledgeField(field);
         knowledgeValidator.validateKnowledgeFieldValue(value);
-        indexingService.record(workspaceId, sourceTypeFrom(field), field.fieldName(), null, value, null);
+        indexingService.record(workspaceId, mapSourceType(field), field.fieldName(), null, value, null);
     }
 
     public void recordDocumentsInfo(String workspaceId, String sourceName, String jobId, String value)
@@ -151,7 +151,7 @@ public class KnowledgeService {
         return answerWorkspaceQuestion(workspaceId, request.question());
     }
 
-    private KnowledgeSourceType sourceTypeFrom(WorkspaceKnowledgeField field) {
+    private KnowledgeSourceType mapSourceType(WorkspaceKnowledgeField field) {
         return switch (field) {
             case DOCUMENTS_INFO -> KnowledgeSourceType.DOCUMENT;
             case AUDIO_INFO -> KnowledgeSourceType.AUDIO;

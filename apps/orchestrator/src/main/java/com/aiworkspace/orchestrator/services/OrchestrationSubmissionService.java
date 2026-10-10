@@ -40,7 +40,7 @@ public class OrchestrationSubmissionService {
             OrchestrationContent document, OrchestrationContent audio, OrchestrationContent image,
             OrchestrationContent video) throws IOException {
         String ownedWorkspaceId = workspaces.getWorkspace(ownerId, workspaceId).id();
-        String fingerprint = fingerprint("upload", Arrays.asList(document, audio, image, video));
+        String fingerprint = computeFingerprint("upload", Arrays.asList(document, audio, image, video));
         OrchestrationReservation reservation = reserve(ownerId, ownedWorkspaceId, idempotencyKey, fingerprint);
         if (reservation.replayed() != null) return reservation.replayed();
         OrchestrationSubmission submission = orchestrator.process(ownerId, ownedWorkspaceId,
@@ -53,7 +53,7 @@ public class OrchestrationSubmissionService {
     public OrchestrationSubmission reprocess(String ownerId, String workspaceId, String sourceId,
             String idempotencyKey) throws IOException {
         var source = workspaces.getFile(ownerId, workspaceId, sourceId);
-        String fingerprint = fingerprint("reprocess", source.id());
+        String fingerprint = computeFingerprint("reprocess", source.id());
         OrchestrationReservation reservation = reserve(ownerId, source.workspaceId(), idempotencyKey, fingerprint);
         if (reservation.replayed() != null) return reservation.replayed();
         OrchestrationSubmission submission = orchestrator.reprocessSource(ownerId, source.workspaceId(), source.id());
@@ -74,7 +74,7 @@ public class OrchestrationSubmissionService {
         if (normalized.length() > 128 || normalized.chars().anyMatch(character -> character < 33 || character > 126)) {
             throw new IllegalArgumentException("Idempotency-Key must contain 1-128 visible ASCII characters");
         }
-        String id = fingerprint("key", ownerId + "\u0000" + normalized);
+        String id = computeFingerprint("key", ownerId + "\u0000" + normalized);
         var existing = requests.findById(id);
         if (existing.isPresent()) {
             var request = existing.get();
@@ -106,8 +106,8 @@ public class OrchestrationSubmissionService {
         requests.save(entity);
     }
 
-    private String fingerprint(String operation, List<OrchestrationContent> parts) {
-        MessageDigest digest = sha256();
+    private String computeFingerprint(String operation, List<OrchestrationContent> parts) {
+        MessageDigest digest = createSha256Digest();
         update(digest, operation);
         for (int index = 0; index < parts.size(); index++) {
             OrchestrationContent part = parts.get(index);
@@ -124,14 +124,14 @@ public class OrchestrationSubmissionService {
         return HexFormat.of().formatHex(digest.digest());
     }
 
-    private String fingerprint(String operation, String value) {
-        MessageDigest digest = sha256();
+    private String computeFingerprint(String operation, String value) {
+        MessageDigest digest = createSha256Digest();
         update(digest, operation);
         update(digest, value);
         return HexFormat.of().formatHex(digest.digest());
     }
 
-    private MessageDigest sha256() {
+    private MessageDigest createSha256Digest() {
         try {
             return MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException exception) {

@@ -41,19 +41,19 @@ public class WorkspaceController {
     @PostMapping
     public ResponseEntity<Workspace> createWorkspace(@RequestBody CreateWorkspaceRequest request, Authentication authentication) {
         return ResponseEntity.status(CREATED).body(workspaceService.createWorkspace(
-                userAccountService.currentUserId(authentication),
+                userAccountService.getCurrentUserId(authentication),
                 request
         ));
     }
 
     @GetMapping
     public ResponseEntity<List<Workspace>> listWorkspaces(Authentication authentication) {
-        return ResponseEntity.ok(workspaceService.listWorkspaces(userAccountService.currentUserId(authentication)));
+        return ResponseEntity.ok(workspaceService.listWorkspaces(userAccountService.getCurrentUserId(authentication)));
     }
 
     @GetMapping("/{workspaceId}")
     public ResponseEntity<Workspace> getWorkspace(@PathVariable String workspaceId, Authentication authentication) {
-        return ResponseEntity.ok(workspaceService.getWorkspace(userAccountService.currentUserId(authentication), workspaceId));
+        return ResponseEntity.ok(workspaceService.getWorkspace(userAccountService.getCurrentUserId(authentication), workspaceId));
     }
 
     @DeleteMapping("/{workspaceId}")
@@ -62,7 +62,7 @@ public class WorkspaceController {
             Authentication authentication
     ) throws IOException {
         workspaceLifecycleService.deleteWorkspace(
-                userAccountService.currentUserId(authentication),
+                userAccountService.getCurrentUserId(authentication),
                 workspaceId
         );
         return ResponseEntity.noContent().build();
@@ -73,7 +73,7 @@ public class WorkspaceController {
             @PathVariable String workspaceId,
             Authentication authentication
     ) {
-        return ResponseEntity.ok(workspaceService.listFiles(userAccountService.currentUserId(authentication), workspaceId));
+        return ResponseEntity.ok(workspaceService.listFiles(userAccountService.getCurrentUserId(authentication), workspaceId));
     }
 
     @GetMapping({"/{workspaceId}/files/{fileId}", "/{workspaceId}/sources/{fileId}"})
@@ -82,7 +82,7 @@ public class WorkspaceController {
             @PathVariable String fileId,
             Authentication authentication
     ) {
-        return ResponseEntity.ok(workspaceService.getFile(userAccountService.currentUserId(authentication), workspaceId, fileId));
+        return ResponseEntity.ok(workspaceService.getFile(userAccountService.getCurrentUserId(authentication), workspaceId, fileId));
     }
 
     @DeleteMapping({"/{workspaceId}/files/{fileId}", "/{workspaceId}/sources/{fileId}"})
@@ -92,7 +92,7 @@ public class WorkspaceController {
             Authentication authentication
     ) throws IOException {
         workspaceLifecycleService.deleteFile(
-                userAccountService.currentUserId(authentication),
+                userAccountService.getCurrentUserId(authentication),
                 workspaceId,
                 fileId
         );
@@ -107,7 +107,7 @@ public class WorkspaceController {
             Authentication authentication
     ) throws IOException {
         return ResponseEntity.status(ACCEPTED).body(submissionService.reprocess(
-                userAccountService.currentUserId(authentication), workspaceId, fileId, idempotencyKey));
+                userAccountService.getCurrentUserId(authentication), workspaceId, fileId, idempotencyKey));
     }
 
     @GetMapping({"/{workspaceId}/files/{fileId}/recovery", "/{workspaceId}/sources/{fileId}/recovery"})
@@ -116,7 +116,7 @@ public class WorkspaceController {
             @PathVariable String fileId,
             Authentication authentication
     ) {
-        String ownerId = userAccountService.currentUserId(authentication);
+        String ownerId = userAccountService.getCurrentUserId(authentication);
         WorkspaceFile source = workspaceService.getFile(ownerId, workspaceId, fileId);
         return ResponseEntity.ok(sourceRecoveryTaskService.getTask(source.workspaceId(), source.id()));
     }

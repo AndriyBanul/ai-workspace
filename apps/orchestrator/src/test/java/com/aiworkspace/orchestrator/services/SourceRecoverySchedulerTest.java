@@ -26,8 +26,8 @@ class SourceRecoverySchedulerTest {
 
     @Test
     void schedulesRepairWhenProcessedSourceHasNoIndexedKnowledge() throws IOException {
-        SourceRecoverySchedulerTestContext context = context();
-        WorkspaceFile source = source();
+        SourceRecoverySchedulerTestContext context = createContext();
+        WorkspaceFile source = createSource();
         when(context.files().getFile("workspace-1", "source-1")).thenReturn(source);
         when(context.files().contentExists("workspace-1", "source-1")).thenReturn(true);
         when(context.knowledge().hasSourceKnowledge("workspace-1", "source-1")).thenReturn(false);
@@ -40,8 +40,8 @@ class SourceRecoverySchedulerTest {
 
     @Test
     void deadLettersSourceWhenStoredContentIsMissing() throws IOException {
-        SourceRecoverySchedulerTestContext context = context();
-        WorkspaceFile source = source();
+        SourceRecoverySchedulerTestContext context = createContext();
+        WorkspaceFile source = createSource();
         when(context.files().getFile("workspace-1", "source-1")).thenReturn(source);
         when(context.files().contentExists("workspace-1", "source-1")).thenReturn(false);
 
@@ -53,33 +53,33 @@ class SourceRecoverySchedulerTest {
 
     @Test
     void removesOrphanedKnowledgeWhenSourceMetadataIsGone() throws IOException {
-        SourceRecoverySchedulerTestContext context = context();
+        SourceRecoverySchedulerTestContext context = createContext();
         when(context.files().getFile("workspace-1", "source-1"))
                 .thenThrow(new NoSuchElementException("missing"));
 
         context.scheduler().recoverDueSources();
 
         verify(context.knowledge()).deleteSourceKnowledge("workspace-1", "source-1");
-        verify(context.recovery()).completeDeletedTask(task());
+        verify(context.recovery()).completeDeletedTask(createCompletedTask());
     }
 
     @Test
     void completesScheduledProcessingTaskWhenSourceWasDeleted() throws IOException {
-        SourceRecoverySchedulerTestContext context = context(scheduledTask());
+        SourceRecoverySchedulerTestContext context = createContext(createScheduledTask());
         doThrow(new NoSuchElementException("missing"))
-                .when(context.orchestrator()).recoverSource(scheduledTask());
+                .when(context.orchestrator()).recoverSource(createScheduledTask());
 
         context.scheduler().recoverDueSources();
 
         verify(context.knowledge()).deleteSourceKnowledge("workspace-1", "source-1");
-        verify(context.recovery()).completeDeletedTask(scheduledTask());
+        verify(context.recovery()).completeDeletedTask(createScheduledTask());
     }
 
-    private SourceRecoverySchedulerTestContext context() {
-        return context(task());
+    private SourceRecoverySchedulerTestContext createContext() {
+        return createContext(createCompletedTask());
     }
 
-    private SourceRecoverySchedulerTestContext context(SourceRecoveryTask task) {
+    private SourceRecoverySchedulerTestContext createContext(SourceRecoveryTask task) {
         SourceRecoveryTaskService recovery = mock(SourceRecoveryTaskService.class);
         OrchestratorService orchestrator = mock(OrchestratorService.class);
         WorkspaceLifecycleService lifecycle = mock(WorkspaceLifecycleService.class);
@@ -94,21 +94,21 @@ class SourceRecoverySchedulerTest {
         return new SourceRecoverySchedulerTestContext(scheduler, recovery, orchestrator, files, knowledge);
     }
 
-    private SourceRecoveryTask task() {
+    private SourceRecoveryTask createCompletedTask() {
         Instant now = Instant.parse("2026-09-16T10:00:00Z");
         return new SourceRecoveryTask(
                 "source-1", "workspace-1", null, SourceOperationType.PROCESS, SourceRecoveryStatus.COMPLETED,
                 1, now, null, null, null, now.minusSeconds(60), now.minusSeconds(30));
     }
 
-    private SourceRecoveryTask scheduledTask() {
+    private SourceRecoveryTask createScheduledTask() {
         Instant now = Instant.parse("2026-09-16T10:00:00Z");
         return new SourceRecoveryTask(
                 "source-1", "workspace-1", null, SourceOperationType.PROCESS, SourceRecoveryStatus.SCHEDULED,
                 1, now, null, "IOException", "temporary", now.minusSeconds(60), now.minusSeconds(30));
     }
 
-    private WorkspaceFile source() {
+    private WorkspaceFile createSource() {
         Instant now = Instant.parse("2026-09-16T10:00:00Z");
         return WorkspaceFile.builder()
                 .id("source-1")

@@ -57,7 +57,7 @@ class AudioServiceTest {
 
         assertEquals(
                 "Language: en\n\nTranscript:\n[00:00:01.250 - 00:00:03.500] Speaker 1: Transcript text",
-                service.knowledgeText(transcription)
+                service.formatTranscriptForKnowledge(transcription)
         );
     }
 
@@ -73,7 +73,7 @@ class AudioServiceTest {
                 )
         );
 
-        var chunks = service.chunksForKnowledge(transcription);
+        var chunks = service.createKnowledgeChunks(transcription);
 
         assertEquals(2, chunks.size());
         assertEquals(1, chunks.get(0).sequence());
@@ -93,7 +93,7 @@ class AudioServiceTest {
                 "en"
         );
 
-        var chunks = service.chunksForKnowledge(transcription);
+        var chunks = service.createKnowledgeChunks(transcription);
 
         assertEquals(1, chunks.size());
         assertEquals("Complete transcript.", chunks.getFirst().content());

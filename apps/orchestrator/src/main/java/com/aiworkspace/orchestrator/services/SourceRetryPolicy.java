@@ -20,7 +20,7 @@ public class SourceRetryPolicy {
     private final SourceRecoveryProperties properties;
 
     public RetryDecision decide(Exception exception, int attemptCount, Instant now) {
-        if (!retryable(exception) || attemptCount >= properties.maxAttempts()) {
+        if (!isRetryable(exception) || attemptCount >= properties.maxAttempts()) {
             return new RetryDecision(false, null);
         }
         long multiplier = 1L << Math.min(20, Math.max(0, attemptCount - 1));
@@ -31,7 +31,7 @@ public class SourceRetryPolicy {
         return new RetryDecision(true, now.plus(delay));
     }
 
-    private boolean retryable(Throwable exception) {
+    private boolean isRetryable(Throwable exception) {
         for (Throwable current = exception; current != null; current = current.getCause()) {
             if (current instanceof DocumentProcessingException || current instanceof IllegalArgumentException
                     || current instanceof NoSuchElementException || current instanceof FileNotFoundException

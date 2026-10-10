@@ -27,7 +27,7 @@ public class UserQuotaFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         return !properties.userQuota().enabled() || !"POST".equals(request.getMethod())
-                || actionFor(request.getRequestURI()) == null;
+                || resolveAction(request.getRequestURI()) == null;
     }
 
     @Override
@@ -39,7 +39,7 @@ public class UserQuotaFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        var decision = quotas.acquire(authentication.getName(), actionFor(request.getRequestURI()));
+        var decision = quotas.acquire(authentication.getName(), resolveAction(request.getRequestURI()));
         if (decision.allowed()) {
             chain.doFilter(request, response);
             return;
@@ -50,7 +50,7 @@ public class UserQuotaFilter extends OncePerRequestFilter {
                 "Daily user quota reached", "USER_QUOTA_EXCEEDED");
     }
 
-    private Action actionFor(String path) {
+    private Action resolveAction(String path) {
         if (path.startsWith("/api/v1/knowledge/") && path.endsWith("/answers")) return Action.ANSWER;
         if (path.endsWith("/generations") || path.equals("/api/v1/audio/speech")) return Action.GENERATION;
         if (path.equals("/api/v1/orchestrator/ingestions") || path.endsWith("/reprocess")

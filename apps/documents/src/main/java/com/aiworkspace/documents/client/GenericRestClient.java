@@ -34,7 +34,7 @@ public class GenericRestClient {
         for (int redirectCount = 0; redirectCount <= properties.maxRedirects(); redirectCount++) {
             WebPageHttpResponse response = executeGet(uri);
             if (isRedirect(response.statusCode())) {
-                uri = redirectUri(uri, response.headers());
+                uri = resolveRedirectUri(uri, response.headers());
                 continue;
             }
 
@@ -66,12 +66,12 @@ public class GenericRestClient {
                     .exchange((request, response) -> {
                         long contentLength = response.getHeaders().getContentLength();
                         if (contentLength > properties.maxResponseBytes()) {
-                            throw new IllegalArgumentException(maxResponseSizeMessage());
+                            throw new IllegalArgumentException(formatMaxResponseSizeMessage());
                         }
 
                         byte[] body = response.getBody().readNBytes(properties.maxResponseBytes() + 1);
                         if (body.length > properties.maxResponseBytes()) {
-                            throw new IllegalArgumentException(maxResponseSizeMessage());
+                            throw new IllegalArgumentException(formatMaxResponseSizeMessage());
                         }
 
                         return new WebPageHttpResponse(
@@ -115,7 +115,7 @@ public class GenericRestClient {
         return uri;
     }
 
-    private URI redirectUri(URI currentUri, HttpHeaders headers) {
+    private URI resolveRedirectUri(URI currentUri, HttpHeaders headers) {
         List<String> locations = headers.get(HttpHeaders.LOCATION);
         if (locations == null || locations.isEmpty() || locations.getFirst().isBlank()) {
             throw new UpstreamServiceException("Web page fetcher", "Web page redirect did not include a Location header");
@@ -223,7 +223,7 @@ public class GenericRestClient {
                 && (bytes[3] & 0xff) == 0xb8;
     }
 
-    private String maxResponseSizeMessage() {
+    private String formatMaxResponseSizeMessage() {
         return "Web page response must not be larger than " + properties.maxResponseBytes() + " bytes";
     }
 }

@@ -16,15 +16,15 @@ public class RestClientConfig {
     @Bean
     @Primary
     public RestClient restClient(HttpClientProperties properties) {
-        return restClient(properties, HttpClient.Redirect.NORMAL);
+        return buildRestClient(properties, HttpClient.Redirect.NORMAL);
     }
 
     @Bean
     public RestClient webPageRestClient(HttpClientProperties properties) {
-        return restClient(properties, HttpClient.Redirect.NEVER);
+        return buildRestClient(properties, HttpClient.Redirect.NEVER);
     }
 
-    private RestClient restClient(HttpClientProperties properties, HttpClient.Redirect redirectPolicy) {
+    private RestClient buildRestClient(HttpClientProperties properties, HttpClient.Redirect redirectPolicy) {
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(properties.connectTimeout())
                 .followRedirects(redirectPolicy)

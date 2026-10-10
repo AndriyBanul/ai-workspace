@@ -70,7 +70,7 @@ class VideoServiceTest {
                 "Visual summary:\nA concise video description.\n\n"
                         + "Spoken language: en\n\nSpoken transcript:\n"
                         + "[00:00:00.500 - 00:00:02.000] Presenter: Hello from the video.",
-                service.knowledgeText(description)
+                service.formatVideoForKnowledge(description)
         );
     }
 
@@ -119,11 +119,11 @@ class VideoServiceTest {
 
         assertEquals(
                 "https://www.youtube.com/watch?v=9hE5-98ZeCg",
-                validator.canonicalYouTubeUrl("https://youtu.be/9hE5-98ZeCg?t=4")
+                validator.canonicalizeYouTubeUrl("https://youtu.be/9hE5-98ZeCg?t=4")
         );
         assertEquals(
                 "https://www.youtube.com/watch?v=9hE5-98ZeCg",
-                validator.canonicalYouTubeUrl("https://www.youtube.com/shorts/9hE5-98ZeCg")
+                validator.canonicalizeYouTubeUrl("https://www.youtube.com/shorts/9hE5-98ZeCg")
         );
     }
 
@@ -135,14 +135,14 @@ class VideoServiceTest {
                 "URL must identify one public YouTube video",
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> validator.canonicalYouTubeUrl("https://example.com/watch?v=9hE5-98ZeCg")
+                        () -> validator.canonicalizeYouTubeUrl("https://example.com/watch?v=9hE5-98ZeCg")
                 ).getMessage()
         );
         assertEquals(
                 "URL must identify one public YouTube video",
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> validator.canonicalYouTubeUrl("https://www.youtube.com/playlist?list=PL123")
+                        () -> validator.canonicalizeYouTubeUrl("https://www.youtube.com/playlist?list=PL123")
                 ).getMessage()
         );
     }

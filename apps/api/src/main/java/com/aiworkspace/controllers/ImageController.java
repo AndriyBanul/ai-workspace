@@ -36,7 +36,7 @@ public class ImageController {
             Authentication authentication
     ) throws IOException, InterruptedException {
         return ResponseEntity.ok(orchestratorService.ingestImage(
-                userAccountService.currentUserId(authentication),
+                userAccountService.getCurrentUserId(authentication),
                 workspaceId,
                 file.getOriginalFilename(),
                 file.getContentType(),

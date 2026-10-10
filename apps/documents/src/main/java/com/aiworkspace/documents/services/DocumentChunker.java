@@ -40,7 +40,7 @@ public class DocumentChunker {
             String text = block.text().trim();
             if (block.type() == DocumentBlockType.HEADING || isPlainTextHeading(text)) {
                 if (current != null) current.flush(chunks);
-                int level = headingLevel(text);
+                int level = detectHeadingLevel(text);
                 while (headingPath.size() >= level) headingPath.removeLast();
                 headingPath.add(text);
                 heading = String.join(" > ", headingPath);
@@ -48,12 +48,12 @@ public class DocumentChunker {
                 current = new Builder(heading, Integer.toString(section), block);
                 continue;
             }
-            if (current == null || !current.sameLocation(block)) {
+            if (current == null || !current.hasSameLocation(block)) {
                 if (current != null) current.flush(chunks);
                 current = new Builder(heading, Integer.toString(section), block);
             }
             boolean firstInParagraph = true;
-            for (String sentence : sentences(text)) {
+            for (String sentence : splitIntoSentences(text)) {
                 if (current.sentences == maxSentences) current.flush(chunks);
                 current.append(sentence, firstInParagraph);
                 firstInParagraph = false;
@@ -74,7 +74,7 @@ public class DocumentChunker {
         return chunk(blocks, content, maxSentences);
     }
 
-    private List<String> sentences(String text) {
+    private List<String> splitIntoSentences(String text) {
         var iterator = BreakIterator.getSentenceInstance(Locale.ENGLISH);
         iterator.setText(text);
         var result = new ArrayList<String>();
@@ -90,7 +90,7 @@ public class DocumentChunker {
         return result;
     }
 
-    private int headingLevel(String text) {
+    private int detectHeadingLevel(String text) {
         if (text.startsWith("#")) {
             int level = 0;
             while (level < text.length() && text.charAt(level) == '#') level++;
@@ -117,7 +117,7 @@ public class DocumentChunker {
         private int sentences;
         private boolean emitted;
 
-        private boolean sameLocation(DocumentTextBlock block) {
+        private boolean hasSameLocation(DocumentTextBlock block) {
             return Objects.equals(location.pageNumber(), block.pageNumber())
                     && Objects.equals(location.slideNumber(), block.slideNumber())
                     && Objects.equals(location.sheetName(), block.sheetName());

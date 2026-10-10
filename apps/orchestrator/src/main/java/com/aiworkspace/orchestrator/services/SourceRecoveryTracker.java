@@ -22,7 +22,7 @@ public interface SourceRecoveryTracker {
 
     void fail(WorkspaceFile source, SourceOperationType operationType, RecoveryClaim claim, Exception exception);
 
-    static SourceRecoveryTracker noop() {
+    static SourceRecoveryTracker createNoop() {
         return new SourceRecoveryTracker() {
             @Override
             public RecoveryClaim startAttempt(WorkspaceFile source, SourceOperationType operationType) {

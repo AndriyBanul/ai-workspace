@@ -78,8 +78,8 @@ public class WorkspaceSourceProcessingService {
         AudioTranscription transcription = audioService.transcribe(
                 original.filename(), readContent(job.workspaceId(), source.id()));
         StagedKnowledgeIndex staged = knowledgeService.recordAudioInfo(
-                job.workspaceId(), original.filename(), job.jobId(), audioService.chunksForKnowledge(transcription),
-                audioService.knowledgeSourceMetadata(source.id()));
+                job.workspaceId(), original.filename(), job.jobId(), audioService.createKnowledgeChunks(transcription),
+                audioService.createKnowledgeSourceMetadata(source.id()));
         return new AudioSourceProcessingResult(new AudioTranscriptionResponse(
                 transcription.filename(), source.sizeBytes(), transcription.language(), transcription.text(),
                 transcription.segments()), staged);
@@ -101,7 +101,7 @@ public class WorkspaceSourceProcessingService {
         VideoDescription description = videoService.describe(
                 original.filename(), original.contentType(), readContent(job.workspaceId(), source.id()));
         StagedKnowledgeIndex staged = knowledgeService.recordVideoInfo(
-                job.workspaceId(), original.filename(), job.jobId(), videoService.knowledgeText(description),
+                job.workspaceId(), original.filename(), job.jobId(), videoService.formatVideoForKnowledge(description),
                 new KnowledgeSourceMetadata(source.id(), null, Instant.now(), "ai-workspace-video-analysis-v1"));
         return new VideoSourceProcessingResult(new VideoDescriptionResponse(
                 description.filename(), source.sizeBytes(), description.mimeType(), description.description(),
@@ -123,13 +123,13 @@ public class WorkspaceSourceProcessingService {
     private YouTubeSourceProcessingResult processYouTube(IngestionJobDetails job, WorkspaceFile source)
             throws IOException, InterruptedException {
         VideoDescription description = videoService.describeYouTube(source.sourceUrl());
-        String canonicalUrl = videoService.canonicalYouTubeUrl(source.sourceUrl());
+        String canonicalUrl = videoService.canonicalizeYouTubeUrl(source.sourceUrl());
         StagedKnowledgeIndex staged = knowledgeService.recordVideoInfo(
-                job.workspaceId(), description.filename(), job.jobId(), videoService.knowledgeText(description),
+                job.workspaceId(), description.filename(), job.jobId(), videoService.formatVideoForKnowledge(description),
                 new KnowledgeSourceMetadata(
                         source.id(), canonicalUrl, Instant.now(), "ai-workspace-youtube-video-analysis-v1"));
         return new YouTubeSourceProcessingResult(new YouTubeVideoIngestionResponse(
-                source.id(), videoService.youtubeVideoId(canonicalUrl), canonicalUrl, description.description(),
+                source.id(), videoService.extractYouTubeVideoId(canonicalUrl), canonicalUrl, description.description(),
                 description.transcript(), description.language(), description.segments()), staged);
     }
 

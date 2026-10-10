@@ -34,9 +34,9 @@ class RateLimitIntegrationTest {
 
     @Test
     void returnsStructuredTooManyRequestsResponse() throws IOException, InterruptedException {
-        HttpResponse<String> first = request();
-        HttpResponse<String> second = request();
-        HttpResponse<String> denied = request();
+        HttpResponse<String> first = sendRequest();
+        HttpResponse<String> second = sendRequest();
+        HttpResponse<String> denied = sendRequest();
         JsonNode error = OBJECT_MAPPER.readTree(denied.body());
 
         assertEquals(HttpStatus.UNAUTHORIZED.value(), first.statusCode());
@@ -47,7 +47,7 @@ class RateLimitIntegrationTest {
         assertTrue(denied.headers().firstValue("Retry-After").map(Long::parseLong).orElse(0L) > 0);
     }
 
-    private HttpResponse<String> request() throws IOException, InterruptedException {
+    private HttpResponse<String> sendRequest() throws IOException, InterruptedException {
         return HTTP_CLIENT.send(HttpRequest.newBuilder(
                         URI.create("http://localhost:" + port + "/api/v1/workspaces"))
                 .GET()

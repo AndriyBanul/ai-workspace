@@ -31,9 +31,9 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<UserAccount> me(Authentication authentication) {
+    public ResponseEntity<UserAccount> getCurrentUser(Authentication authentication) {
         return ResponseEntity.ok(userAccountService.
-                        currentUser(authentication)
+                        getCurrentUser(authentication)
                 );
     }
 }

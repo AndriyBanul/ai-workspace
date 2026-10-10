@@ -59,7 +59,7 @@ class WorkspaceFileServiceTest {
     void doesNotOverwriteFailedFileWithProcessedStatus() {
         WorkspaceFileRepository repository = mock(WorkspaceFileRepository.class);
         when(repository.findByIdAndWorkspaceIdAndDeletedAtIsNull("file-1", "workspace-1"))
-                .thenReturn(Optional.of(fileEntity(WorkspaceFileStatus.FAILED)));
+                .thenReturn(Optional.of(createFileEntity(WorkspaceFileStatus.FAILED)));
         WorkspaceFileService service = new WorkspaceFileService(
                 repository,
                 new WorkspaceFileMapperImpl(),
@@ -104,7 +104,7 @@ class WorkspaceFileServiceTest {
                 anyList()
         )).thenReturn(1);
         when(repository.findByIdAndWorkspaceIdAndDeletedAtIsNull("file-1", "workspace-1"))
-                .thenReturn(Optional.of(fileEntity(WorkspaceFileStatus.PROCESSED)));
+                .thenReturn(Optional.of(createFileEntity(WorkspaceFileStatus.PROCESSED)));
         WorkspaceFileService service = new WorkspaceFileService(
                 repository,
                 new WorkspaceFileMapperImpl(),
@@ -122,8 +122,8 @@ class WorkspaceFileServiceTest {
     void deletesEveryStoredFileForWorkspace() throws IOException {
         WorkspaceFileRepository repository = mock(WorkspaceFileRepository.class);
         FileStorage storage = mock(FileStorage.class);
-        WorkspaceFileEntity first = fileEntity("file-1", WorkspaceFileStatus.PROCESSED);
-        WorkspaceFileEntity second = fileEntity("file-2", WorkspaceFileStatus.FAILED);
+        WorkspaceFileEntity first = createFileEntity("file-1", WorkspaceFileStatus.PROCESSED);
+        WorkspaceFileEntity second = createFileEntity("file-2", WorkspaceFileStatus.FAILED);
         when(repository.findAllByWorkspaceIdAndDeletedAtIsNullOrderByCreatedAtDesc("workspace-1"))
                 .thenReturn(List.of(first, second));
         WorkspaceFileService service = new WorkspaceFileService(
@@ -139,11 +139,11 @@ class WorkspaceFileServiceTest {
         verify(storage).delete("workspace-1/file-2");
     }
 
-    private WorkspaceFileEntity fileEntity(WorkspaceFileStatus status) {
-        return fileEntity("file-1", status);
+    private WorkspaceFileEntity createFileEntity(WorkspaceFileStatus status) {
+        return createFileEntity("file-1", status);
     }
 
-    private WorkspaceFileEntity fileEntity(String id, WorkspaceFileStatus status) {
+    private WorkspaceFileEntity createFileEntity(String id, WorkspaceFileStatus status) {
         Instant now = Instant.parse("2026-08-30T00:00:00Z");
         return WorkspaceFileEntity.builder()
                 .id(id)

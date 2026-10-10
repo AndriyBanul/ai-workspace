@@ -35,7 +35,7 @@ public class LocalFileStorage implements FileStorage {
         Path target = resolve(storageKey);
         Files.createDirectories(target.getParent());
 
-        MessageDigest digest = sha256();
+        MessageDigest digest = createSha256Digest();
         Path temporaryFile = Files.createTempFile(target.getParent(), request.fileId().trim(), ".tmp");
         long sizeBytes;
 
@@ -77,7 +77,7 @@ public class LocalFileStorage implements FileStorage {
         return path;
     }
 
-    private MessageDigest sha256() {
+    private MessageDigest createSha256Digest() {
         try {
             return MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException exception) {

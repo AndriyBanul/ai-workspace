@@ -35,7 +35,7 @@ public class SearchTelemetry {
         }
     }
 
-    public void fallback(String reason) {
+    public void recordFallback(String reason) {
         registry.counter("knowledge.search.fallbacks", "reason", reason).increment();
     }
 }

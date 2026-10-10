@@ -52,7 +52,7 @@ class DocumentServiceTest {
         }, new com.aiworkspace.documents.config.PdfOcrProperties(true, null, null, null), limits);
         var service = new DocumentService(new TestRestClient(), new DocumentValidator(),
                 limits, new DocxStructureExtractor(), new WebPageContentExtractor(), new DocumentChunker(), fallback);
-        try (var pdf = Loader.loadPDF(pdfWithText("Original text page")); var output = new ByteArrayOutputStream()) {
+        try (var pdf = Loader.loadPDF(createPdfWithText("Original text page")); var output = new ByteArrayOutputStream()) {
             var page = new PDPage();
             pdf.addPage(page);
             var image = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
@@ -179,7 +179,7 @@ class DocumentServiceTest {
     void extractsPdfTextWithTika() throws IOException {
         DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
-        var document = service.extractDocumentText("deck.pdf", "application/pdf", pdfWithText("PDF workspace text"));
+        var document = service.extractDocumentText("deck.pdf", "application/pdf", createPdfWithText("PDF workspace text"));
 
         assertEquals("deck.pdf", document.filename());
         assertEquals("application/pdf", document.detectedContentType());
@@ -196,7 +196,7 @@ class DocumentServiceTest {
         var document = service.extractDocumentText(
                 "memo.docx",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                docxWithText("DOCX workspace text")
+                createDocxWithText("DOCX workspace text")
         );
 
         assertEquals("memo.docx", document.filename());
@@ -214,7 +214,7 @@ class DocumentServiceTest {
         var document = service.extractDocumentText(
                 "memo.docx",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                docxWithHeading("Quarterly plan", "Detailed plan text")
+                createDocxWithHeading("Quarterly plan", "Detailed plan text")
         );
 
         assertEquals("Memo title", document.title());
@@ -232,7 +232,7 @@ class DocumentServiceTest {
         var document = service.extractDocumentText(
                 "table.docx",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                docxWithTable()
+                createDocxWithTable()
         );
 
         assertTrue(document.blocks().stream().anyMatch(block -> block.type() == DocumentBlockType.TABLE_ROW
@@ -244,16 +244,16 @@ class DocumentServiceTest {
     void preservesPageSlideAndSheetLocationsInOrder() throws IOException {
         DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
-        var pdf = service.extractDocumentText("pages.pdf", "application/pdf", pdfWithPages("Page one", "Page two"));
+        var pdf = service.extractDocumentText("pages.pdf", "application/pdf", createPdfWithPages("Page one", "Page two"));
         var presentation = service.extractDocumentText(
                 "slides.pptx",
                 "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                pptxWithSlides("Slide one", "Slide two")
+                createPptxWithSlides("Slide one", "Slide two")
         );
         var workbook = service.extractDocumentText(
                 "sheets.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                xlsxWithSheets("North", "South")
+                createXlsxWithSheets("North", "South")
         );
 
         assertEquals(List.of(1, 2), pdf.blocks().stream()
@@ -271,7 +271,7 @@ class DocumentServiceTest {
         var document = service.extractDocumentText(
                 "metrics.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                xlsxWithText("XLSX workspace text")
+                createXlsxWithText("XLSX workspace text")
         );
 
         assertEquals("metrics.xlsx", document.filename());
@@ -294,7 +294,7 @@ class DocumentServiceTest {
         var document = service.extractDocumentText(
                 "deck.pptx",
                 "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                pptxWithText("PPTX workspace text")
+                createPptxWithText("PPTX workspace text")
         );
 
         assertEquals("deck.pptx", document.filename());
@@ -310,7 +310,7 @@ class DocumentServiceTest {
     void detectsActualFormatDespiteMisleadingFilenameAndMimeType() throws IOException {
         DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
 
-        var document = service.extractDocumentText("picture.png", "image/png", pdfWithText("Actual PDF text"));
+        var document = service.extractDocumentText("picture.png", "image/png", createPdfWithText("Actual PDF text"));
 
         assertTrue(document.content().contains("Actual PDF text"));
     }
@@ -318,7 +318,7 @@ class DocumentServiceTest {
     @Test
     void acceptsMissingOrMalformedClientMimeType() throws IOException {
         DocumentService service = DocumentServiceTestFactory.create(new TestRestClient());
-        byte[] bytes = docxWithText("Detected DOCX text");
+        byte[] bytes = createDocxWithText("Detected DOCX text");
 
         assertTrue(service.extractDocumentText("upload", null, bytes).content().contains("Detected DOCX text"));
         assertTrue(service.extractDocumentText("upload", "not a MIME type", bytes).content().contains("Detected DOCX text"));
@@ -364,7 +364,7 @@ class DocumentServiceTest {
 
     @Test
     void classifiesPasswordProtectedPdf() throws IOException {
-        try (PDDocument document = Loader.loadPDF(pdfWithText("Private text"));
+        try (PDDocument document = Loader.loadPDF(createPdfWithText("Private text"));
                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             document.protect(new StandardProtectionPolicy("owner-password", "reader-password", new AccessPermission()));
             document.save(output);
@@ -381,7 +381,7 @@ class DocumentServiceTest {
             var encryptor = new EncryptionInfo(EncryptionMode.agile).getEncryptor();
             encryptor.confirmPassword("reader-password");
             try (OutputStream encrypted = encryptor.getDataStream(fileSystem)) {
-                encrypted.write(docxWithText("Private Office text"));
+                encrypted.write(createDocxWithText("Private Office text"));
             }
             fileSystem.writeFilesystem(output);
 
@@ -443,7 +443,7 @@ class DocumentServiceTest {
                 () -> service.extractDocumentText(
                         "many-paragraphs.docx",
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        docxWithParagraphs("First", "Second", "Third")
+                        createDocxWithParagraphs("First", "Second", "Third")
                 )
         );
 
@@ -462,7 +462,7 @@ class DocumentServiceTest {
                 () -> service.extractDocumentText(
                         "large.docx",
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        docxWithText("A".repeat(64))
+                        createDocxWithText("A".repeat(64))
                 )
         );
 
@@ -501,7 +501,7 @@ class DocumentServiceTest {
                 </article></main><footer>Footer text</footer>
                 </body></html>
                 """;
-        DocumentService service = DocumentServiceTestFactory.create(TestRestClient.html(html));
+        DocumentService service = DocumentServiceTestFactory.create(TestRestClient.createHtmlClient(html));
 
         var page = service.extractWebPage("https://example.com/article");
 
@@ -578,7 +578,7 @@ class DocumentServiceTest {
         private final FetchedWebPage page;
 
         TestRestClient() {
-            this(defaultPage());
+            this(createDefaultPage());
         }
 
         TestRestClient(FetchedWebPage page) {
@@ -586,7 +586,7 @@ class DocumentServiceTest {
             this.page = page;
         }
 
-        static TestRestClient html(String html) {
+        static TestRestClient createHtmlClient(String html) {
             return new TestRestClient(new FetchedWebPage(
                     "https://example.com/article",
                     "text/html",
@@ -600,7 +600,7 @@ class DocumentServiceTest {
             return page;
         }
 
-        private static FetchedWebPage defaultPage() {
+        private static FetchedWebPage createDefaultPage() {
             String html = """
                     <!doctype html>
                     <html>
@@ -618,11 +618,11 @@ class DocumentServiceTest {
     }
 
 
-    private byte[] pdfWithText(String text) throws IOException {
-        return pdfWithPages(text);
+    private byte[] createPdfWithText(String text) throws IOException {
+        return createPdfWithPages(text);
     }
 
-    private byte[] pdfWithPages(String... texts) throws IOException {
+    private byte[] createPdfWithPages(String... texts) throws IOException {
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             for (String text : texts) {
                 PDPage page = new PDPage();
@@ -640,11 +640,11 @@ class DocumentServiceTest {
         }
     }
 
-    private byte[] docxWithText(String text) throws IOException {
-        return docxWithParagraphs(text);
+    private byte[] createDocxWithText(String text) throws IOException {
+        return createDocxWithParagraphs(text);
     }
 
-    private byte[] docxWithParagraphs(String... paragraphs) throws IOException {
+    private byte[] createDocxWithParagraphs(String... paragraphs) throws IOException {
         try (XWPFDocument document = new XWPFDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             for (String paragraph : paragraphs) {
                 document.createParagraph().createRun().setText(paragraph);
@@ -654,7 +654,7 @@ class DocumentServiceTest {
         }
     }
 
-    private byte[] docxWithHeading(String heading, String paragraph) throws IOException {
+    private byte[] createDocxWithHeading(String heading, String paragraph) throws IOException {
         try (XWPFDocument document = new XWPFDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             document.getProperties().getCoreProperties().setTitle("Memo title");
             var headingParagraph = document.createParagraph();
@@ -666,7 +666,7 @@ class DocumentServiceTest {
         }
     }
 
-    private byte[] xlsxWithText(String text) throws IOException {
+    private byte[] createXlsxWithText(String text) throws IOException {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             var row = workbook.createSheet("Data").createRow(0);
             row.createCell(0).setCellValue(text);
@@ -676,7 +676,7 @@ class DocumentServiceTest {
         }
     }
 
-    private byte[] docxWithTable() throws IOException {
+    private byte[] createDocxWithTable() throws IOException {
         try (XWPFDocument document = new XWPFDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             var row = document.createTable(1, 3).getRow(0);
             row.getCell(0).setText("Metric");
@@ -686,7 +686,7 @@ class DocumentServiceTest {
         }
     }
 
-    private byte[] xlsxWithSheets(String... names) throws IOException {
+    private byte[] createXlsxWithSheets(String... names) throws IOException {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             for (String name : names) {
                 workbook.createSheet(name).createRow(0).createCell(0).setCellValue(name + " content");
@@ -696,11 +696,11 @@ class DocumentServiceTest {
         }
     }
 
-    private byte[] pptxWithText(String text) throws IOException {
-        return pptxWithSlides(text);
+    private byte[] createPptxWithText(String text) throws IOException {
+        return createPptxWithSlides(text);
     }
 
-    private byte[] pptxWithSlides(String... texts) throws IOException {
+    private byte[] createPptxWithSlides(String... texts) throws IOException {
         try (XMLSlideShow presentation = new XMLSlideShow();
                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             for (String text : texts) {

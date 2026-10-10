@@ -21,8 +21,8 @@ public final class KnowledgeServiceTestFactory {
         return create(knowledgeRepository, knowledgeAnswerProvider, null, new KnowledgeValidator(), null,
                 new KnowledgeEmbeddingProperties(false, null, null, null, null, null),
                 new KnowledgeSearchProperties(KnowledgeSearchProperties.HYBRID), TextReranker.NONE,
-                KnowledgeRerankingProperties.disabled(), SearchQueryProvider.NONE,
-                KnowledgeQueryExpansionProperties.disabled());
+                KnowledgeRerankingProperties.createDisabled(), SearchQueryProvider.NONE,
+                KnowledgeQueryExpansionProperties.createDisabled());
     }
 
     public static KnowledgeService create(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider,
@@ -31,8 +31,8 @@ public final class KnowledgeServiceTestFactory {
         return create(knowledgeRepository, knowledgeAnswerProvider, workspaceService, knowledgeValidator,
                 textEmbeddingProvider, embeddingProperties,
                 new KnowledgeSearchProperties(KnowledgeSearchProperties.HYBRID), TextReranker.NONE,
-                KnowledgeRerankingProperties.disabled(), SearchQueryProvider.NONE,
-                KnowledgeQueryExpansionProperties.disabled());
+                KnowledgeRerankingProperties.createDisabled(), SearchQueryProvider.NONE,
+                KnowledgeQueryExpansionProperties.createDisabled());
     }
 
     public static KnowledgeService create(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider,
@@ -41,8 +41,8 @@ public final class KnowledgeServiceTestFactory {
             KnowledgeSearchProperties searchProperties) {
         return create(knowledgeRepository, knowledgeAnswerProvider, workspaceService, knowledgeValidator,
                 textEmbeddingProvider, embeddingProperties, searchProperties, TextReranker.NONE,
-                KnowledgeRerankingProperties.disabled(), SearchQueryProvider.NONE,
-                KnowledgeQueryExpansionProperties.disabled());
+                KnowledgeRerankingProperties.createDisabled(), SearchQueryProvider.NONE,
+                KnowledgeQueryExpansionProperties.createDisabled());
     }
 
     public static KnowledgeService create(KnowledgeRepository knowledgeRepository, KnowledgeAnswerProvider knowledgeAnswerProvider,

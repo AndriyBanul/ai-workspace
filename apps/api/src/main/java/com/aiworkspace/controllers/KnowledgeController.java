@@ -36,7 +36,7 @@ public class KnowledgeController {
     )
             throws IOException {
         return ResponseEntity.ok(knowledgeService.getWorkspaceKnowledge(
-                userAccountService.currentUserId(authentication),
+                userAccountService.getCurrentUserId(authentication),
                 workspaceId
         ));
     }
@@ -49,7 +49,7 @@ public class KnowledgeController {
     ) throws IOException {
         return ResponseEntity.ok(
                 answerHistory.ask(
-                userAccountService.currentUserId(authentication),
+                userAccountService.getCurrentUserId(authentication),
                 workspaceId,
                 request
         ));
@@ -59,6 +59,6 @@ public class KnowledgeController {
     public ResponseEntity<List<WorkspaceAnswerHistoryEntry>> listAnswers(@PathVariable String workspaceId,
             @RequestParam(defaultValue = "50") int limit, Authentication authentication) throws IOException {
         return ResponseEntity.ok(answerHistory.list(
-                userAccountService.currentUserId(authentication), workspaceId, limit));
+                userAccountService.getCurrentUserId(authentication), workspaceId, limit));
     }
 }
