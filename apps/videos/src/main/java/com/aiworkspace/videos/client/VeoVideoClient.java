@@ -1,8 +1,8 @@
 package com.aiworkspace.videos.client;
 
-import com.aiworkspace.videos.models.GeneratedVideo;
-import com.aiworkspace.videos.interfaces.VideoGenerationProvider;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
+import com.aiworkspace.videos.interfaces.VideoGenerationProvider;
+import com.aiworkspace.videos.models.GeneratedVideo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -13,6 +13,8 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -23,6 +25,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class VeoVideoClient implements VideoGenerationProvider {
 
     private static final int MAX_POLL_ATTEMPTS = 60;
@@ -52,22 +55,6 @@ public class VeoVideoClient implements VideoGenerationProvider {
                 restClient,
                 objectMapper
         );
-    }
-
-    VeoVideoClient(
-            URI baseUri,
-            String apiKey,
-            String model,
-            String aspectRatio,
-            RestClient restClient,
-            ObjectMapper objectMapper
-    ) {
-        this.baseUri = baseUri;
-        this.apiKey = apiKey;
-        this.model = model;
-        this.aspectRatio = aspectRatio;
-        this.restClient = restClient;
-        this.objectMapper = objectMapper;
     }
 
     @Override

@@ -1,5 +1,9 @@
 package com.aiworkspace.knowledge.models;
 
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum KnowledgeSourceType {
 
     DOCUMENT("documents"),
@@ -8,10 +12,6 @@ public enum KnowledgeSourceType {
     VIDEO("videos");
 
     private final String apiName;
-
-    KnowledgeSourceType(String apiName) {
-        this.apiName = apiName;
-    }
 
     public String apiName() {
         return apiName;

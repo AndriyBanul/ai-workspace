@@ -10,16 +10,14 @@ import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.NoSuchElementException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class SourceRetryPolicy {
 
     private final SourceRecoveryProperties properties;
-
-    public SourceRetryPolicy(SourceRecoveryProperties properties) {
-        this.properties = properties;
-    }
 
     public RetryDecision decide(Exception exception, int attemptCount, Instant now) {
         if (!retryable(exception) || attemptCount >= properties.maxAttempts()) {

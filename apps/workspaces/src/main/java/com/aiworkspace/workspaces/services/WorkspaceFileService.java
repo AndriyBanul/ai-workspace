@@ -17,11 +17,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class WorkspaceFileService {
 
     private static final List<WorkspaceFileStatus> PROCESSING_SOURCE_STATUSES = List.of(
@@ -43,18 +45,6 @@ public class WorkspaceFileService {
             FileStorage fileStorage
     ) {
         this(workspaceFileRepository, workspaceFileMapper, fileStorage, new WorkspaceFileValidator());
-    }
-
-    public WorkspaceFileService(
-            WorkspaceFileRepository workspaceFileRepository,
-            WorkspaceFileMapper workspaceFileMapper,
-            FileStorage fileStorage,
-            WorkspaceFileValidator workspaceFileValidator
-    ) {
-        this.workspaceFileRepository = workspaceFileRepository;
-        this.workspaceFileMapper = workspaceFileMapper;
-        this.fileStorage = fileStorage;
-        this.workspaceFileValidator = workspaceFileValidator;
     }
 
     @Transactional

@@ -1,24 +1,26 @@
 package com.aiworkspace.orchestrator.services;
 
+import com.aiworkspace.knowledge.models.StagedKnowledgeIndex;
+import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
+import com.aiworkspace.knowledge.services.SourceIndexManifestService;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJobDetails;
 import com.aiworkspace.orchestrator.models.RecoveryClaim;
 import com.aiworkspace.orchestrator.models.SourceOperationType;
-import com.aiworkspace.knowledge.models.StagedKnowledgeIndex;
-import com.aiworkspace.knowledge.repositories.KnowledgeRepository;
-import com.aiworkspace.knowledge.services.SourceIndexManifestService;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.services.WorkspaceFileService;
-import org.springframework.stereotype.Service;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Commits job, source and recovery state under the same leased source row lock. */
 @Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class SourceCompletionService {
 
     private static final Logger log = LoggerFactory.getLogger(SourceCompletionService.class);
@@ -32,16 +34,6 @@ public class SourceCompletionService {
     public SourceCompletionService(IngestionJobService jobs, WorkspaceFileService sources,
             SourceRecoveryTracker recovery) {
         this(jobs, sources, recovery, null, null);
-    }
-
-    @Autowired
-    public SourceCompletionService(IngestionJobService jobs, WorkspaceFileService sources,
-            SourceRecoveryTracker recovery, SourceIndexManifestService manifests, KnowledgeRepository knowledge) {
-        this.jobs = jobs;
-        this.sources = sources;
-        this.recovery = recovery;
-        this.manifests = manifests;
-        this.knowledge = knowledge;
     }
 
     @Transactional

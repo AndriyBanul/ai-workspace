@@ -4,16 +4,14 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class SearchTelemetry {
     public static final SearchTelemetry NOOP = new SearchTelemetry(new CompositeMeterRegistry());
     private final MeterRegistry registry;
-
-    public SearchTelemetry(MeterRegistry registry) {
-        this.registry = registry;
-    }
 
     @FunctionalInterface
     public interface Operation<T> {

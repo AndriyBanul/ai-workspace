@@ -6,6 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -13,6 +14,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @Table(name = "workspace_answer_history")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
 public class WorkspaceAnswerHistoryEntity {
 
     @Id
@@ -30,12 +32,4 @@ public class WorkspaceAnswerHistoryEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    public WorkspaceAnswerHistoryEntity(String id, String workspaceId, String question, String answerJson,
-            Instant createdAt) {
-        this.id = id;
-        this.workspaceId = workspaceId;
-        this.question = question;
-        this.answerJson = answerJson;
-        this.createdAt = createdAt;
-    }
 }

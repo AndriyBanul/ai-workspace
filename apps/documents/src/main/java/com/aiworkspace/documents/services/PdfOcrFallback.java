@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import javax.imageio.ImageIO;
+import lombok.RequiredArgsConstructor;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.io.RandomAccessReadBuffer;
@@ -19,16 +20,11 @@ import org.apache.pdfbox.rendering.PDFRenderer;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class PdfOcrFallback {
     private final ImageOcrProvider ocr;
     private final PdfOcrProperties properties;
     private final DocumentExtractionProperties limits;
-
-    public PdfOcrFallback(ImageOcrProvider ocr, PdfOcrProperties properties, DocumentExtractionProperties limits) {
-        this.ocr = ocr;
-        this.properties = properties;
-        this.limits = limits;
-    }
 
     List<DocumentTextBlock> apply(byte[] bytes, List<DocumentTextBlock> original) throws IOException {
         if (!properties.enabled()) return original;

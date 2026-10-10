@@ -3,6 +3,7 @@ package com.aiworkspace.controllers;
 import com.aiworkspace.users.models.RegisterRequest;
 import com.aiworkspace.users.models.UserAccount;
 import com.aiworkspace.users.services.UserAccountService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,13 +16,10 @@ import static org.springframework.http.HttpStatus.CREATED;
 
 @RestController
 @RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
     private final UserAccountService userAccountService;
-
-    public AuthController(UserAccountService userAccountService) {
-        this.userAccountService = userAccountService;
-    }
 
     @PostMapping("/register")
     public ResponseEntity<UserAccount> register(@RequestBody RegisterRequest request) {

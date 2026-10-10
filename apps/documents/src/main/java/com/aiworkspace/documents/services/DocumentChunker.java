@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -106,6 +108,7 @@ public class DocumentChunker {
                 || text.matches("^[IVXLCDM]+\\. [A-Z][A-Z ’'—-]+$");
     }
 
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private static final class Builder {
         private final String heading;
         private final String sectionId;
@@ -114,11 +117,6 @@ public class DocumentChunker {
         private int sentences;
         private boolean emitted;
 
-        private Builder(String heading, String sectionId, DocumentTextBlock location) {
-            this.heading = heading;
-            this.sectionId = sectionId;
-            this.location = location;
-        }
         private boolean sameLocation(DocumentTextBlock block) {
             return Objects.equals(location.pageNumber(), block.pageNumber())
                     && Objects.equals(location.slideNumber(), block.slideNumber())

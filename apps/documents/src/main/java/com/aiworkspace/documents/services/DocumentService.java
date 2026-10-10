@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.apache.tika.exception.EncryptedDocumentException;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.exception.WriteLimitReachedException;
@@ -32,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
 
 @Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class DocumentService {
 
     private static final String DOCX_MEDIA_TYPE =
@@ -62,25 +64,6 @@ public class DocumentService {
                 new DocumentChunker(),
                 null
         );
-    }
-
-    @Autowired
-    public DocumentService(
-            GenericRestClient restClient,
-            DocumentValidator documentValidator,
-            DocumentExtractionProperties extractionProperties,
-            DocxStructureExtractor docxStructureExtractor,
-            WebPageContentExtractor webPageContentExtractor,
-            DocumentChunker documentChunker,
-            PdfOcrFallback pdfOcrFallback
-    ) {
-        this.restClient = restClient;
-        this.documentValidator = documentValidator;
-        this.extractionProperties = extractionProperties;
-        this.docxStructureExtractor = docxStructureExtractor;
-        this.webPageContentExtractor = webPageContentExtractor;
-        this.documentChunker = documentChunker;
-        this.pdfOcrFallback = pdfOcrFallback;
     }
 
     public ParsedTextDocument parseTextDocument(String filename, byte[] bytes) throws IOException {

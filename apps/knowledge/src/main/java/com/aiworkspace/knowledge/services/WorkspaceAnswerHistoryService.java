@@ -11,25 +11,19 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class WorkspaceAnswerHistoryService {
 
     private final WorkspaceAnswerHistoryRepository history;
     private final WorkspaceService workspaces;
     private final KnowledgeService knowledge;
     private final ObjectMapper json;
-
-    public WorkspaceAnswerHistoryService(WorkspaceAnswerHistoryRepository history, WorkspaceService workspaces,
-            KnowledgeService knowledge, ObjectMapper json) {
-        this.history = history;
-        this.workspaces = workspaces;
-        this.knowledge = knowledge;
-        this.json = json;
-    }
 
     public WorkspaceKnowledgeAnswer ask(String ownerId, String workspaceId, WorkspaceQuestionRequest question)
             throws IOException {

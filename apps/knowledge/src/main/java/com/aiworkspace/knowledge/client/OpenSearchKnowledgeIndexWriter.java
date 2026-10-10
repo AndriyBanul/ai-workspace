@@ -1,8 +1,8 @@
 package com.aiworkspace.knowledge.client;
 
-import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeChunkMetadata;
 import com.aiworkspace.knowledge.models.KnowledgeEmbeddingMetadata;
+import com.aiworkspace.knowledge.models.KnowledgeItem;
 import com.aiworkspace.knowledge.models.KnowledgeItemSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
@@ -10,18 +10,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class OpenSearchKnowledgeIndexWriter {
 
     private final OpenSearchKnowledgeStore store;
-
-    OpenSearchKnowledgeIndexWriter(OpenSearchKnowledgeStore store) {
-        this.store = store;
-    }
 
     void add(List<KnowledgeItem> items) throws IOException {
         if (items == null || items.isEmpty()) return;

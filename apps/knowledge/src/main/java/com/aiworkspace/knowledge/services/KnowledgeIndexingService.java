@@ -19,10 +19,13 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class KnowledgeIndexingService {
 
     private final KnowledgeRepository knowledgeRepository;
@@ -39,14 +42,6 @@ public class KnowledgeIndexingService {
     public KnowledgeIndexingService(KnowledgeRepository knowledgeRepository, KnowledgeValidator knowledgeValidator,
             TextEmbeddingProvider textEmbeddingProvider, SourceIndexManifestService manifestService) {
         this(knowledgeRepository, knowledgeValidator, textEmbeddingProvider, true);
-    }
-
-    private KnowledgeIndexingService(KnowledgeRepository knowledgeRepository, KnowledgeValidator knowledgeValidator,
-            TextEmbeddingProvider textEmbeddingProvider, boolean versionedWrites) {
-        this.knowledgeRepository = knowledgeRepository;
-        this.knowledgeValidator = knowledgeValidator;
-        this.textEmbeddingProvider = textEmbeddingProvider;
-        this.versionedWrites = versionedWrites;
     }
 
     public StagedKnowledgeIndex record(String workspaceId, KnowledgeSourceType sourceType, String sourceName, String jobId,

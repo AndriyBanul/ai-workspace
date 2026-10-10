@@ -6,17 +6,15 @@ import com.aiworkspace.knowledge.repositories.SourceIndexManifestRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class SourceIndexManifestService {
 
     private final SourceIndexManifestRepository repository;
-
-    public SourceIndexManifestService(SourceIndexManifestRepository repository) {
-        this.repository = repository;
-    }
 
     @Transactional
     public void publish(StagedKnowledgeIndex index) {

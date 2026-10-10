@@ -10,12 +10,14 @@ import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
 import com.aiworkspace.workspaces.services.WorkspaceFileService;
 import java.io.IOException;
 import java.util.NoSuchElementException;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class SourceRecoveryScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(SourceRecoveryScheduler.class);
@@ -26,18 +28,6 @@ public class SourceRecoveryScheduler {
     private final WorkspaceFileService workspaceFileService;
     private final KnowledgeService knowledgeService;
     private final SourceRecoveryProperties properties;
-
-    public SourceRecoveryScheduler(SourceRecoveryTaskService recoveryTaskService,
-            OrchestratorService orchestratorService, WorkspaceLifecycleService lifecycleService,
-            WorkspaceFileService workspaceFileService, KnowledgeService knowledgeService,
-            SourceRecoveryProperties properties) {
-        this.recoveryTaskService = recoveryTaskService;
-        this.orchestratorService = orchestratorService;
-        this.lifecycleService = lifecycleService;
-        this.workspaceFileService = workspaceFileService;
-        this.knowledgeService = knowledgeService;
-        this.properties = properties;
-    }
 
     @Scheduled(fixedDelayString = "${ai-workspace.orchestrator.recovery.poll-interval:30s}")
     public void recoverDueSources() {

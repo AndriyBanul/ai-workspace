@@ -1,18 +1,20 @@
 package com.aiworkspace.orchestrator.services;
 
 import com.aiworkspace.knowledge.services.KnowledgeService;
-import com.aiworkspace.orchestrator.models.SourceOperationType;
 import com.aiworkspace.orchestrator.models.RecoveryClaim;
+import com.aiworkspace.orchestrator.models.SourceOperationType;
+import com.aiworkspace.workspaces.exceptions.WorkspaceSourceConflictException;
 import com.aiworkspace.workspaces.models.WorkspaceFile;
 import com.aiworkspace.workspaces.models.WorkspaceFileStatus;
-import com.aiworkspace.workspaces.exceptions.WorkspaceSourceConflictException;
-import com.aiworkspace.workspaces.services.WorkspaceService;
 import com.aiworkspace.workspaces.services.WorkspaceFileService;
+import com.aiworkspace.workspaces.services.WorkspaceService;
 import java.io.IOException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class WorkspaceLifecycleService {
 
     private final WorkspaceService workspaceService;
@@ -28,17 +30,6 @@ public class WorkspaceLifecycleService {
     public WorkspaceLifecycleService(WorkspaceService workspaceService, KnowledgeService knowledgeService,
             WorkspaceFileService workspaceFileService, SourceRecoveryTracker recoveryTracker) {
         this(workspaceService, knowledgeService, workspaceFileService, recoveryTracker, null);
-    }
-
-    @Autowired
-    public WorkspaceLifecycleService(WorkspaceService workspaceService, KnowledgeService knowledgeService,
-            WorkspaceFileService workspaceFileService, SourceRecoveryTracker recoveryTracker,
-            SourceLeaseKeeper leaseKeeper) {
-        this.workspaceService = workspaceService;
-        this.knowledgeService = knowledgeService;
-        this.workspaceFileService = workspaceFileService;
-        this.recoveryTracker = recoveryTracker;
-        this.leaseKeeper = leaseKeeper;
     }
 
     public void deleteFile(String ownerId, String workspaceId, String fileId) throws IOException {

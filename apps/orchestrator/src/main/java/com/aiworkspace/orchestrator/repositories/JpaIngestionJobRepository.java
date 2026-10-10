@@ -1,7 +1,6 @@
 package com.aiworkspace.orchestrator.repositories;
 
 import com.aiworkspace.orchestrator.entities.IngestionJobEntity;
-import com.aiworkspace.orchestrator.entities.IngestionJobStepEntity;
 import com.aiworkspace.orchestrator.mappers.IngestionJobEntityMapper;
 import com.aiworkspace.orchestrator.models.IngestionContentType;
 import com.aiworkspace.orchestrator.models.IngestionJob;
@@ -13,10 +12,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
-import org.springframework.stereotype.Repository;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Repository;
 
 @Repository
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class JpaIngestionJobRepository implements IngestionJobRepository {
 
     private static final Collection<IngestionStepStatus> ACTIVE_STEP_STATUSES = List.of(
@@ -27,16 +29,6 @@ class JpaIngestionJobRepository implements IngestionJobRepository {
     private final JpaIngestionJobEntityRepository jobRepository;
     private final JpaIngestionJobStepEntityRepository stepRepository;
     private final IngestionJobEntityMapper mapper;
-
-    JpaIngestionJobRepository(
-            JpaIngestionJobEntityRepository jobRepository,
-            JpaIngestionJobStepEntityRepository stepRepository,
-            IngestionJobEntityMapper mapper
-    ) {
-        this.jobRepository = jobRepository;
-        this.stepRepository = stepRepository;
-        this.mapper = mapper;
-    }
 
     @Override
     public void create(IngestionJob job, List<IngestionJobStep> steps) {

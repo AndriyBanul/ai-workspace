@@ -7,12 +7,14 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
+@RequiredArgsConstructor
 public class ApiRateLimitFilter extends OncePerRequestFilter {
 
     private static final String REGISTER_PATH = "/api/v1/auth/register";
@@ -21,14 +23,6 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     private final InMemoryRateLimiter rateLimiter;
     private final ApiSecurityResponseWriter responseWriter;
     private final SecurityAuditService auditService;
-
-    public ApiRateLimitFilter(SecurityProperties properties, InMemoryRateLimiter rateLimiter,
-            ApiSecurityResponseWriter responseWriter, SecurityAuditService auditService) {
-        this.properties = properties;
-        this.rateLimiter = rateLimiter;
-        this.responseWriter = responseWriter;
-        this.auditService = auditService;
-    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {

@@ -1,20 +1,23 @@
 package com.aiworkspace.images.services;
 
+import com.aiworkspace.images.interfaces.ImageGenerationProvider;
+import com.aiworkspace.images.interfaces.ImageUnderstandingProvider;
 import com.aiworkspace.images.models.GeneratedImage;
 import com.aiworkspace.images.models.ImageDescription;
 import com.aiworkspace.images.models.ImageGenerationRequest;
-import com.aiworkspace.images.interfaces.ImageGenerationProvider;
-import com.aiworkspace.images.interfaces.ImageUnderstandingProvider;
 import java.io.IOException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class ImageService {
 
     private final ImageUnderstandingProvider imageUnderstandingProvider;
     private final ImageGenerationProvider imageGenerationProvider;
+    @Value("${ai-workspace.gemini.image-description-prompt:Describe this image clearly and concisely.}")
     private final String descriptionPrompt;
     private final ImageValidator imageValidator;
 
@@ -24,19 +27,6 @@ public class ImageService {
             @Value("${ai-workspace.gemini.image-description-prompt:Describe this image clearly and concisely.}") String descriptionPrompt
     ) {
         this(imageUnderstandingProvider, imageGenerationProvider, descriptionPrompt, new ImageValidator());
-    }
-
-    @Autowired
-    public ImageService(
-            ImageUnderstandingProvider imageUnderstandingProvider,
-            ImageGenerationProvider imageGenerationProvider,
-            @Value("${ai-workspace.gemini.image-description-prompt:Describe this image clearly and concisely.}") String descriptionPrompt,
-            ImageValidator imageValidator
-    ) {
-        this.imageUnderstandingProvider = imageUnderstandingProvider;
-        this.imageGenerationProvider = imageGenerationProvider;
-        this.descriptionPrompt = descriptionPrompt;
-        this.imageValidator = imageValidator;
     }
 
     public ImageDescription describe(String filename, String contentType, byte[] imageContent)

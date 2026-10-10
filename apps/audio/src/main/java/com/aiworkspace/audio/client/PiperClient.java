@@ -16,30 +16,22 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class PiperClient implements TextToSpeechProvider {
 
     private static final String WYOMING_VERSION = "1.8.0";
     private static final int SOCKET_TIMEOUT_MILLIS = 30_000;
 
+    @Value("${ai-workspace.piper.host:localhost}")
     private final String host;
+    @Value("${ai-workspace.piper.port:10200}")
     private final int port;
     private final ObjectMapper objectMapper;
-
-    @Autowired
-    public PiperClient(
-            @Value("${ai-workspace.piper.host:localhost}") String host,
-            @Value("${ai-workspace.piper.port:10200}") int port,
-            ObjectMapper objectMapper
-    ) {
-        this.host = host;
-        this.port = port;
-        this.objectMapper = objectMapper;
-    }
 
     @Override
     public SynthesizedSpeech synthesize(String text) throws IOException {

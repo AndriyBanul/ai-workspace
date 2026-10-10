@@ -5,9 +5,16 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "user_daily_quota_usage")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
 public class UserQuotaUsageEntity {
 
     @Id
@@ -24,16 +31,6 @@ public class UserQuotaUsageEntity {
 
     @Column(nullable = false)
     private int consumed;
-
-    protected UserQuotaUsageEntity() {
-    }
-
-    public UserQuotaUsageEntity(String id, String userId, String action, Instant windowStart) {
-        this.id = id;
-        this.userId = userId;
-        this.action = action;
-        this.windowStart = windowStart;
-    }
 
     public void consume() {
         consumed++;

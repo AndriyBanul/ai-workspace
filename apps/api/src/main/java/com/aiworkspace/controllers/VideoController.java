@@ -1,14 +1,15 @@
 package com.aiworkspace.controllers;
 
+import com.aiworkspace.orchestrator.services.OrchestratorService;
+import com.aiworkspace.users.services.UserAccountService;
+import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.models.VideoDescriptionResponse;
 import com.aiworkspace.videos.models.VideoGenerationRequest;
 import com.aiworkspace.videos.models.YouTubeVideoIngestionRequest;
 import com.aiworkspace.videos.models.YouTubeVideoIngestionResponse;
-import com.aiworkspace.users.services.UserAccountService;
-import com.aiworkspace.videos.models.GeneratedVideo;
 import com.aiworkspace.videos.services.VideoService;
-import com.aiworkspace.orchestrator.services.OrchestratorService;
 import java.io.IOException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -23,18 +24,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/videos")
+@RequiredArgsConstructor
 public class VideoController {
 
     private final VideoService videoService;
     private final OrchestratorService orchestratorService;
     private final UserAccountService userAccountService;
-
-    public VideoController(VideoService videoService, OrchestratorService orchestratorService,
-            UserAccountService userAccountService) {
-        this.videoService = videoService;
-        this.orchestratorService = orchestratorService;
-        this.userAccountService = userAccountService;
-    }
 
     @PostMapping(path = "/descriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<VideoDescriptionResponse> describe(

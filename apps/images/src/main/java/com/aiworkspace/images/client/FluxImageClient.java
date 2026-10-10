@@ -1,13 +1,15 @@
 package com.aiworkspace.images.client;
 
-import com.aiworkspace.images.models.GeneratedImage;
 import com.aiworkspace.images.interfaces.ImageGenerationProvider;
+import com.aiworkspace.images.models.GeneratedImage;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -19,6 +21,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class FluxImageClient implements ImageGenerationProvider {
 
     private final URI baseUri;
@@ -42,20 +45,6 @@ public class FluxImageClient implements ImageGenerationProvider {
                 restClient,
                 objectMapper
         );
-    }
-
-    FluxImageClient(
-            URI baseUri,
-            String apiToken,
-            String model,
-            RestClient restClient,
-            ObjectMapper objectMapper
-    ) {
-        this.baseUri = baseUri;
-        this.apiToken = apiToken;
-        this.model = model;
-        this.restClient = restClient;
-        this.objectMapper = objectMapper;
     }
 
     @Override

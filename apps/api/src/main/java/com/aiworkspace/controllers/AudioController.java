@@ -1,12 +1,13 @@
 package com.aiworkspace.controllers;
 
-import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.models.AudioTranscriptionResponse;
+import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.models.TextToSpeechRequest;
 import com.aiworkspace.audio.services.AudioService;
 import com.aiworkspace.orchestrator.services.OrchestratorService;
 import com.aiworkspace.users.services.UserAccountService;
 import java.io.IOException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -21,18 +22,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/audio")
+@RequiredArgsConstructor
 public class AudioController {
 
     private final AudioService audioService;
     private final OrchestratorService orchestratorService;
     private final UserAccountService userAccountService;
-
-    public AudioController(AudioService audioService, OrchestratorService orchestratorService,
-            UserAccountService userAccountService) {
-        this.audioService = audioService;
-        this.orchestratorService = orchestratorService;
-        this.userAccountService = userAccountService;
-    }
 
     @PostMapping(path = "/transcriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<AudioTranscriptionResponse> transcribe(

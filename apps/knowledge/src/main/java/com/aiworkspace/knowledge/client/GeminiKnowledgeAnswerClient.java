@@ -11,6 +11,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -21,6 +23,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, SearchQueryProvider {
 
     private final URI baseUri;
@@ -44,20 +47,6 @@ public class GeminiKnowledgeAnswerClient implements KnowledgeAnswerProvider, Sea
                 restClient,
                 objectMapper
         );
-    }
-
-    GeminiKnowledgeAnswerClient(
-            URI baseUri,
-            String apiKey,
-            String model,
-            RestClient restClient,
-            ObjectMapper objectMapper
-    ) {
-        this.baseUri = baseUri;
-        this.apiKey = apiKey;
-        this.model = model;
-        this.restClient = restClient;
-        this.objectMapper = objectMapper;
     }
 
     @Override

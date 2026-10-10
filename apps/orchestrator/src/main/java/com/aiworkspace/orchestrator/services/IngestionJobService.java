@@ -17,11 +17,13 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class IngestionJobService {
 
     private static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
@@ -32,17 +34,6 @@ public class IngestionJobService {
 
     public IngestionJobService(IngestionJobRepository ingestionJobRepository, IngestionJobDetailsMapper detailsMapper) {
         this(ingestionJobRepository, detailsMapper, new IngestionJobValidator());
-    }
-
-    @Autowired
-    public IngestionJobService(
-            IngestionJobRepository ingestionJobRepository,
-            IngestionJobDetailsMapper detailsMapper,
-            IngestionJobValidator ingestionJobValidator
-    ) {
-        this.ingestionJobRepository = ingestionJobRepository;
-        this.detailsMapper = detailsMapper;
-        this.ingestionJobValidator = ingestionJobValidator;
     }
 
     @Transactional
