@@ -43,6 +43,7 @@ public class WhisperClient implements SpeechToTextProvider {
     @Override
     public TranscriptionResponse transcribe(String filename, byte[] fileContent)
             throws IOException, InterruptedException {
+        validateMultipartFilename(filename);
         String boundary = "ai-workspace-" + UUID.randomUUID();
         ResponseEntity<String> response;
         try {
@@ -84,6 +85,12 @@ public class WhisperClient implements SpeechToTextProvider {
         body.write(fileContent);
         body.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
         return body.toByteArray();
+    }
+
+    private void validateMultipartFilename(String filename) {
+        if (filename != null && filename.codePoints().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("Audio filename must not contain control characters");
+        }
     }
 
     private String escapeMultipartFilename(String filename) {

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -156,6 +157,63 @@ class WhisperClientTest {
         assertEquals("Hello", result.text());
         assertEquals(List.of(new TranscriptSegment(250, 1_500, null, "Hello")), result.segments());
         server.verify();
+    }
+
+    @Test
+    void rejectsUnsafeFilenamesBeforeSendingRequests() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var injectedClient = new WhisperClient("http://localhost", builder.build(), objectMapper);
+        for (String filename : List.of(
+                "meeting.wav\r\nX-Injected: true",
+                "meeting\r.wav", "meeting\n.wav", "meeting\t.wav",
+                "meeting\u0000.wav", "meeting\u001b.wav", "meeting\u007f.wav", "meeting\u0085.wav",
+                "\r\n", "\t"
+        )) {
+            var exception = assertThrows(IllegalArgumentException.class,
+                    () -> injectedClient.transcribe(filename, new byte[]{1}));
+
+            assertEquals("Audio filename must not contain control characters", exception.getMessage());
+        }
+        server.verify();
+    }
+
+    @Test
+    void escapesQuotedFilenamesAndPreservesUnicode() throws Exception {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://localhost/asr?task=transcribe&output=json&word_timestamps=true"))
+                .andExpect(request -> {
+                    String body = new String(((MockClientHttpRequest) request).getBodyAsBytes(), StandardCharsets.UTF_8);
+                    assertEquals("Content-Disposition: form-data; name=\"audio_file\"; "
+                            + "filename=\"Résumé \\\"notes\\\"\\\\take.wav\"", body.split("\r\n")[1]);
+                })
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        var injectedClient = new WhisperClient("http://localhost", builder.build(), objectMapper);
+
+        injectedClient.transcribe("Résumé \"notes\"\\take.wav", new byte[]{1});
+
+        server.verify();
+    }
+
+    @Test
+    void usesFallbackFilenameForMissingOrBlankNames() throws Exception {
+        for (String filename : Arrays.asList(null, "", "   ")) {
+            var builder = RestClient.builder();
+            var server = MockRestServiceServer.bindTo(builder).build();
+            server.expect(requestTo("http://localhost/asr?task=transcribe&output=json&word_timestamps=true"))
+                    .andExpect(request -> {
+                        String body = new String(((MockClientHttpRequest) request).getBodyAsBytes(), StandardCharsets.UTF_8);
+                        assertEquals("Content-Disposition: form-data; name=\"audio_file\"; filename=\"audio\"",
+                                body.split("\r\n")[1]);
+                    })
+                    .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+            var injectedClient = new WhisperClient("http://localhost", builder.build(), objectMapper);
+
+            injectedClient.transcribe(filename, new byte[]{1});
+
+            server.verify();
+        }
     }
 
     @Test
