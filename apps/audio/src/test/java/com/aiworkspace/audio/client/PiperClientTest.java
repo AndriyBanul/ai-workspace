@@ -1,6 +1,9 @@
 package com.aiworkspace.audio.client;
 
+import com.aiworkspace.audio.config.AudioConfig;
+import com.aiworkspace.audio.config.AudioSynthesisProperties;
 import com.aiworkspace.audio.models.PcmAudioFormat;
+import com.aiworkspace.audio.services.AudioValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -9,17 +12,56 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
 import javax.sound.sampled.AudioSystem;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.util.unit.DataSize;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PiperClientTest {
 
-    private final PiperClient client = new PiperClient("localhost", 10200, new ObjectMapper());
+    private final AudioSynthesisProperties properties = AudioSynthesisProperties.builder().build();
+    private final ScheduledExecutorService scheduler = new AudioConfig().piperDeadlineScheduler();
+    private final PiperClient client = new PiperClient("localhost", 10200, new ObjectMapper(),
+            properties, new AudioValidator(properties), scheduler);
+
+    @AfterEach
+    void closeScheduler() {
+        scheduler.shutdownNow();
+    }
+
+    @Test
+    void rejectsOversizedHeadersAndDeclaredLengthsBeforeReadingBodies() throws Exception {
+        var limitedProperties = AudioSynthesisProperties.builder()
+                .maxHeaderSize(DataSize.ofBytes(128))
+                .maxEventDataSize(DataSize.ofBytes(16))
+                .maxEventPayloadSize(DataSize.ofBytes(4))
+                .build();
+        var limitedClient = new PiperClient("localhost", 10200, new ObjectMapper(),
+                limitedProperties, new AudioValidator(limitedProperties), scheduler);
+        for (String header : List.of(
+                "x".repeat(129),
+                "{\"type\":\"future-event\",\"data_length\":17}\n",
+                "{\"type\":\"audio-chunk\",\"data_length\":16,\"payload_length\":5}\n",
+                "{\"type\":\"audio-chunk\",\"payload_length\":2147483647}\n"
+        )) {
+            var exception = assertThrows(IOException.class,
+                    () -> limitedClient.readEvent(new ByteArrayInputStream(header.getBytes(StandardCharsets.UTF_8))));
+            assertTrue(exception.getMessage().contains("size limit"));
+        }
+        var event = limitedClient.readEvent(new ByteArrayInputStream(buildEvent("audio-chunk", "{}", new byte[4])));
+        assertEquals(4, event.payload().length);
+        String exactHeader = "{\"type\":\"audio-stop\"}";
+        exactHeader += " ".repeat(128 - exactHeader.length()) + "\n";
+        assertEquals("audio-stop", limitedClient.readEvent(
+                new ByteArrayInputStream(exactHeader.getBytes(StandardCharsets.UTF_8))).type());
+    }
 
     @Test
     void readsAudioFormatAndPreservesFollowingBinaryPayload() throws Exception {

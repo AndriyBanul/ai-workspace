@@ -1,15 +1,20 @@
 package com.aiworkspace.audio.services;
 
+import com.aiworkspace.audio.config.AudioSynthesisProperties;
 import com.aiworkspace.audio.models.TextToSpeechRequest;
 import java.util.Locale;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class AudioValidator {
 
     private static final long MAX_FILE_SIZE_BYTES = 25L * 1024L * 1024L;
     private static final Set<String> SUPPORTED_TRANSCRIPTION_EXTENSIONS = Set.of("wav", "mp3", "mp4", "avi");
+
+    private final AudioSynthesisProperties synthesisProperties;
 
     public void validateTranscriptionFile(String filename, byte[] fileContent) {
         if (fileContent == null || fileContent.length == 0) {
@@ -29,6 +34,10 @@ public class AudioValidator {
     public void validateText(String text) {
         if (text == null || text.isBlank()) {
             throw new IllegalArgumentException("Text must not be blank");
+        }
+        if (text.codePointCount(0, text.length()) > synthesisProperties.maxTextCharacters()) {
+            throw new IllegalArgumentException("Text must not exceed "
+                    + synthesisProperties.maxTextCharacters() + " Unicode characters");
         }
     }
 

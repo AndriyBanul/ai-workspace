@@ -1,5 +1,6 @@
 package com.aiworkspace.config;
 
+import com.aiworkspace.audio.exceptions.AudioSynthesisBusyException;
 import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.models.ApiErrorResponse;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
@@ -21,6 +22,14 @@ import org.springframework.web.server.ResponseStatusException;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(AudioSynthesisBusyException.class)
+    public ResponseEntity<ApiErrorResponse> handleAudioSynthesisBusy(
+            AudioSynthesisBusyException exception,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(), request, "AUDIO_SYNTHESIS_BUSY");
+    }
 
     @ExceptionHandler(DocumentProcessingException.class)
     public ResponseEntity<ApiErrorResponse> handleDocumentProcessing(

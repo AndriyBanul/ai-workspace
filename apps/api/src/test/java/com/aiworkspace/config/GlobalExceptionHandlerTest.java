@@ -1,5 +1,6 @@
 package com.aiworkspace.config;
 
+import com.aiworkspace.audio.exceptions.AudioSynthesisBusyException;
 import com.aiworkspace.documents.exceptions.DocumentProcessingException;
 import com.aiworkspace.documents.models.DocumentFailureCode;
 import java.io.IOException;
@@ -11,6 +12,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class GlobalExceptionHandlerTest {
+
+    @Test
+    void exposesSynthesisCapacityAsServiceUnavailable() {
+        var request = new MockHttpServletRequest("POST", "/api/v1/audio/speech");
+
+        var response = new GlobalExceptionHandler().handleAudioSynthesisBusy(new AudioSynthesisBusyException(), request);
+
+        assertEquals(503, response.getStatusCode().value());
+        assertNotNull(response.getBody());
+        assertEquals("AUDIO_SYNTHESIS_BUSY", response.getBody().code());
+    }
 
     @Test
     void exposesPasswordProtectedDocumentFailureWithoutParserDetails() {

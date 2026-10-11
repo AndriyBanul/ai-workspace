@@ -1,7 +1,7 @@
 package com.aiworkspace.audio.services;
 
-import com.aiworkspace.audio.client.PiperClient;
 import com.aiworkspace.audio.client.WhisperClient;
+import com.aiworkspace.audio.config.AudioSynthesisProperties;
 import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.models.TranscriptionResponse;
@@ -31,13 +31,8 @@ class AudioServiceTest {
                     );
                 }
             },
-            new PiperClient("localhost", 10200, OBJECT_MAPPER) {
-                @Override
-                public SynthesizedSpeech synthesize(String text) {
-                    return new SynthesizedSpeech("speech.wav", new byte[] {1, 2, 3});
-                }
-            },
-            new AudioValidator()
+            text -> new SynthesizedSpeech("speech.wav", new byte[] {1, 2, 3}),
+            new AudioValidator(AudioSynthesisProperties.builder().build())
     );
 
     @Test

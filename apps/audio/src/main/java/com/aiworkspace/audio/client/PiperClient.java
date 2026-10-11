@@ -1,11 +1,14 @@
 package com.aiworkspace.audio.client;
 
+import com.aiworkspace.audio.config.AudioSynthesisProperties;
+import com.aiworkspace.audio.exceptions.AudioSynthesisBusyException;
 import com.aiworkspace.audio.interfaces.TextToSpeechProvider;
 import com.aiworkspace.audio.models.PcmAudioFormat;
 import com.aiworkspace.audio.models.SynthesizedSpeech;
 import com.aiworkspace.audio.models.WyomingErrorResponse;
 import com.aiworkspace.audio.models.WyomingEvent;
 import com.aiworkspace.audio.models.WyomingEventHeader;
+import com.aiworkspace.audio.services.AudioValidator;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,62 +21,114 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
-@RequiredArgsConstructor
 public class PiperClient implements TextToSpeechProvider {
 
     private static final String WYOMING_VERSION = "1.8.0";
-    private static final int SOCKET_TIMEOUT_MILLIS = 30_000;
     private static final long MAX_WAV_BYTE_RATE = 0xffff_ffffL;
 
-    @Value("${ai-workspace.piper.host:localhost}")
     private final String host;
-    @Value("${ai-workspace.piper.port:10200}")
     private final int port;
     private final ObjectMapper objectMapper;
+    private final AudioSynthesisProperties properties;
+    private final AudioValidator audioValidator;
+    private final ScheduledExecutorService deadlineScheduler;
+    private final Semaphore synthesisSlots;
+
+    public PiperClient(
+            @Value("${ai-workspace.piper.host:localhost}") String host,
+            @Value("${ai-workspace.piper.port:10200}") int port,
+            ObjectMapper objectMapper,
+            AudioSynthesisProperties properties,
+            AudioValidator audioValidator,
+            @Qualifier("piperDeadlineScheduler") ScheduledExecutorService deadlineScheduler
+    ) {
+        this.host = host;
+        this.port = port;
+        this.objectMapper = objectMapper;
+        this.properties = properties;
+        this.audioValidator = audioValidator;
+        this.deadlineScheduler = deadlineScheduler;
+        this.synthesisSlots = new Semaphore(properties.maxConcurrentRequests());
+    }
 
     @Override
     public SynthesizedSpeech synthesize(String text) throws IOException {
+        audioValidator.validateText(text);
+        if (!synthesisSlots.tryAcquire()) {
+            throw new AudioSynthesisBusyException();
+        }
         try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(host, port), SOCKET_TIMEOUT_MILLIS);
-            socket.setSoTimeout(SOCKET_TIMEOUT_MILLIS);
-
-            OutputStream outputStream = socket.getOutputStream();
-            InputStream inputStream = socket.getInputStream();
-
-            writeEvent(outputStream, "synthesize", Map.of("text", text));
-
-            PcmAudioFormat audioFormat = null;
-            ByteArrayOutputStream pcmAudio = new ByteArrayOutputStream();
-
-            while (true) {
-                WyomingEvent event = readEvent(inputStream);
-
-                if ("audio-start".equals(event.type())) {
-                    audioFormat = event.audioFormat();
-                } else if ("audio-chunk".equals(event.type())) {
-                    pcmAudio.writeBytes(event.payload());
-                } else if ("audio-stop".equals(event.type())) {
-                    break;
-                } else if ("error".equals(event.type())) {
-                    String errorText = event.error() == null ? null : event.error().text();
-                    throw new IOException(errorText == null || errorText.isBlank()
-                            ? "Piper returned an error" : "Piper returned an error: " + errorText);
-                }
-            }
-
-            if (audioFormat == null) {
-                throw new IOException("Piper did not return audio format metadata");
-            }
-
-            return new SynthesizedSpeech("speech.wav", encodeWav(audioFormat, pcmAudio.toByteArray()));
+            return synthesize(socket, text);
         } catch (IOException exception) {
             throw new UpstreamServiceException("Piper", resolvePiperFailureMessage(exception), exception);
+        } finally {
+            synthesisSlots.release();
         }
+    }
+
+    private SynthesizedSpeech synthesize(Socket socket, String text) throws IOException {
+        try (var deadline = new PiperSynthesisDeadline(socket, properties.requestTimeout(), deadlineScheduler)) {
+            try {
+                socket.connect(new InetSocketAddress(host, port), (int) properties.connectTimeout().toMillis());
+                socket.setSoTimeout((int) properties.readTimeout().toMillis());
+                writeEvent(socket.getOutputStream(), "synthesize", Map.of("text", text));
+                SynthesizedSpeech speech = readSynthesizedSpeech(socket.getInputStream(), deadline);
+                deadline.check();
+                return speech;
+            } catch (IOException exception) {
+                if (deadline.hasExpired()) {
+                    throw new IOException("Piper synthesis exceeded the total request deadline", exception);
+                }
+                throw exception;
+            }
+        }
+    }
+
+    private SynthesizedSpeech readSynthesizedSpeech(InputStream inputStream, PiperSynthesisDeadline deadline)
+            throws IOException {
+        PcmAudioFormat audioFormat = null;
+        long maxAudioBytes = properties.maxAudioSize().toBytes();
+        ByteArrayOutputStream pcmAudio = new ByteArrayOutputStream();
+        for (int eventCount = 0; eventCount < properties.maxEvents(); eventCount++) {
+            deadline.check();
+            WyomingEvent event = readEvent(inputStream, maxAudioBytes - pcmAudio.size());
+            if ("audio-start".equals(event.type())) {
+                if (audioFormat != null) {
+                    throw new IOException("Piper returned multiple audio-start events");
+                }
+                audioFormat = event.audioFormat();
+                maxAudioBytes = Math.min(maxAudioBytes, calculateDurationLimitBytes(audioFormat));
+            } else if ("audio-chunk".equals(event.type())) {
+                if (audioFormat == null) {
+                    throw new IOException("Piper returned audio before audio format metadata");
+                }
+                pcmAudio.writeBytes(event.payload());
+            } else if ("audio-stop".equals(event.type())) {
+                if (audioFormat == null) {
+                    throw new IOException("Piper did not return audio format metadata");
+                }
+                deadline.check();
+                return new SynthesizedSpeech("speech.wav", encodeWav(audioFormat, pcmAudio.toByteArray()));
+            } else if ("error".equals(event.type())) {
+                String errorText = event.error() == null ? null : event.error().text();
+                throw new IOException(errorText == null || errorText.isBlank()
+                        ? "Piper returned an error" : "Piper returned an error: " + errorText);
+            }
+        }
+        throw new IOException("Piper exceeded the synthesis event limit");
+    }
+
+    private long calculateDurationLimitBytes(PcmAudioFormat format) {
+        long frames = (long) format.rate() * properties.maxAudioDuration().getSeconds()
+                + (long) format.rate() * properties.maxAudioDuration().getNano() / 1_000_000_000;
+        return frames * format.width() * format.channels();
     }
 
     private String resolvePiperFailureMessage(IOException exception) {
@@ -100,10 +155,19 @@ public class PiperClient implements TextToSpeechProvider {
     }
 
     WyomingEvent readEvent(InputStream inputStream) throws IOException {
+        return readEvent(inputStream, properties.maxAudioSize().toBytes());
+    }
+
+    private WyomingEvent readEvent(InputStream inputStream, long remainingAudioBytes) throws IOException {
         String headerLine = readHeaderLine(inputStream);
         WyomingEventHeader header = objectMapper.readValue(headerLine, WyomingEventHeader.class);
         if (header == null || header.type() == null || header.type().isBlank()) {
             throw new IOException("Piper returned an invalid event header");
+        }
+        validateEventLength(header.dataLength(), properties.maxEventDataSize().toBytes(), "metadata");
+        validateEventLength(header.payloadLength(), properties.maxEventPayloadSize().toBytes(), "payload");
+        if ("audio-chunk".equals(header.type()) && header.payloadLength() > remainingAudioBytes) {
+            throw new IOException("Piper exceeded the synthesized audio size or duration limit");
         }
         byte[] data = readEventBytes(inputStream, header.dataLength());
         byte[] payload = readEventBytes(inputStream, header.payloadLength());
@@ -122,14 +186,20 @@ public class PiperClient implements TextToSpeechProvider {
     }
 
     private byte[] readEventBytes(InputStream inputStream, int length) throws IOException {
-        if (length < 0) {
-            throw new IOException("Piper returned a negative event length");
-        }
         byte[] bytes = inputStream.readNBytes(length);
         if (bytes.length != length) {
             throw new IOException("Piper closed the connection before sending a complete event");
         }
         return bytes;
+    }
+
+    private void validateEventLength(int length, long maxBytes, String section) throws IOException {
+        if (length < 0) {
+            throw new IOException("Piper returned a negative event length");
+        }
+        if (length > maxBytes) {
+            throw new IOException("Piper exceeded the event " + section + " size limit");
+        }
     }
 
     private String readHeaderLine(InputStream inputStream) throws IOException {
@@ -145,6 +215,9 @@ public class PiperClient implements TextToSpeechProvider {
                 return line.toString(StandardCharsets.UTF_8);
             }
 
+            if (line.size() >= properties.maxHeaderSize().toBytes()) {
+                throw new IOException("Piper exceeded the event header size limit");
+            }
             line.write(nextByte);
         }
     }

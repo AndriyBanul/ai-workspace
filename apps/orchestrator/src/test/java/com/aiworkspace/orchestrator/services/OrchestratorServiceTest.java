@@ -1,5 +1,6 @@
 package com.aiworkspace.orchestrator.services;
 
+import com.aiworkspace.audio.config.AudioSynthesisProperties;
 import com.aiworkspace.audio.models.AudioTranscription;
 import com.aiworkspace.audio.services.AudioService;
 import com.aiworkspace.audio.services.AudioValidator;
@@ -329,7 +330,7 @@ class OrchestratorServiceTest {
     private static class TestAudioService extends AudioService {
 
         TestAudioService() {
-            super(null, null, new AudioValidator());
+            super(null, null, new AudioValidator(AudioSynthesisProperties.builder().build()));
         }
 
         @Override

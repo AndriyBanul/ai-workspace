@@ -1,5 +1,25 @@
 # Active Handoff
 
+## Bounded speech synthesis (2026-10-11)
+
+- Added typed, validated synthesis configuration with defaults of 3,000 Unicode
+  code points, 16 MiB PCM or five minutes of audio, a 90-second total deadline,
+  five-second connect and 15-second read inactivity timeouts, 8 KiB headers,
+  64 KiB event metadata, 1 MiB payloads, and 10,000 events.
+- Piper checks declared lengths and the remaining audio budget before reading
+  bodies, enforces audio-start ordering, and rejects repeated starts. A managed
+  deadline scheduler closes the socket even during writes or continuous reads.
+- A nonblocking semaphore defaults to one active request per API process. Busy
+  requests return HTTP 503 with `AUDIO_SYNTHESIS_BUSY`; provider failures remain
+  HTTP 502 and oversized input is HTTP 400. Permits and deadline tasks are released
+  on success and failure. Shared Piper backends across API replicas need a shared
+  limiter; this implementation does not coordinate replicas.
+- Settings are documented in `.env.example` and `docs/audio-synthesis-limits.md`.
+  Added configuration/wiring, Unicode input, frame budget, deadline, inactivity,
+  capacity, and error-response regression coverage. Production and affected test
+  sources compile; module-boundary checks, API bootJar, and whitespace checks
+  pass. Tests were not run, per Andrii's preferences.
+
 ## Piper audio format validation (2026-10-11)
 
 - Piper validates audio-start metadata before accepting PCM audio: a positive

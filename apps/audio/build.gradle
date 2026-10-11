@@ -15,6 +15,8 @@ dependencyManagement {
 dependencies {
 	implementation project(':shared')
 	implementation project(':knowledge')
+	compileOnly 'org.springframework.boot:spring-boot'
+	compileOnly 'org.slf4j:slf4j-api'
 	compileOnly 'org.springframework:spring-beans'
 	compileOnly 'org.springframework:spring-context'
 	compileOnly 'org.springframework:spring-core'
@@ -23,6 +25,8 @@ dependencies {
 	testImplementation 'org.junit.jupiter:junit-jupiter'
 	testImplementation 'org.springframework:spring-web'
 	testImplementation 'org.springframework:spring-test'
+	testImplementation 'org.springframework.boot:spring-boot'
+	testImplementation 'org.slf4j:slf4j-api'
 	testImplementation 'org.hamcrest:hamcrest'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
