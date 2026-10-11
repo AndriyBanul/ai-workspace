@@ -11,25 +11,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class WhisperClient implements SpeechToTextProvider {
 
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
-
     private final URI baseUri;
-    private final HttpClient httpClient;
+    private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
     public WhisperClient(
@@ -38,10 +36,7 @@ public class WhisperClient implements SpeechToTextProvider {
             ObjectMapper objectMapper
     ) {
         this.baseUri = URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
+        this.restClient = restClient;
         this.objectMapper = objectMapper;
     }
 
@@ -49,24 +44,27 @@ public class WhisperClient implements SpeechToTextProvider {
     public TranscriptionResponse transcribe(String filename, byte[] fileContent)
             throws IOException, InterruptedException {
         String boundary = "ai-workspace-" + UUID.randomUUID();
-        HttpRequest request = HttpRequest.newBuilder(buildTranscriptionUri())
-                .version(HttpClient.Version.HTTP_1_1)
-                .timeout(REQUEST_TIMEOUT)
-                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .POST(HttpRequest.BodyPublishers.ofByteArray(buildMultipartBody(boundary, filename, fileContent)))
-                .build();
-        HttpResponse<String> response;
+        ResponseEntity<String> response;
         try {
-            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        } catch (IOException exception) {
+            response = restClient.post()
+                    .uri(buildTranscriptionUri())
+                    .contentType(MediaType.parseMediaType("multipart/form-data; boundary=" + boundary))
+                    .body(buildMultipartBody(boundary, filename, fileContent))
+                    .retrieve()
+                    .toEntity(String.class);
+        } catch (RestClientResponseException exception) {
+            throw new UpstreamServiceException(
+                    "Whisper", "Whisper returned HTTP " + exception.getStatusCode().value(), exception
+            );
+        } catch (RestClientException exception) {
             throw new UpstreamServiceException("Whisper", "Whisper is unavailable", exception);
         }
 
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new UpstreamServiceException("Whisper", "Whisper returned HTTP " + response.statusCode());
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new UpstreamServiceException("Whisper", "Whisper returned HTTP " + response.getStatusCode().value());
         }
 
-        return parseTranscription(response.body());
+        return parseTranscription(response.getBody());
     }
 
     private URI buildTranscriptionUri() {
