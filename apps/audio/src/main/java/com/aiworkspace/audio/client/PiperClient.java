@@ -7,6 +7,7 @@ import com.aiworkspace.audio.models.WyomingErrorResponse;
 import com.aiworkspace.audio.models.WyomingEvent;
 import com.aiworkspace.audio.models.WyomingEventHeader;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -27,6 +28,7 @@ public class PiperClient implements TextToSpeechProvider {
 
     private static final String WYOMING_VERSION = "1.8.0";
     private static final int SOCKET_TIMEOUT_MILLIS = 30_000;
+    private static final long MAX_WAV_BYTE_RATE = 0xffff_ffffL;
 
     @Value("${ai-workspace.piper.host:localhost}")
     private final String host;
@@ -109,10 +111,10 @@ public class PiperClient implements TextToSpeechProvider {
         PcmAudioFormat audioFormat = null;
         WyomingErrorResponse error = null;
         if ("audio-start".equals(header.type())) {
-            audioFormat = objectMapper.readValue(data, PcmAudioFormat.class);
-            if (audioFormat == null) {
-                throw new IOException("Piper returned invalid audio format metadata");
-            }
+            audioFormat = objectMapper.readerFor(PcmAudioFormat.class)
+                    .without(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
+                    .readValue(data);
+            validateAudioFormat(audioFormat);
         } else if ("error".equals(header.type()) && data.length > 0) {
             error = objectMapper.readValue(data, WyomingErrorResponse.class);
         }
@@ -147,29 +149,56 @@ public class PiperClient implements TextToSpeechProvider {
         }
     }
 
-    private byte[] encodeWav(PcmAudioFormat audioFormat, byte[] pcmAudio) throws IOException {
+    private void validateAudioFormat(PcmAudioFormat audioFormat) throws IOException {
+        if (audioFormat == null) {
+            throw new IOException("Piper returned invalid audio format metadata");
+        }
+        if (audioFormat.rate() <= 0) {
+            throw new IOException("Piper returned an invalid PCM sample rate");
+        }
+        if (audioFormat.width() != 1 && audioFormat.width() != 2) {
+            throw new IOException("Piper returned an unsupported PCM sample width; expected 1 or 2 bytes");
+        }
+        if (audioFormat.channels() != 1 && audioFormat.channels() != 2) {
+            throw new IOException("Piper returned an unsupported PCM channel count; expected mono or stereo");
+        }
+        long byteRate = (long) audioFormat.rate() * audioFormat.channels() * audioFormat.width();
+        if (byteRate > MAX_WAV_BYTE_RATE) {
+            throw new IOException("Piper returned a PCM byte rate that exceeds the WAV format limit");
+        }
+    }
+
+    byte[] encodeWav(PcmAudioFormat audioFormat, byte[] pcmAudio) throws IOException {
+        validateAudioFormat(audioFormat);
         int channels = audioFormat.channels();
         int sampleRate = audioFormat.rate();
         int bytesPerSample = audioFormat.width();
         int bitsPerSample = bytesPerSample * 8;
-        int byteRate = sampleRate * channels * bytesPerSample;
+        long byteRate = (long) sampleRate * channels * bytesPerSample;
         int blockAlign = channels * bytesPerSample;
+        if (pcmAudio.length % blockAlign != 0) {
+            throw new IOException("Piper returned incomplete PCM audio frames");
+        }
+        int padding = pcmAudio.length % 2;
 
         ByteArrayOutputStream wav = new ByteArrayOutputStream();
         writeAscii(wav, "RIFF");
-        writeIntLittleEndian(wav, 36 + pcmAudio.length);
+        writeIntLittleEndian(wav, 36 + pcmAudio.length + padding);
         writeAscii(wav, "WAVE");
         writeAscii(wav, "fmt ");
         writeIntLittleEndian(wav, 16);
         writeShortLittleEndian(wav, 1);
         writeShortLittleEndian(wav, channels);
         writeIntLittleEndian(wav, sampleRate);
-        writeIntLittleEndian(wav, byteRate);
+        writeIntLittleEndian(wav, (int) byteRate);
         writeShortLittleEndian(wav, blockAlign);
         writeShortLittleEndian(wav, bitsPerSample);
         writeAscii(wav, "data");
         writeIntLittleEndian(wav, pcmAudio.length);
         wav.writeBytes(pcmAudio);
+        if (padding != 0) {
+            wav.write(0);
+        }
 
         return wav.toByteArray();
     }

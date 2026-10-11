@@ -1,5 +1,20 @@
 # Active Handoff
 
+## Piper audio format validation (2026-10-11)
+
+- Piper validates audio-start metadata before accepting PCM audio: a positive
+  sample rate, 1- or 2-byte samples, and mono or stereo channels. These are the
+  formats supported by the current basic PCM WAV encoder; wider samples and
+  multichannel audio require a separate format-support change.
+- Fractional format values, missing metadata, and byte rates exceeding the WAV
+  unsigned 32-bit field are rejected through the existing Piper upstream error
+  boundary. Byte-rate arithmetic uses `long` before writing the validated field.
+- WAV encoding rejects incomplete PCM frames and pads odd-length 8-bit mono
+  data without including padding in the data chunk size.
+- Added metadata and WAV regression coverage. Audio production/test compilation,
+  module-boundary checks, and whitespace checks passed. Tests were not run,
+  per Andrii's preferences.
+
 ## Typed provider responses (2026-10-10)
 
 - Replaced production JSON tree parsing in Whisper, Gemini image/video/OCR/knowledge,
