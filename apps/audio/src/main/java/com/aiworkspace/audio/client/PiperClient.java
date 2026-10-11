@@ -10,8 +10,10 @@ import com.aiworkspace.audio.models.WyomingEvent;
 import com.aiworkspace.audio.models.WyomingEventHeader;
 import com.aiworkspace.audio.services.AudioValidator;
 import com.aiworkspace.shared.exceptions.UpstreamServiceException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.util.TokenBuffer;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,6 +34,7 @@ public class PiperClient implements TextToSpeechProvider {
 
     private static final String WYOMING_VERSION = "1.8.0";
     private static final long MAX_WAV_BYTE_RATE = 0xffff_ffffL;
+    private static final TypeReference<Map<String, Object>> EVENT_DATA_TYPE = new TypeReference<>() { };
 
     private final String host;
     private final int port;
@@ -171,18 +174,43 @@ public class PiperClient implements TextToSpeechProvider {
         }
         byte[] data = readEventBytes(inputStream, header.dataLength());
         byte[] payload = readEventBytes(inputStream, header.payloadLength());
+        Map<String, Object> metadata = mergeEventMetadata(header.data(), data);
 
         PcmAudioFormat audioFormat = null;
         WyomingErrorResponse error = null;
         if ("audio-start".equals(header.type())) {
-            audioFormat = objectMapper.readerFor(PcmAudioFormat.class)
-                    .without(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
-                    .readValue(data);
+            audioFormat = readEventMetadata(metadata, PcmAudioFormat.class);
             validateAudioFormat(audioFormat);
-        } else if ("error".equals(header.type()) && data.length > 0) {
-            error = objectMapper.readValue(data, WyomingErrorResponse.class);
+        } else if ("error".equals(header.type()) && !metadata.isEmpty()) {
+            error = readEventMetadata(metadata, WyomingErrorResponse.class);
         }
         return new WyomingEvent(header.type(), audioFormat, error, payload);
+    }
+
+    private Map<String, Object> mergeEventMetadata(Map<String, Object> inlineData, byte[] additionalData) throws IOException {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (inlineData != null) {
+            metadata.putAll(inlineData);
+        }
+        if (additionalData.length > 0) {
+            Map<String, Object> additionalMetadata = objectMapper.readValue(additionalData, EVENT_DATA_TYPE);
+            if (additionalMetadata == null) {
+                throw new IOException("Piper returned invalid event metadata");
+            }
+            metadata.putAll(additionalMetadata);
+        }
+        return metadata;
+    }
+
+    private <T> T readEventMetadata(Map<String, Object> metadata, Class<T> responseType) throws IOException {
+        try (var buffer = new TokenBuffer(objectMapper, false)) {
+            objectMapper.writeValue(buffer, metadata);
+            try (var parser = buffer.asParser(objectMapper)) {
+                return objectMapper.readerFor(responseType)
+                        .without(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
+                        .readValue(parser);
+            }
+        }
     }
 
     private byte[] readEventBytes(InputStream inputStream, int length) throws IOException {

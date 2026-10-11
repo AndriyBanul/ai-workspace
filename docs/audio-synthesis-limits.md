@@ -15,13 +15,20 @@ variables and defaults are also listed in `.env.example`.
 | `connect-timeout` | `AUDIO_SYNTHESIS_CONNECT_TIMEOUT` | 5 seconds |
 | `read-timeout` | `AUDIO_SYNTHESIS_READ_TIMEOUT` | 15 seconds of read inactivity |
 | `max-header-size` | `AUDIO_SYNTHESIS_MAX_HEADER_SIZE` | 8 KiB, excluding the newline |
-| `max-event-data-size` | `AUDIO_SYNTHESIS_MAX_EVENT_DATA_SIZE` | 64 KiB per event |
+| `max-event-data-size` | `AUDIO_SYNTHESIS_MAX_EVENT_DATA_SIZE` | 64 KiB of separate JSON metadata per event |
 | `max-event-payload-size` | `AUDIO_SYNTHESIS_MAX_EVENT_PAYLOAD_SIZE` | 1 MiB per event |
 | `max-events` | `AUDIO_SYNTHESIS_MAX_EVENTS` | 10,000, including unknown and stop events |
 | `max-concurrent-requests` | `AUDIO_SYNTHESIS_MAX_CONCURRENT_REQUESTS` | 1 per API process |
 
 `KB` and `MB` property values use binary units. Positive limits are required at
 startup; buffer sizes and durations must fit the implementation's integer bounds.
+
+Piper accepts inline metadata in a header's `data` object, separate JSON metadata
+after the header, or both. Additional metadata replaces matching inline keys,
+including explicit `null` values, before the typed audio/error records are
+validated. Inline data is bounded by the header limit; the separate block is
+bounded by `max-event-data-size`. This follows the
+[Wyoming format](https://github.com/OHF-Voice/wyoming/blob/main/README.md#format).
 
 The total deadline starts before connecting and applies to socket reads and
 writes. A scheduled task closes the socket when it expires, so continuously

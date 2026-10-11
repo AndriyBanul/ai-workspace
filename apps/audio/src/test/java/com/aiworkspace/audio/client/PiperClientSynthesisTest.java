@@ -13,6 +13,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.util.unit.DataSize;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -36,6 +38,28 @@ class PiperClientSynthesisTest {
     @AfterEach
     void closeScheduler() {
         scheduler.shutdownNow();
+    }
+
+    @Test
+    void synthesizesWavFromInlineMetadataAndReportsInlineProviderErrors() throws Exception {
+        byte[] pcm = {0, 1, 2, 3};
+        byte[] response = concatenate(
+                "{\"type\":\"audio-start\",\"data\":{\"rate\":8000,\"width\":2,\"channels\":1}}\n"
+                        .getBytes(StandardCharsets.UTF_8),
+                "{\"type\":\"audio-chunk\",\"data\":{\"rate\":8000,\"width\":2,\"channels\":1},\"payload_length\":4}\n"
+                        .getBytes(StandardCharsets.UTF_8), pcm,
+                "{\"type\":\"audio-stop\"}\n".getBytes(StandardCharsets.UTF_8));
+        var properties = AudioSynthesisProperties.builder().build();
+        try (var server = respondWith(response)) {
+            byte[] wav = createClient(server.host(), server.port(), properties).synthesize("Hello").wavContent();
+
+            assertEquals(8000, ByteBuffer.wrap(wav).order(ByteOrder.LITTLE_ENDIAN).getInt(24));
+            assertArrayEquals(pcm, Arrays.copyOfRange(wav, 44, wav.length));
+            server.awaitCompletion();
+        }
+        assertProviderFailure(properties,
+                "{\"type\":\"error\",\"data\":{\"text\":\"Voice unavailable\",\"code\":\"voice_missing\"}}\n"
+                        .getBytes(StandardCharsets.UTF_8), "Piper returned an error: Voice unavailable");
     }
 
     @Test

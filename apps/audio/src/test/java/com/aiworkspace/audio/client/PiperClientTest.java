@@ -47,6 +47,7 @@ class PiperClientTest {
                 limitedProperties, new AudioValidator(limitedProperties), scheduler);
         for (String header : List.of(
                 "x".repeat(129),
+                "{\"type\":\"error\",\"data\":{\"text\":\"" + "x".repeat(129) + "\"}}\n",
                 "{\"type\":\"future-event\",\"data_length\":17}\n",
                 "{\"type\":\"audio-chunk\",\"data_length\":16,\"payload_length\":5}\n",
                 "{\"type\":\"audio-chunk\",\"payload_length\":2147483647}\n"
@@ -61,6 +62,82 @@ class PiperClientTest {
         exactHeader += " ".repeat(128 - exactHeader.length()) + "\n";
         assertEquals("audio-stop", limitedClient.readEvent(
                 new ByteArrayInputStream(exactHeader.getBytes(StandardCharsets.UTF_8))).type());
+    }
+
+    @Test
+    void readsInlineMetadataWithoutAdditionalDataAndPreservesBinaryFraming() throws Exception {
+        byte[] pcm = {0, 127, (byte) 255, '\n'};
+        var stream = new ByteArrayOutputStream();
+        stream.write(buildEvent("audio-start", "{\"rate\":22050,\"width\":2,\"channels\":1,\"extra\":true}", null, new byte[0]));
+        stream.write(buildEvent("audio-chunk", "{\"rate\":22050,\"width\":2,\"channels\":1}", null, pcm));
+        stream.write(buildEvent("audio-stop", "{\"timestamp\":100}", null, new byte[0]));
+        var input = new ByteArrayInputStream(stream.toByteArray());
+
+        assertEquals(new PcmAudioFormat(22050, 2, 1), client.readEvent(input).audioFormat());
+        assertArrayEquals(pcm, client.readEvent(input).payload());
+        assertEquals("audio-stop", client.readEvent(input).type());
+        assertEquals(0, input.available());
+    }
+
+    @Test
+    void mergesAdditionalMetadataOverInlineValuesBeforeValidatingAudioFormat() throws Exception {
+        var input = new ByteArrayInputStream(buildEvent("audio-start",
+                "{\"rate\":22050.5,\"width\":2,\"extra\":{\"nested\":true}}",
+                "{\"rate\":16000,\"channels\":2}", new byte[0]));
+
+        assertEquals(new PcmAudioFormat(16000, 2, 2), client.readEvent(input).audioFormat());
+        assertEquals(0, input.available());
+    }
+
+    @Test
+    void readsInlineErrorsAndOverridesOnlyKeysInAdditionalMetadata() throws Exception {
+        var inlineInput = new ByteArrayInputStream(buildEvent("error",
+                "{\"text\":\"Voice unavailable — retry\",\"code\":\"voice_missing\"}", null, new byte[0]));
+        var inlineError = client.readEvent(inlineInput).error();
+        assertEquals("Voice unavailable — retry", inlineError.text());
+        assertEquals("voice_missing", inlineError.code());
+
+        var mixedInput = new ByteArrayInputStream(buildEvent("error",
+                "{\"text\":\"Inline error\",\"code\":\"voice_missing\"}", "{\"text\":\"Additional error\"}", new byte[0]));
+        var mixedError = client.readEvent(mixedInput).error();
+        assertEquals("Additional error", mixedError.text());
+        assertEquals("voice_missing", mixedError.code());
+
+        var nullInput = new ByteArrayInputStream(buildEvent("error",
+                "{\"text\":\"Inline error\",\"code\":\"voice_missing\"}", "{\"text\":null}", new byte[0]));
+        var nullError = client.readEvent(nullInput).error();
+        assertNull(nullError.text());
+        assertEquals("voice_missing", nullError.code());
+    }
+
+    @Test
+    void validatesInlineAudioFormatsAndExplicitOverrides() throws Exception {
+        for (String metadata : List.of(
+                "{}", "{\"rate\":0,\"width\":2,\"channels\":1}",
+                "{\"rate\":22050.5,\"width\":2,\"channels\":1}",
+                "{\"rate\":22050,\"width\":3,\"channels\":1}",
+                "{\"rate\":22050,\"width\":2,\"channels\":0}"
+        )) {
+            var input = new ByteArrayInputStream(buildEvent("audio-start", metadata, null, new byte[0]));
+            assertThrows(IOException.class, () -> client.readEvent(input));
+        }
+        for (String additional : List.of("{\"rate\":null}", "{\"rate\":22050.5}")) {
+            var input = new ByteArrayInputStream(buildEvent("audio-start",
+                    "{\"rate\":22050,\"width\":2,\"channels\":1}", additional, new byte[0]));
+            assertThrows(IOException.class, () -> client.readEvent(input));
+        }
+    }
+
+    @Test
+    void rejectsMetadataThatIsNotAJsonObject() throws Exception {
+        for (String malformed : List.of("[]", "1", "\"text\"")) {
+            var inlineInput = new ByteArrayInputStream(buildEvent("error", malformed, null, new byte[0]));
+            assertThrows(IOException.class, () -> client.readEvent(inlineInput));
+        }
+        for (String malformed : List.of("null", "[]", "1", "\"text\"", "{invalid}")) {
+            var additionalInput = new ByteArrayInputStream(buildEvent("error", "{}", malformed, new byte[0]));
+            assertThrows(IOException.class, () -> client.readEvent(additionalInput));
+        }
     }
 
     @Test
@@ -201,9 +278,15 @@ class PiperClientTest {
     }
 
     private byte[] buildEvent(String type, String data, byte[] payload) throws IOException {
-        byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
-        String header = "{\"type\":\"%s\",\"version\":\"1.8.0\",\"data_length\":%d,\"payload_length\":%d,\"extra\":true}\n"
-                .formatted(type, dataBytes.length, payload.length);
+        return buildEvent(type, null, data, payload);
+    }
+
+    private byte[] buildEvent(String type, String inlineData, String additionalData, byte[] payload) throws IOException {
+        byte[] dataBytes = additionalData == null ? new byte[0] : additionalData.getBytes(StandardCharsets.UTF_8);
+        String header = "{\"type\":\"%s\",\"version\":\"1.8.0\",\"payload_length\":%d%s%s,\"extra\":true}\n"
+                .formatted(type, payload.length,
+                        inlineData == null ? "" : ",\"data\":" + inlineData,
+                        additionalData == null ? "" : ",\"data_length\":" + dataBytes.length);
         var event = new ByteArrayOutputStream();
         event.write(header.getBytes(StandardCharsets.UTF_8));
         event.write(dataBytes);

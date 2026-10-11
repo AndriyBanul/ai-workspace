@@ -1,5 +1,19 @@
 # Active Handoff
 
+## Inline Wyoming event metadata (2026-10-11)
+
+- Piper accepts header `data` objects as well as separate metadata blocks. The
+  protocol envelope captures free-form metadata, merges additional keys over
+  inline keys (including explicit nulls), and then reads typed audio/error records.
+  Audio format validation runs after the merge and still rejects fractional values.
+- Inline metadata remains subject to the header byte limit; additional metadata
+  and binary payload limits are checked before allocation. Malformed metadata
+  objects are rejected, and byte framing remains independent of metadata parsing.
+- Added parsing and socket regression coverage for inline audio and errors,
+  mixed-field precedence, invalid overrides, and unchanged resource limits.
+  Audio production/test compilation and module-boundary checks pass. Tests were
+  not run, per Andrii's preferences.
+
 ## Bounded speech synthesis (2026-10-11)
 
 - Added typed, validated synthesis configuration with defaults of 3,000 Unicode
